@@ -1,13 +1,16 @@
 {
   "name": "racktrack-client",
   "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "lint": "eslint src --max-warnings=99999",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --max-warnings=570",
     "format": "prettier --write \"src/**/*.{js,jsx,css}\"",
     "build:mobile": "node scripts/check-api-base.mjs && vite build",
     "sync:ios": "npm run build:mobile && npx cap sync ios"
@@ -38,8 +41,10 @@
     "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-basic-ssl": "^1.2.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",

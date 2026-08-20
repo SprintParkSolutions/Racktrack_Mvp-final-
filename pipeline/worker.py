@@ -41,13 +41,20 @@ def emit(obj):
 
 
 log("importing pipeline modules (slow, one-time)")
-from pipeline import runner  # noqa: E402
-from pipeline.quality_check import check_tilt, check_letterbox, check_side_view, check_occlusion  # noqa: E402
-from pipeline.occlusion_model import classify_occlusion  # noqa: E402
-from pipeline.detection import load_model, detect_devices_seg, normalize_class_name  # noqa: E402
-from pipeline.cable import load_cable_model, load_port_identify_model  # noqa: E402
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
+
+from pipeline import runner  # noqa: E402
+from pipeline.cable import load_cable_model, load_port_identify_model  # noqa: E402
+from pipeline.detection import load_model, normalize_class_name  # noqa: E402
+from pipeline.occlusion_model import classify_occlusion  # noqa: E402
+from pipeline.quality_check import (  # noqa: E402
+    check_letterbox,
+    check_occlusion,
+    check_side_view,
+    check_tilt,
+)
+
 
 # Ultralytics monkey-patches cv2.imread to use np.fromfile (multilang filename
 # support). On Python 3.13 + Windows, np.fromfile raises
@@ -68,12 +75,15 @@ def _safe_imread(filename, flags=cv2.IMREAD_COLOR):
         im = im[..., None]
     return im
 
+
 cv2.imread = _safe_imread
 log("cv2.imread patched to open()+imdecode (bypasses ultralytics np.fromfile)")
 
 
-QUALITY_ERROR = ("Please upload a clearer photo of the rack — keep the camera "
-                 "steady and make sure the full rack fits in the frame.")
+QUALITY_ERROR = (
+    "Please upload a clearer photo of the rack — keep the camera "
+    "steady and make sure the full rack fits in the frame."
+)
 
 
 def preload_models(config_path):
@@ -161,7 +171,8 @@ def handle_detect_only(req):
     responsible for any back-scaling to its source resolution.
     """
     import json as _json
-    img_path    = req.get("image_path")
+
+    img_path = req.get("image_path")
     config_path = req.get("config_path")
     if not img_path or not os.path.exists(img_path):
         return {"ok": False, "error": "image_path missing"}
@@ -203,9 +214,9 @@ def handle_detect_only(req):
 
     devices = []
     if results and results[0].boxes is not None and len(results[0].boxes) > 0:
-        xyxy    = results[0].boxes.xyxy.cpu().numpy()
+        xyxy = results[0].boxes.xyxy.cpu().numpy()
         cls_ids = results[0].boxes.cls.cpu().numpy().astype(int)
-        scores  = results[0].boxes.conf.cpu().numpy()
+        scores = results[0].boxes.conf.cpu().numpy()
         for box, cid, score in zip(xyxy, cls_ids, scores):
             x1, y1, x2, y2 = [int(v) for v in box]
             if (x2 - x1) < 10 or (y2 - y1) < 10:
@@ -213,22 +224,27 @@ def handle_detect_only(req):
             cn = normalize_class_name(str(names.get(int(cid), cid)))
             if cn in ("Empty", "Closed Unit", "Unidentified"):
                 continue
-            devices.append({
-                "class_name": cn,
-                "confidence": float(score),
-                "bbox":       [x1, y1, x2 - x1, y2 - y1],
-                "box":        [x1, y1, x2, y2],
-            })
+            devices.append(
+                {
+                    "class_name": cn,
+                    "confidence": float(score),
+                    "bbox": [x1, y1, x2 - x1, y2 - y1],
+                    "box": [x1, y1, x2, y2],
+                }
+            )
 
     return {"ok": True, "devices": devices, "image_size": {"w": w, "h": h}}
 
 
 def handle_extract_best_frame(req):
     from pipeline.frame_selector import extract_best_frame
+
     frame = extract_best_frame(req["video_path"])
     if frame is None:
-        return {"ok": False,
-                "error": "Could not read a usable frame from the video. Please record a clearer video of the rack."}
+        return {
+            "ok": False,
+            "error": "Could not read a usable frame from the video. Please record a clearer video of the rack.",
+        }
     output_path = req["output_path"]
     if not cv2.imwrite(output_path, frame):
         return {"ok": False, "error": f"Failed to write extracted frame to {output_path}"}
@@ -238,8 +254,10 @@ def handle_extract_best_frame(req):
 def handle_split_video_racks(req):
     """Split a multi-rack pan video into one best-frame per detected rack.
     Returns a list of {position, label, best_frame_path, ...}. The Node
-    server then runs the existing single-rack analyze() on each path."""
+    server then runs the existing single-rack analyze() on each path.
+    """
     from pipeline.multi_rack_split import split_video_into_racks
+
     video_path = req["video_path"]
     output_dir = req.get("output_dir")
     # Forward config_path like every other handler. The server sends it and the
@@ -250,13 +268,14 @@ def handle_split_video_racks(req):
     # inert until this line existed.
     config_path = req.get("config_path")
     try:
-        racks = split_video_into_racks(video_path, output_dir=output_dir,
-                                       config_path=config_path)
+        racks = split_video_into_racks(video_path, output_dir=output_dir, config_path=config_path)
     except Exception as e:
         return {"ok": False, "error": f"multi-rack split failed: {e}"}
     if not racks:
-        return {"ok": False,
-                "error": "No racks detected in the video. Please re-record a clear pan across the racks."}
+        return {
+            "ok": False,
+            "error": "No racks detected in the video. Please re-record a clear pan across the racks.",
+        }
     return {"ok": True, "racks": racks, "count": len(racks)}
 
 
@@ -272,6 +291,7 @@ def handle_closeup_ocr(req):
     that never sees a close-up should not carry the OCR models in memory.
     """
     from pipeline.ocr_closeup import run as closeup_run
+
     image_path = req.get("image_path")
     if not image_path or not os.path.exists(image_path):
         return {"ok": False, "error": "image_path missing"}
@@ -288,12 +308,14 @@ def handle_closeup_ocr(req):
 
 def handle_relabel_port_count(req):
     """Re-detect ports for one device with a user-supplied target count.
-    Updates that device's entry in device_unit_map.json and returns it."""
+    Updates that device's entry in device_unit_map.json and returns it.
+    """
     import json as _json
-    rack_dir     = req["rack_dir"]
+
+    rack_dir = req["rack_dir"]
     device_index = int(req["device_index"])
     target_count = int(req["target_count"])
-    config_path  = req["config_path"]
+    config_path = req["config_path"]
 
     map_path = os.path.join(rack_dir, "device_unit_map.json")
     if not os.path.exists(map_path):
@@ -352,7 +374,10 @@ def handle_relabel_port_count(req):
             classified["main_ports"] = mp
     else:
         classified = classify_ports_with_target_count(
-            crop, port_model, target_count, conf=ports_conf,
+            crop,
+            port_model,
+            target_count,
+            conf=ports_conf,
             status_model=pp_port_model,
         )
 
@@ -394,26 +419,30 @@ def handle_relabel_port_count(req):
             for r in range(rows):
                 cy = int(cell_h * (r + 0.5))
                 py1, py2 = max(0, int(cy - cell_h * 0.34)), min(crop_h, int(cy + cell_h * 0.34))
-                grid.append({
-                    "index": idx,
-                    "box": [px1, py1, px2, py2],
-                    "center": [cx, cy],
-                    "status": _status_near(cx, cy),
-                    "class_name": "synthesized",
-                    "confidence": 0.0,
-                    "port_category": "main",
-                    "inferred": True,
-                    "synthesized": True,
-                })
+                grid.append(
+                    {
+                        "index": idx,
+                        "box": [px1, py1, px2, py2],
+                        "center": [cx, cy],
+                        "status": _status_near(cx, cy),
+                        "class_name": "synthesized",
+                        "confidence": 0.0,
+                        "port_category": "main",
+                        "inferred": True,
+                        "synthesized": True,
+                    }
+                )
                 idx += 1
         main_ports = grid
         classified["main_ports"] = main_ports
-        log(f"relabel_port_count: laid out {target_count} ports ({rows} row(s)) "
-            f"for {device.get('class_name')} (model found {len(real)})")
-    device["port_count"]      = len(main_ports)
-    device["ports"]           = main_ports
-    device["console_ports"]   = classified.get("console_ports", [])
-    device["sfp_ports"]       = classified.get("sfp_ports", [])
+        log(
+            f"relabel_port_count: laid out {target_count} ports ({rows} row(s)) "
+            f"for {device.get('class_name')} (model found {len(real)})"
+        )
+    device["port_count"] = len(main_ports)
+    device["ports"] = main_ports
+    device["console_ports"] = classified.get("console_ports", [])
+    device["sfp_ports"] = classified.get("sfp_ports", [])
     device["connected_ports"] = [p for p in main_ports if p.get("status") == "connected"]
     device["port_count_source"] = "user_relabeled"
 
@@ -435,6 +464,7 @@ def handle_relabel_port_count(req):
     image_updated = False
     try:
         from pipeline.port import draw_classified
+
         images_dir = os.path.join(rack_dir, "images")
         os.makedirs(images_dir, exist_ok=True)
         hi = None
@@ -468,7 +498,8 @@ def _queue_low_confidence_samples(image_path, output_dir):
 
     The queued samples flow through the same retraining pipeline as
     user corrections. Operators can then label them via the Flask UIs
-    and they'll be picked up by the next retrain cycle."""
+    and they'll be picked up by the next retrain cycle.
+    """
     try:
         # Lazy import so the worker boot doesn't pay this cost
         sys_path_added = False
@@ -481,14 +512,17 @@ def _queue_low_confidence_samples(image_path, output_dir):
             from active_learning_Cache.store import Store
         finally:
             if sys_path_added:
-                try: sys.path.remove(repo_root)
-                except ValueError: pass
+                try:
+                    sys.path.remove(repo_root)
+                except ValueError:
+                    pass
 
         import json as _json
+
         map_path = os.path.join(output_dir, "device_unit_map.json")
         if not os.path.exists(map_path):
             return
-        with open(map_path, "r", encoding="utf-8") as f:
+        with open(map_path, encoding="utf-8") as f:
             data = _json.load(f)
 
         thr_dev = al_cfg.LOW_CONF_THRESHOLDS.get("devices", 0.0)
@@ -498,21 +532,22 @@ def _queue_low_confidence_samples(image_path, output_dir):
         # Lazy load the source image so we can crop low-conf devices
         try:
             import cv2 as _cv2
+
             src = _cv2.imread(image_path)
         except Exception:
             src = None
 
         store = Store("devices")
         low_conf_devices = [
-            d for d in (data.get("devices") or [])
-            if isinstance(d.get("confidence"), (int, float))
-            and d["confidence"] < thr_dev
+            d
+            for d in (data.get("devices") or [])
+            if isinstance(d.get("confidence"), (int, float)) and d["confidence"] < thr_dev
         ]
         for d in low_conf_devices:
             box = d.get("box") or []
             if src is not None and len(box) == 4:
                 x1, y1, x2, y2 = [int(v) for v in box]
-                crop = src[max(0, y1):y2, max(0, x1):x2]
+                crop = src[max(0, y1) : y2, max(0, x1) : x2]
                 if crop.size > 0:
                     ok, encoded = _cv2.imencode(".jpg", crop, [_cv2.IMWRITE_JPEG_QUALITY, 88])
                     img_bytes = encoded.tobytes() if ok else None
@@ -522,26 +557,28 @@ def _queue_low_confidence_samples(image_path, output_dir):
                 img_bytes = None
 
             try:
-                store.add({
-                    "source":    "low_confidence",
-                    "predicted": {
-                        "class":      d.get("class_name"),
-                        "confidence": float(d["confidence"]),
+                store.add(
+                    {
+                        "source": "low_confidence",
+                        "predicted": {
+                            "class": d.get("class_name"),
+                            "confidence": float(d["confidence"]),
+                        },
+                        "actual": {},  # operator fills via Flask / React
+                        "metadata": {
+                            "device_box": box,
+                            "image_path": image_path,
+                            "threshold": thr_dev,
+                        },
                     },
-                    "actual":    {},  # operator fills via Flask / React
-                    "metadata":  {
-                        "device_box": box,
-                        "image_path": image_path,
-                        "threshold":  thr_dev,
-                    },
-                }, image_bytes=img_bytes)
+                    image_bytes=img_bytes,
+                )
             except Exception as e:
                 # Don't let the AL queue cap us blocking the analyze
                 log(f"AL low-conf queue rejected: {e}")
                 break
         if low_conf_devices:
-            log(f"AL: queued {len(low_conf_devices)} low-conf devices "
-                f"(threshold={thr_dev})")
+            log(f"AL: queued {len(low_conf_devices)} low-conf devices (threshold={thr_dev})")
     except Exception as e:
         # Anything goes wrong → swallow. Active learning is a side-channel,
         # never a hard dependency of the analyze response.
@@ -551,9 +588,12 @@ def _queue_low_confidence_samples(image_path, output_dir):
 def handle_pipeline(req):
     argv = [
         "pipeline.runner",
-        "--image", req["image_path"],
-        "--config", req["config_path"],
-        "--output_dir", req["output_dir"],
+        "--image",
+        req["image_path"],
+        "--config",
+        req["config_path"],
+        "--output_dir",
+        req["output_dir"],
     ]
     if req.get("command") == "analyze":
         argv.append("--detect_only")
@@ -613,7 +653,9 @@ def handle_pipeline(req):
         # worker output — otherwise only str(e) propagates to the client.
         tb = traceback.format_exc()
         captured_tail = buf.getvalue()[-2000:]
-        log(f"pipeline FAILED: {e.__class__.__name__}: {e}\n--- captured stdout tail ---\n{captured_tail}\n--- traceback ---\n{tb}")
+        log(
+            f"pipeline FAILED: {e.__class__.__name__}: {e}\n--- captured stdout tail ---\n{captured_tail}\n--- traceback ---\n{tb}"
+        )
         return {"ok": False, "error": str(e), "trace": tb}
     finally:
         sys.argv = old_argv
@@ -627,12 +669,16 @@ def handle_extract_ticket(req):
     Also auto-records the prediction into the feedback-loop state file so
     later resolution-feedback can score the agent's accuracy.
     """
+    import json as _json
+
     from pipeline.agent import (
-        extract_incident, build_reasoning, _format_work_note,
-        _analysis_hash, POST_CONFIDENCE_FLOOR,
+        POST_CONFIDENCE_FLOOR,
+        _analysis_hash,
+        _format_work_note,
+        build_reasoning,
+        extract_incident,
     )
     from pipeline.agent_feedback import record_prediction
-    import json as _json
 
     text = req.get("text") or ""
     cmdb_facts = req.get("cmdb_facts") or {}
@@ -658,12 +704,12 @@ def handle_extract_ticket(req):
             last_scan = None
 
     ticket = {
-        "incident_number":   inc_number,
-        "sys_id":            req.get("sys_id"),
+        "incident_number": inc_number,
+        "sys_id": req.get("sys_id"),
         "short_description": req.get("short_description"),
-        "priority":          req.get("priority"),
-        "cmdb":              cmdb_facts,
-        "extracted":         extracted,
+        "priority": req.get("priority"),
+        "cmdb": cmdb_facts,
+        "extracted": extracted,
     }
     reasoning = build_reasoning(ticket, extracted, cmdb_facts, last_scan=last_scan)
     ticket["reasoning"] = reasoning
@@ -680,12 +726,12 @@ def handle_extract_ticket(req):
     return {
         "ok": True,
         "extraction": extracted,
-        "reasoning":  reasoning,
+        "reasoning": reasoning,
         "work_note_preview": {
-            "text":       work_note,
+            "text": work_note,
             "would_post": bool(would_post),
-            "status":     status,
-            "hash":       _analysis_hash(extracted, reasoning),
+            "status": status,
+            "hash": _analysis_hash(extracted, reasoning),
         },
     }
 
@@ -696,12 +742,13 @@ def handle_extract_ticket(req):
 # These are passed from the Node server (loaded from server/.env or
 # s_agent/.env). Worker never reads SN creds from env directly.
 
+
 def _sn_context(req):
     """Returns (sn_base, sn_auth, sn_headers) or (None, None, None) when creds missing."""
     creds = req.get("sn_creds") or {}
     inst = creds.get("instance")
     user = creds.get("user")
-    pw   = creds.get("password")
+    pw = creds.get("password")
     if not (inst and user and pw):
         return None, None, None
     base = f"https://{inst}.service-now.com/api/now"
@@ -711,18 +758,26 @@ def _sn_context(req):
 def handle_feedback_scoreboard(req):
     """Return the agent accuracy scoreboard (no SN call — local state only)."""
     from pipeline.agent_feedback import get_scoreboard
+
     return {"ok": True, "scoreboard": get_scoreboard()}
 
 
 def handle_feedback_refresh(req):
     """Fetch recently resolved incidents from SN, evaluate them, return both
-    the per-incident evaluations and the updated scoreboard."""
-    from pipeline.agent_feedback import process_resolved_incidents, get_scoreboard
+    the per-incident evaluations and the updated scoreboard.
+    """
+    from pipeline.agent_feedback import get_scoreboard, process_resolved_incidents
+
     sn_base, sn_auth, sn_headers = _sn_context(req)
     if not sn_base:
-        return {"ok": False, "error": "ServiceNow credentials not configured (set SN_INSTANCE/SN_USER/SN_PASSWORD)"}
+        return {
+            "ok": False,
+            "error": "ServiceNow credentials not configured (set SN_INSTANCE/SN_USER/SN_PASSWORD)",
+        }
     try:
-        evaluations = process_resolved_incidents(sn_base, sn_auth, sn_headers, limit=int(req.get("limit") or 50))
+        evaluations = process_resolved_incidents(
+            sn_base, sn_auth, sn_headers, limit=int(req.get("limit") or 50)
+        )
     except Exception as exc:
         return {"ok": False, "error": f"feedback refresh failed: {exc}"}
     return {"ok": True, "evaluations": evaluations, "scoreboard": get_scoreboard()}
@@ -731,15 +786,20 @@ def handle_feedback_refresh(req):
 def handle_proactive_cached(req):
     """Return cached proactive insights (no SN call)."""
     from pipeline.agent_proactive import get_cached_insights
+
     return {"ok": True, "insights": get_cached_insights()}
 
 
 def handle_proactive_refresh(req):
     """Regenerate proactive insights from live SN data + return them."""
     from pipeline.agent_proactive import generate_proactive_insights
+
     sn_base, sn_auth, sn_headers = _sn_context(req)
     if not sn_base:
-        return {"ok": False, "error": "ServiceNow credentials not configured (set SN_INSTANCE/SN_USER/SN_PASSWORD)"}
+        return {
+            "ok": False,
+            "error": "ServiceNow credentials not configured (set SN_INSTANCE/SN_USER/SN_PASSWORD)",
+        }
     try:
         insights = generate_proactive_insights(sn_base, sn_auth, sn_headers)
     except Exception as exc:
@@ -759,7 +819,8 @@ def handle_post_work_note(req):
     Returns whatever auto_post_analysis returns:
       { "ok": True, "status": "posted"|"skipped_low_confidence"|... }
     """
-    from pipeline.agent import auto_post_analysis, POST_CONFIDENCE_FLOOR
+    from pipeline.agent import auto_post_analysis
+
     sn_base, sn_auth, sn_headers = _sn_context(req)
     if not sn_base:
         return {"ok": False, "error": "ServiceNow credentials not configured"}
@@ -768,7 +829,10 @@ def handle_post_work_note(req):
     if not ticket.get("sys_id"):
         return {"ok": False, "error": "ticket.sys_id is required"}
     if not ticket.get("extracted") or not ticket.get("reasoning"):
-        return {"ok": False, "error": "ticket must include both 'extracted' and 'reasoning' (run extract_ticket first)"}
+        return {
+            "ok": False,
+            "error": "ticket must include both 'extracted' and 'reasoning' (run extract_ticket first)",
+        }
 
     import requests as _rq
 
@@ -776,9 +840,14 @@ def handle_post_work_note(req):
         """Minimal SN client — only implements add_work_note() because
         that's all auto_post_analysis() calls. Posts via PATCH to the
         incident table with the `work_notes` field. Per SN convention,
-        any string written to work_notes is appended as a new note."""
+        any string written to work_notes is appended as a new note.
+        """
+
         def __init__(self, base, auth, headers):
-            self.base = base; self.auth = auth; self.headers = headers
+            self.base = base
+            self.auth = auth
+            self.headers = headers
+
         def add_work_note(self, sys_id, note_text):
             r = _rq.patch(
                 f"{self.base}/table/incident/{sys_id}",
@@ -798,6 +867,7 @@ def handle_post_work_note(req):
     # both by deleting the posted record for this incident first.
     if req.get("force"):
         from pipeline.agent import _load_posted, _save_posted
+
         inc = ticket.get("incident_number")
         posted = _load_posted()
         if inc in posted:
@@ -861,8 +931,7 @@ def main():
             result["id"] = req_id
             emit(result)
         except Exception as e:
-            emit({"id": req_id, "ok": False, "error": str(e),
-                  "trace": traceback.format_exc()})
+            emit({"id": req_id, "ok": False, "error": str(e), "trace": traceback.format_exc()})
 
 
 if __name__ == "__main__":

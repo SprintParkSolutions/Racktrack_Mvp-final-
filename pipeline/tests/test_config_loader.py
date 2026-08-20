@@ -46,8 +46,7 @@ def test_non_ascii_values_survive_the_round_trip(tmp_path):
     # The loader pins encoding="utf-8"; on Windows the default is cp1252, so an
     # accented path would decode to mojibake (or raise) without that pin.
     p = tmp_path / "utf8.json"
-    p.write_text(json.dumps({"paths": {"output_dir": "outputs/Zürich"}}),
-                 encoding="utf-8")
+    p.write_text(json.dumps({"paths": {"output_dir": "outputs/Zürich"}}), encoding="utf-8")
     assert load_json_config(str(p))["paths"]["output_dir"] == "outputs/Zürich"
 
 

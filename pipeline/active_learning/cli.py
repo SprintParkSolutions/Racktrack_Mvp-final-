@@ -46,7 +46,6 @@ Request shapes (one JSON object per line on stdin):
 from __future__ import annotations
 
 import json
-import os
 import sys
 import traceback
 from pathlib import Path
@@ -137,8 +136,7 @@ def _apply_to_scan(rack_dir: str) -> dict:
     map_path = rd / "device_unit_map.json"
     img_path = rd / "original_image.jpg"
     if not map_path.exists() or not img_path.exists():
-        return {"ok": True, "skipped": True, "reason": "missing inputs",
-                "changes": []}
+        return {"ok": True, "skipped": True, "reason": "missing inputs", "changes": []}
 
     try:
         data = json.loads(map_path.read_text(encoding="utf-8"))
@@ -191,12 +189,14 @@ def _apply_to_scan(rack_dir: str) -> dict:
                     "phash": match.get("phash"),
                 }
                 dev["class_name"] = new
-                changes.append({
-                    "device_index": idx + 1,
-                    "from": old,
-                    "to": new,
-                    "phash": match.get("phash"),
-                })
+                changes.append(
+                    {
+                        "device_index": idx + 1,
+                        "from": old,
+                        "to": new,
+                        "phash": match.get("phash"),
+                    }
+                )
 
     if changes:
         try:
@@ -207,8 +207,10 @@ def _apply_to_scan(rack_dir: str) -> dict:
     # Clean tmp crops
     try:
         for f in tmp_dir.iterdir():
-            try: f.unlink()
-            except OSError: pass
+            try:
+                f.unlink()
+            except OSError:
+                pass
         tmp_dir.rmdir()
     except OSError:
         pass

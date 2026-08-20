@@ -16,17 +16,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from pipeline.cable import FALLBACK_CABLE_CLASSES, classify_cable, parse_cable_type_color
 from pipeline.runner import (
-    resolve_port_occupancy,
-    _clear_port_fields,
-    mark_port_detection_failed,
-    demote_if_no_ports,
     _OCCUPANCY_STATES,
+    _clear_port_fields,
+    demote_if_no_ports,
+    mark_port_detection_failed,
+    resolve_port_occupancy,
 )
-from pipeline.cable import classify_cable, parse_cable_type_color, FALLBACK_CABLE_CLASSES
-
 
 # ── HIGH: occupancy is measured, never guessed from colour confidence ────────
+
 
 def test_resolve_keeps_real_occupancy_states():
     assert resolve_port_occupancy("connected") == "connected"
@@ -98,9 +98,17 @@ def test_occupancy_decision_ignores_the_cable_classifier_entirely():
 
 # ── MEDIUM: a detection crash is distinguishable from a real zero-port device ─
 
+
 def _port_bearing_dev(**extra):
-    dev = {"class_name": "Switch", "box": [10, 20, 110, 60], "units": ["U05"],
-           "ports": [], "console_ports": [], "sfp_ports": [], "other_ports": []}
+    dev = {
+        "class_name": "Switch",
+        "box": [10, 20, 110, 60],
+        "units": ["U05"],
+        "ports": [],
+        "console_ports": [],
+        "sfp_ports": [],
+        "other_ports": [],
+    }
     dev.update(extra)
     return dev
 
@@ -158,13 +166,13 @@ def test_device_with_ports_is_not_demoted():
 
 # ── cable.py pure companion the fix relies on ────────────────────────────────
 
+
 def test_fallback_cable_classes_match_the_weight_count():
     # The whole HIGH argument rests on there being 14 colour classes and no
     # empty class; pin the label list to that count so a future edit that adds
     # a real 'no-cable' class trips this and forces the occupancy logic review.
     assert len(FALLBACK_CABLE_CLASSES) == 14
-    assert not any("empty" in c.lower() or "none" in c.lower()
-                   for c in FALLBACK_CABLE_CLASSES)
+    assert not any("empty" in c.lower() or "none" in c.lower() for c in FALLBACK_CABLE_CLASSES)
 
 
 def test_parse_cable_type_color_round_trips_connector_and_colour():

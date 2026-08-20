@@ -1,0 +1,52 @@
+# CodeQL — GitHub's own deep security analysis.
+#
+# This is deliberately *in addition* to Semgrep (which runs in ci.yml). The two
+# use different engines and catch different things: Semgrep is pattern-based and
+# fast; CodeQL builds a queryable model of the code and traces how untrusted data
+# flows through it, so it finds multi-step issues a pattern can miss.
+#
+# Free for this repository. Results appear under the repo's Security tab.
+name: CodeQL
+
+on:
+  push:
+    branches: [main, july9_full]
+  pull_request:
+  schedule:
+    # Weekly, so newly-published queries run against unchanged code.
+    - cron: '0 7 * * 1'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # required to upload findings
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # security-extended adds lower-severity security queries on top of the
+          # default set — worth it here since neither language is compiled and
+          # the scan is cheap.
+          queries: security-extended
+
+      # No build step: both languages are interpreted, so CodeQL analyses the
+      # source directly.
+      - name: Analyse
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

@@ -1,4 +1,5 @@
 import statistics
+
 """Port detection wrapper — typed-model + status-model flow.
 
 This module replaces the old pattern-based classifier. The model topology is
@@ -38,23 +39,20 @@ Each port_dict carries:
 """
 
 from pipeline.port import (  # re-export so existing imports keep working
-    load_port_model, draw_classified, get_port_detections,
-    infer_port_status, verify_boxes_with_edges, find_rows, get_dx,
-    CONF, BOX_W, BOX_H,
+    CONF,
 )
-
 
 # ports_9 class name → category bucket used by the JSON contract.
 _TYPE_TO_CATEGORY = {
-    'RJ45':            'main',
-    'SFP':             'sfp',
-    'QSFP':            'sfp',
-    'CONSOLE':         'console',
-    'AUX':             'console',
-    'MANAGEMENT_PORT': 'console',
-    'USB_A':           'other',
-    'USB_B':           'other',
-    'USB_C':           'other',
+    "RJ45": "main",
+    "SFP": "sfp",
+    "QSFP": "sfp",
+    "CONSOLE": "console",
+    "AUX": "console",
+    "MANAGEMENT_PORT": "console",
+    "USB_A": "other",
+    "USB_B": "other",
+    "USB_C": "other",
 }
 
 
@@ -70,15 +68,14 @@ def _nms(detections, iou_thresh=0.5, containment_thresh=0.75):
     """
     if not detections:
         return []
-    dets = sorted(detections, key=lambda d: d.get('confidence', 0.0),
-                  reverse=True)
+    dets = sorted(detections, key=lambda d: d.get("confidence", 0.0), reverse=True)
     keep = []
     for d in dets:
-        x1, y1, x2, y2 = d['bbox']
+        x1, y1, x2, y2 = d["bbox"]
         ai = max(1, (x2 - x1) * (y2 - y1))
         drop = False
         for k in keep:
-            kx1, ky1, kx2, ky2 = k['bbox']
+            kx1, ky1, kx2, ky2 = k["bbox"]
             ix1, iy1 = max(x1, kx1), max(y1, ky1)
             ix2, iy2 = min(x2, kx2), min(y2, ky2)
             if ix2 <= ix1 or iy2 <= iy1:
@@ -100,21 +97,24 @@ def _nms(detections, iou_thresh=0.5, containment_thresh=0.75):
 def _detections_from(model, img, conf):
     """Run a YOLO model on `img` and return a list of {bbox, class_name,
     confidence} dicts. NMS not applied here — callers run _nms with their
-    own thresholds."""
+    own thresholds.
+    """
     res = model.predict(img, conf=conf, verbose=False)
     if not res or res[0].boxes is None or len(res[0].boxes) == 0:
         return []
-    names = getattr(model, 'names', {})
+    names = getattr(model, "names", {})
     out = []
     for b in res[0].boxes:
         cid = int(b.cls[0].item())
-        cf  = float(b.conf[0].item())
+        cf = float(b.conf[0].item())
         x1, y1, x2, y2 = (int(v) for v in b.xyxy[0].tolist())
-        out.append({
-            'class_name': str(names.get(cid, cid)),
-            'confidence': cf,
-            'bbox':       [x1, y1, x2, y2],
-        })
+        out.append(
+            {
+                "class_name": str(names.get(cid, cid)),
+                "confidence": cf,
+                "bbox": [x1, y1, x2, y2],
+            }
+        )
     return out
 
 
@@ -130,39 +130,41 @@ def _box_iou(a, b):
 
 
 def _status_from_name(cn):
-    cn = (cn or '').strip().lower()
-    if 'connect' in cn:
-        return 'connected'
-    if 'empty' in cn:
-        return 'empty'
-    return 'unknown'
+    cn = (cn or "").strip().lower()
+    if "connect" in cn:
+        return "connected"
+    if "empty" in cn:
+        return "empty"
+    return "unknown"
 
 
 def _bind_status(typed, status_dets, iou_thresh=0.3):
     """For each typed port, pick the status box with the largest IoU (>= thresh)
-    and copy its status onto the typed port. No match → 'unknown'."""
+    and copy its status onto the typed port. No match → 'unknown'.
+    """
     for tp in typed:
         best_iou = 0.0
         best = None
         for s in status_dets:
-            i = _box_iou(tp['bbox'], s['bbox'])
+            i = _box_iou(tp["bbox"], s["bbox"])
             if i > best_iou:
                 best_iou, best = i, s
-        tp['status'] = (_status_from_name(best['class_name'])
-                        if best is not None and best_iou >= iou_thresh
-                        else 'unknown')
+        tp["status"] = (
+            _status_from_name(best["class_name"])
+            if best is not None and best_iou >= iou_thresh
+            else "unknown"
+        )
 
 
 def _to_port_dict(d, category):
-    x1, y1, x2, y2 = d['bbox']
+    x1, y1, x2, y2 = d["bbox"]
     return {
-        'box':           [int(x1), int(y1), int(x2), int(y2)],
-        'center':        [(int(x1) + int(x2)) // 2,
-                          (int(y1) + int(y2)) // 2],
-        'status':        d.get('status', 'unknown'),
-        'class_name':    d['class_name'],
-        'confidence':    float(d['confidence']),
-        'port_category': category,
+        "box": [int(x1), int(y1), int(x2), int(y2)],
+        "center": [(int(x1) + int(x2)) // 2, (int(y1) + int(y2)) // 2],
+        "status": d.get("status", "unknown"),
+        "class_name": d["class_name"],
+        "confidence": float(d["confidence"]),
+        "port_category": category,
     }
 
 
@@ -182,7 +184,7 @@ ROW_SPLIT_GAP_FACTOR = 0.6
 
 
 def _port_cx(p):
-    x1, _, x2, _ = p['box']
+    x1, _, x2, _ = p["box"]
     return (x1 + x2) / 2.0
 
 
@@ -208,23 +210,24 @@ def _split_into_rows(plist):
 
     enriched = []
     for p in plist:
-        x1, y1, x2, y2 = p['box']
-        enriched.append({'cx': (x1 + x2) / 2.0, 'cy': (y1 + y2) / 2.0,
-                         'h': (y2 - y1), 'w': (x2 - x1), 'p': p})
+        x1, y1, x2, y2 = p["box"]
+        enriched.append(
+            {"cx": (x1 + x2) / 2.0, "cy": (y1 + y2) / 2.0, "h": (y2 - y1), "w": (x2 - x1), "p": p}
+        )
 
-    heights = [e['h'] for e in enriched]
+    heights = [e["h"] for e in enriched]
     avg_h = max(sum(heights) / len(heights) if heights else 1, 1)
 
     # ---- Primary: paired x-columns ------------------------------------
-    by_cx = sorted(enriched, key=lambda e: e['cx'])
-    widths = [e['w'] for e in by_cx]
+    by_cx = sorted(enriched, key=lambda e: e["cx"])
+    widths = [e["w"] for e in by_cx]
     avg_w = max(sum(widths) / len(widths) if widths else 1, 1)
     x_cluster_gap = max(avg_w * COLUMN_GROUP_GAP_FACTOR, 1.0)
 
     x_clusters = []
     cur = [by_cx[0]]
     for e in by_cx[1:]:
-        if e['cx'] - cur[-1]['cx'] <= x_cluster_gap:
+        if e["cx"] - cur[-1]["cx"] <= x_cluster_gap:
             cur.append(e)
         else:
             x_clusters.append(cur)
@@ -235,12 +238,12 @@ def _split_into_rows(plist):
     paired_count = sum(len(c) for c in paired_clusters)
 
     if paired_count / len(enriched) >= ROW_SPLIT_PAIR_FRACTION:
-        top_group = [min(c, key=lambda e: e['cy'])['p'] for c in paired_clusters]
-        bottom_group = [max(c, key=lambda e: e['cy'])['p'] for c in paired_clusters]
-        top_cy_mean = statistics.mean(min(c, key=lambda e: e['cy'])['cy']
-                                      for c in paired_clusters)
-        bottom_cy_mean = statistics.mean(max(c, key=lambda e: e['cy'])['cy']
-                                         for c in paired_clusters)
+        top_group = [min(c, key=lambda e: e["cy"])["p"] for c in paired_clusters]
+        bottom_group = [max(c, key=lambda e: e["cy"])["p"] for c in paired_clusters]
+        top_cy_mean = statistics.mean(min(c, key=lambda e: e["cy"])["cy"] for c in paired_clusters)
+        bottom_cy_mean = statistics.mean(
+            max(c, key=lambda e: e["cy"])["cy"] for c in paired_clusters
+        )
 
         # An x-cluster that ISN'T a clean pair (a port with no match on the
         # other row — e.g. a couple of extra uplink ports) still has to land
@@ -249,28 +252,28 @@ def _split_into_rows(plist):
             if len(c) == 2:
                 continue
             for e in c:
-                if abs(e['cy'] - top_cy_mean) <= abs(e['cy'] - bottom_cy_mean):
-                    top_group.append(e['p'])
+                if abs(e["cy"] - top_cy_mean) <= abs(e["cy"] - bottom_cy_mean):
+                    top_group.append(e["p"])
                 else:
-                    bottom_group.append(e['p'])
+                    bottom_group.append(e["p"])
 
         if top_group and bottom_group:
             return [top_group, bottom_group]
 
     # ---- Fallback: a single dominant y-gap ----------------------------
-    enriched.sort(key=lambda e: e['cy'])
-    cys = [e['cy'] for e in enriched]
+    enriched.sort(key=lambda e: e["cy"])
+    cys = [e["cy"] for e in enriched]
     gaps = [cys[i] - cys[i - 1] for i in range(1, len(cys))]
     max_gap = max(gaps)
     split_idx = gaps.index(max_gap) + 1
 
     if max_gap > avg_h * ROW_SPLIT_GAP_FACTOR:
-        top = [e['p'] for e in enriched[:split_idx]]
-        bottom = [e['p'] for e in enriched[split_idx:]]
+        top = [e["p"] for e in enriched[:split_idx]]
+        bottom = [e["p"] for e in enriched[split_idx:]]
         if top and bottom:
             return [top, bottom]
 
-    return [[e['p'] for e in enriched]]
+    return [[e["p"] for e in enriched]]
 
 
 def _group_into_columns(top_row, bottom_row):
@@ -289,14 +292,14 @@ def _group_into_columns(top_row, bottom_row):
     if not top_row and not bottom_row:
         return []
     if not top_row:
-        return sorted(bottom_row, key=lambda p: (_port_cx(p), p['box'][1]))
+        return sorted(bottom_row, key=lambda p: (_port_cx(p), p["box"][1]))
     if not bottom_row:
-        return sorted(top_row, key=lambda p: (_port_cx(p), p['box'][1]))
+        return sorted(top_row, key=lambda p: (_port_cx(p), p["box"][1]))
 
     top_sorted = sorted(top_row, key=_port_cx)
     bottom_sorted = sorted(bottom_row, key=_port_cx)
 
-    widths = [(p['box'][2] - p['box'][0]) for p in top_sorted + bottom_sorted]
+    widths = [(p["box"][2] - p["box"][0]) for p in top_sorted + bottom_sorted]
     avg_w = max(sum(widths) / len(widths) if widths else 1, 1)
     cluster_gap = max(avg_w * COLUMN_GROUP_GAP_FACTOR, 1.0)
 
@@ -325,44 +328,45 @@ def _group_into_columns(top_row, bottom_row):
     for ti, t in enumerate(top_sorted):
         bi = matched_bottom_for_top.get(ti)
         b = bottom_sorted[bi] if bi is not None else None
-        columns.append({'x': _port_cx(t), 'top': t, 'bottom': b})
+        columns.append({"x": _port_cx(t), "top": t, "bottom": b})
     # …plus any bottom that didn't get matched to a top as its own column.
     for bi, b in enumerate(bottom_sorted):
         if bi not in used_bottoms:
-            columns.append({'x': _port_cx(b), 'top': None, 'bottom': b})
+            columns.append({"x": _port_cx(b), "top": None, "bottom": b})
 
-    columns.sort(key=lambda c: c['x'])
+    columns.sort(key=lambda c: c["x"])
 
     ordered = []
     for col in columns:
-        if col['top'] is not None:
-            ordered.append(col['top'])
-        if col['bottom'] is not None:
-            ordered.append(col['bottom'])
+        if col["top"] is not None:
+            ordered.append(col["top"])
+        if col["bottom"] is not None:
+            ordered.append(col["bottom"])
     return ordered
 
 
 def _ordered_ports(plist):
     """Reading order for a single category bucket: a lone row goes strictly
-    left→right; a two-row block is interleaved column-major."""
+    left→right; a two-row block is interleaved column-major.
+    """
     if not plist:
         return []
     rows = _split_into_rows(plist)
     if len(rows) == 1:
         return sorted(rows[0], key=_port_cx)
     top, bottom = rows
-    return _group_into_columns(sorted(top, key=_port_cx),
-                               sorted(bottom, key=_port_cx))
+    return _group_into_columns(sorted(top, key=_port_cx), sorted(bottom, key=_port_cx))
 
 
 def _index_in_place(plist):
     """Number ports 1..N in row-aware column-major order AND reorder the list so
     list position == assigned index. Detections arrive in confidence order from
     _nms, but callers select ports by list position (cat_list[port_number-1]),
-    so the list must be re-sorted to spatial order or the wrong port is picked."""
+    so the list must be re-sorted to spatial order or the wrong port is picked.
+    """
     ordered = _ordered_ports(plist)
     for i, p in enumerate(ordered, 1):
-        p['index'] = i
+        p["index"] = i
     plist[:] = ordered
 
 
@@ -370,19 +374,21 @@ def _index_left_to_right(plist):
     """Number ports 1..N strictly left→right by x-center — a single sequence
     (P01, P02, …). Used for patch panels and PDU outlets, which are one row of
     identical jacks, so the column-major/two-row logic doesn't apply. Reorders
-    the list in place so list position == index (callers select by position)."""
-    ordered = sorted(plist, key=lambda q: q['center'][0])
+    the list in place so list position == index (callers select by position).
+    """
+    ordered = sorted(plist, key=lambda q: q["center"][0])
     for i, p in enumerate(ordered, 1):
-        p['index'] = i
+        p["index"] = i
     plist[:] = ordered
 
 
 def _bucket_and_index(typed_with_status):
     """Partition typed-with-status detections into the four buckets the
-    JSON contract uses, and assign per-bucket 1..N column-major indexes."""
-    buckets = {'main': [], 'sfp': [], 'console': [], 'other': []}
+    JSON contract uses, and assign per-bucket 1..N column-major indexes.
+    """
+    buckets = {"main": [], "sfp": [], "console": [], "other": []}
     for d in typed_with_status:
-        cat = _TYPE_TO_CATEGORY.get(d['class_name'], 'main')
+        cat = _TYPE_TO_CATEGORY.get(d["class_name"], "main")
         buckets[cat].append(_to_port_dict(d, cat))
     for plist in buckets.values():
         _index_in_place(plist)
@@ -391,10 +397,12 @@ def _bucket_and_index(typed_with_status):
 
 def _empty_result():
     return {
-        'console_ports': [], 'main_ports': [], 'sfp_ports': [],
-        'other_ports': [], 'all_boxes': [],
-        'pattern_info': {'main_cluster_size': 0, 'num_clusters': 0,
-                         'cluster_sizes': []},
+        "console_ports": [],
+        "main_ports": [],
+        "sfp_ports": [],
+        "other_ports": [],
+        "all_boxes": [],
+        "pattern_info": {"main_cluster_size": 0, "num_clusters": 0, "cluster_sizes": []},
     }
 
 
@@ -402,17 +410,20 @@ def _empty_result():
 # Public API
 # ────────────────────────────────────────────────────────────────
 
+
 def status_detections(status_model, img, conf=CONF):
     """Run the status model (port_count.pt) and return its connected/empty
     boxes. Exposed so a caller can run it ONCE and reuse the detections for
-    both model-detected ports and code-drawn (synthesized) ones."""
+    both model-detected ports and code-drawn (synthesized) ones.
+    """
     if status_model is None:
         return []
     return _nms(_detections_from(status_model, img, conf=conf), iou_thresh=0.5)
 
 
-def classify_ports_by_pattern(img, model, conf=CONF, skip_first_n_ports=0,
-                              status_model=None, status_dets=None):
+def classify_ports_by_pattern(
+    img, model, conf=CONF, skip_first_n_ports=0, status_model=None, status_dets=None
+):
     """Detect typed ports + bind a status to each, return the legacy bucket
     shape. `model` is ports_9.pt; `status_model` is port_count.pt.
 
@@ -430,24 +441,22 @@ def classify_ports_by_pattern(img, model, conf=CONF, skip_first_n_ports=0,
         _bind_status(typed, status_dets, iou_thresh=0.3)
     else:
         for tp in typed:
-            tp['status'] = 'unknown'
+            tp["status"] = "unknown"
 
     if not typed:
         return _empty_result()
 
     buckets = _bucket_and_index(typed)
     return {
-        'main_ports':    buckets['main'],
-        'sfp_ports':     buckets['sfp'],
-        'console_ports': buckets['console'],
-        'other_ports':   buckets['other'],
-        'all_boxes':     [p['box'] for plist in buckets.values() for p in plist],
-        'pattern_info':  {
-            'main_cluster_size': len(buckets['main']),
-            'num_clusters':      sum(1 for k in ('main', 'sfp', 'console')
-                                      if buckets[k]),
-            'cluster_sizes':     [len(buckets[k]) for k in
-                                  ('main', 'sfp', 'console')],
+        "main_ports": buckets["main"],
+        "sfp_ports": buckets["sfp"],
+        "console_ports": buckets["console"],
+        "other_ports": buckets["other"],
+        "all_boxes": [p["box"] for plist in buckets.values() for p in plist],
+        "pattern_info": {
+            "main_cluster_size": len(buckets["main"]),
+            "num_clusters": sum(1 for k in ("main", "sfp", "console") if buckets[k]),
+            "cluster_sizes": [len(buckets[k]) for k in ("main", "sfp", "console")],
         },
     }
 
@@ -482,31 +491,32 @@ def grid_ports(img, target_count, existing=None, status_dets=None):
     def _status_near(cx, cy):
         best, bd = None, tol2
         for p in real:
-            pc = p.get('center', [0, 0])
+            pc = p.get("center", [0, 0])
             d = (pc[0] - cx) ** 2 + (pc[1] - cy) ** 2
             if d < bd:
                 bd, best = d, p
-        return best.get('status', 'unknown') if best else 'unknown'
+        return best.get("status", "unknown") if best else "unknown"
 
     def _status_from_model(box, cx, cy):
         """Bind this synthesized cell to the status model's connected/empty
-        boxes — the same signal real ports get, matched geometrically."""
+        boxes — the same signal real ports get, matched geometrically.
+        """
         if not sdets:
             return None
         best, best_iou = None, 0.0
         for s in sdets:
-            i = _box_iou(box, s['bbox'])
+            i = _box_iou(box, s["bbox"])
             if i > best_iou:
                 best_iou, best = i, s
         # A synthesized cell is a geometric approximation of the real port, so
         # accept a looser overlap than the 0.3 used for model-detected boxes.
         if best is not None and best_iou >= 0.20:
-            return _status_from_name(best['class_name'])
+            return _status_from_name(best["class_name"])
         # Fallback: this cell's centre sits inside a status box.
         for s in sdets:
-            sx1, sy1, sx2, sy2 = s['bbox']
+            sx1, sy1, sx2, sy2 = s["bbox"]
             if sx1 <= cx <= sx2 and sy1 <= cy <= sy2:
-                return _status_from_name(s['class_name'])
+                return _status_from_name(s["class_name"])
         return None
 
     grid, idx = [], 1
@@ -518,19 +528,25 @@ def grid_ports(img, target_count, existing=None, status_dets=None):
             py1, py2 = max(0, int(cy - cell_h * 0.34)), min(h, int(cy + cell_h * 0.34))
             box = [px1, py1, px2, py2]
             status = _status_from_model(box, cx, cy)
-            if status in (None, 'unknown'):
+            if status in (None, "unknown"):
                 status = _status_near(cx, cy)
-            grid.append({
-                'index': idx, 'box': box, 'center': [cx, cy],
-                'status': status, 'class_name': 'RJ45',
-                'confidence': 0.0, 'port_category': 'main', 'synthesized': True,
-            })
+            grid.append(
+                {
+                    "index": idx,
+                    "box": box,
+                    "center": [cx, cy],
+                    "status": status,
+                    "class_name": "RJ45",
+                    "confidence": 0.0,
+                    "port_category": "main",
+                    "synthesized": True,
+                }
+            )
             idx += 1
     return grid
 
 
-def classify_ports_with_target_count(img, model, target_count, conf=CONF,
-                                     status_model=None):
+def classify_ports_with_target_count(img, model, target_count, conf=CONF, status_model=None):
     """Run the standard classifier, then make `main_ports` EXACTLY the operator's
     target: trim to the first N when the model over-counts, or lay out a clean
     N-port grid when it under-counts. Used by BOTH the relabel handler and the
@@ -543,8 +559,9 @@ def classify_ports_with_target_count(img, model, target_count, conf=CONF,
     sdets = status_detections(status_model, img, conf=conf)
 
     classified = classify_ports_by_pattern(
-        img, model, conf=conf, status_model=status_model, status_dets=sdets)
-    main = classified.get('main_ports', [])
+        img, model, conf=conf, status_model=status_model, status_dets=sdets
+    )
+    main = classified.get("main_ports", [])
 
     if not target_count or target_count <= 0 or len(main) == target_count:
         return classified
@@ -559,8 +576,8 @@ def classify_ports_with_target_count(img, model, target_count, conf=CONF,
         # each cell statused from the port_count model (not just a neighbour).
         main = grid_ports(img, target_count, existing=main, status_dets=sdets)
 
-    classified['main_ports'] = main
-    classified['pattern_info']['main_cluster_size'] = len(main)
+    classified["main_ports"] = main
+    classified["pattern_info"]["main_cluster_size"] = len(main)
     return classified
 
 
@@ -580,25 +597,27 @@ def detect_pdu_ports(img, model, conf=CONF):
     ports = []
     n_connected = 0
     for d in dets:
-        x1, y1, x2, y2 = d['bbox']
-        status = 'connected' if 'connect' in (d['class_name'] or '').lower() else 'empty'
-        if status == 'connected':
+        x1, y1, x2, y2 = d["bbox"]
+        status = "connected" if "connect" in (d["class_name"] or "").lower() else "empty"
+        if status == "connected":
             n_connected += 1
-        ports.append({
-            'box':           [int(x1), int(y1), int(x2), int(y2)],
-            'center':        [(int(x1) + int(x2)) // 2, (int(y1) + int(y2)) // 2],
-            'status':        status,
-            'class_name':    'Power',
-            'confidence':    float(d['confidence']),
-            'port_category': 'power',
-        })
+        ports.append(
+            {
+                "box": [int(x1), int(y1), int(x2), int(y2)],
+                "center": [(int(x1) + int(x2)) // 2, (int(y1) + int(y2)) // 2],
+                "status": status,
+                "class_name": "Power",
+                "confidence": float(d["confidence"]),
+                "port_category": "power",
+            }
+        )
     _index_left_to_right(ports)  # outlets are one row → number left→right
     return {
-        'power_ports':     ports,
-        'power_total':     len(ports),
-        'power_connected': n_connected,
-        'power_empty':     len(ports) - n_connected,
-        'powered':         n_connected > 0,
+        "power_ports": ports,
+        "power_total": len(ports),
+        "power_connected": n_connected,
+        "power_empty": len(ports) - n_connected,
+        "powered": n_connected > 0,
     }
 
 
@@ -609,6 +628,51 @@ def detect_pdu_ports(img, model, conf=CONF):
 # or synthesise missing slots (fill interior gaps first, then extend row ends
 # round-robin) from the size/spacing of the ports we did detect.
 PATCHPANEL_STANDARD_COUNTS = (24, 48)
+
+# Every port count real switch hardware actually ships with. A detected count
+# that is not in here did not come off a faceplate — it came from the detector
+# miscounting, and publishing it makes the app assert something impossible.
+# Testers put it plainly: "there is no switch contains 53 there must be 52".
+# Live scans currently hold 46, 49, 28, 25, 18 and 9; of those only 28, 18 and 9
+# are real, and the other three are miscounts.
+#
+# The list is the whole rule, so keep it comprehensive rather than tidy — a count
+# missing from here gets rounded away, and rounding a genuine 18-port switch up
+# to 24 is a worse error than leaving 49 alone. Add sizes as hardware turns up.
+# 26 and 44 are deliberately absent even though such hardware exists. Including a
+# RARE size lets it capture a miscount of a COMMON one: with 26 present a 24-port
+# switch reading 25 snapped to 26 rather than 24, and with 44 present a 48-port
+# switch reading 46 was pulled down instead of up. A size only earns a place here
+# once it is common enough that landing on it is more often right than wrong.
+# main_ports excludes SFP (those are their own bucket), so these are RJ45 counts.
+SWITCH_PORT_COUNTS = (4, 5, 8, 9, 10, 12, 16, 18, 20, 24, 28, 32, 36, 40, 48, 52)
+
+
+def snap_switch_port_count(n):
+    """Snap a detected main-port count to the nearest count real hardware has.
+
+    Weighted the same direction as the patch-panel snap and for the same reason:
+    port detectors UNDER-count far more than they over-count (glare, dark jacks,
+    a cable hiding the socket), so discarding a real detection is riskier than
+    synthesising a missing one. Overshoot costs 1 per slot, undershoot 2. On a
+    tie the larger count wins — synthesise rather than throw a real port away.
+
+    That weighting is what makes the observed miscounts land correctly:
+    53 -> 52, 49 -> 48, 46 -> 48, 25 -> 24, while 28, 18 and 9 are already
+    valid and pass through untouched. Returns n unchanged for non-positive
+    input so a zero-port device stays zero.
+    """
+    if not n or n <= 0:
+        return n
+    if n in SWITCH_PORT_COUNTS:
+        return n
+
+    DROP_PENALTY = 2.0
+
+    def cost(c):
+        return (c - n) if n <= c else (n - c) * DROP_PENALTY
+
+    return min(sorted(SWITCH_PORT_COUNTS, reverse=True), key=cost)
 
 
 def _pp_closest_standard(n):
@@ -636,28 +700,36 @@ def _pp_closest_standard(n):
 
 
 def _pp_median_gap(centers):
-    gaps = [centers[i] - centers[i - 1] for i in range(1, len(centers)) if centers[i] - centers[i - 1] > 0]
+    gaps = [
+        centers[i] - centers[i - 1]
+        for i in range(1, len(centers))
+        if centers[i] - centers[i - 1] > 0
+    ]
     return statistics.median(gaps) if gaps else None
 
 
 def _pp_synth_port(cx, y1, y2, w):
     x1, x2 = int(cx - w / 2), int(cx + w / 2)
     return {
-        'box': [x1, int(y1), x2, int(y2)],
-        'center': [int(cx), int((y1 + y2) // 2)],
-        'status': 'empty', 'class_name': 'RJ45', 'confidence': 0.0,
-        'port_category': 'main', 'synthesized': True,
+        "box": [x1, int(y1), x2, int(y2)],
+        "center": [int(cx), int((y1 + y2) // 2)],
+        "status": "empty",
+        "class_name": "RJ45",
+        "confidence": 0.0,
+        "port_category": "main",
+        "synthesized": True,
     }
 
 
 def _pp_fill_row_gaps(row, needed):
     """Insert synthetic ports where the spacing between two real detections is a
-    multiple of the row's typical pitch (a missed port). Adds at most `needed`."""
+    multiple of the row's typical pitch (a missed port). Adds at most `needed`.
+    """
     if needed <= 0 or len(row) < 2:
         return row, needed
-    avg_w = statistics.mean([p['box'][2] - p['box'][0] for p in row])
-    y1_avg = statistics.mean([p['box'][1] for p in row])
-    y2_avg = statistics.mean([p['box'][3] for p in row])
+    avg_w = statistics.mean([p["box"][2] - p["box"][0] for p in row])
+    y1_avg = statistics.mean([p["box"][1] for p in row])
+    y2_avg = statistics.mean([p["box"][3] for p in row])
     centers = [_port_cx(p) for p in row]
     typical = _pp_median_gap(centers) or avg_w
     out = [row[0]]
@@ -673,15 +745,15 @@ def _pp_fill_row_gaps(row, needed):
     return out, needed
 
 
-def _pp_extend_row(row, side='right'):
+def _pp_extend_row(row, side="right"):
     if not row:
         return row
-    avg_w = statistics.mean([p['box'][2] - p['box'][0] for p in row])
-    y1_avg = statistics.mean([p['box'][1] for p in row])
-    y2_avg = statistics.mean([p['box'][3] for p in row])
+    avg_w = statistics.mean([p["box"][2] - p["box"][0] for p in row])
+    y1_avg = statistics.mean([p["box"][1] for p in row])
+    y2_avg = statistics.mean([p["box"][3] for p in row])
     centers = sorted(_port_cx(p) for p in row)
     typical = _pp_median_gap(centers) or avg_w
-    if side == 'right':
+    if side == "right":
         return row + [_pp_synth_port(centers[-1] + typical, y1_avg, y2_avg, avg_w)]
     return [_pp_synth_port(centers[0] - typical, y1_avg, y2_avg, avg_w)] + row
 
@@ -689,21 +761,22 @@ def _pp_extend_row(row, side='right'):
 def _reconcile_patchpanel(ports):
     """Snap the combined port count to the nearest standard patch-panel size
     (24 / 48): drop lowest-confidence extras, or synthesise the missing
-    slots (interior gaps first, then extend row ends round-robin)."""
+    slots (interior gaps first, then extend row ends round-robin).
+    """
     if not ports:
         return ports
     target = _pp_closest_standard(len(ports))
     if len(ports) == target:
         return ports
     if len(ports) > target:  # too many → keep the highest-confidence
-        return sorted(ports, key=lambda p: p.get('confidence', 0.0), reverse=True)[:target]
+        return sorted(ports, key=lambda p: p.get("confidence", 0.0), reverse=True)[:target]
     needed = target - len(ports)  # too few → synthesise
     rows = [sorted(r, key=_port_cx) for r in _split_into_rows(ports)]
     for i, row in enumerate(rows):
         rows[i], needed = _pp_fill_row_gaps(row, needed)
     ri = 0
     while needed > 0 and rows:
-        rows[ri % len(rows)] = _pp_extend_row(rows[ri % len(rows)], 'right')
+        rows[ri % len(rows)] = _pp_extend_row(rows[ri % len(rows)], "right")
         needed -= 1
         ri += 1
     out = []
@@ -730,15 +803,17 @@ def detect_patch_panel_ports(img, model, conf=CONF):
 
     ports = []
     for d in dets:
-        x1, y1, x2, y2 = d['bbox']
-        ports.append({
-            'box':           [int(x1), int(y1), int(x2), int(y2)],
-            'center':        [(int(x1) + int(x2)) // 2, (int(y1) + int(y2)) // 2],
-            'status':        _status_from_name(d['class_name']),
-            'class_name':    'RJ45',
-            'confidence':    float(d['confidence']),
-            'port_category': 'main',
-        })
+        x1, y1, x2, y2 = d["bbox"]
+        ports.append(
+            {
+                "box": [int(x1), int(y1), int(x2), int(y2)],
+                "center": [(int(x1) + int(x2)) // 2, (int(y1) + int(y2)) // 2],
+                "status": _status_from_name(d["class_name"]),
+                "class_name": "RJ45",
+                "confidence": float(d["confidence"]),
+                "port_category": "main",
+            }
+        )
 
     # Snap the combined (connected + empty) count to 24 / 48.
     ports = _reconcile_patchpanel(ports)
@@ -747,7 +822,7 @@ def detect_patch_panel_ports(img, model, conf=CONF):
     # two rows → column-wise (top then bottom within each column).
     rows = _split_into_rows(ports)
     if len(rows) >= 2:
-        rows = sorted(rows, key=lambda r: min((p['box'][1] + p['box'][3]) / 2 for p in r))
+        rows = sorted(rows, key=lambda r: min((p["box"][1] + p["box"][3]) / 2 for p in r))
         top = sorted(rows[0], key=_port_cx)
         bottom = sorted(rows[1], key=_port_cx)
         main = _group_into_columns(top, bottom)
@@ -755,17 +830,17 @@ def detect_patch_panel_ports(img, model, conf=CONF):
         main = sorted(rows[0], key=_port_cx) if rows else []
 
     for i, p in enumerate(main, 1):
-        p['index'] = i
+        p["index"] = i
 
     return {
-        'main_ports':    main,
-        'sfp_ports':     [],
-        'console_ports': [],
-        'other_ports':   [],
-        'all_boxes':     [p['box'] for p in main],
-        'pattern_info':  {
-            'main_cluster_size': len(main),
-            'num_clusters':      1 if main else 0,
-            'cluster_sizes':     [len(main)],
+        "main_ports": main,
+        "sfp_ports": [],
+        "console_ports": [],
+        "other_ports": [],
+        "all_boxes": [p["box"] for p in main],
+        "pattern_info": {
+            "main_cluster_size": len(main),
+            "num_clusters": 1 if main else 0,
+            "cluster_sizes": [len(main)],
         },
     }

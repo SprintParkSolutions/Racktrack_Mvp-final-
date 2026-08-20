@@ -33,6 +33,7 @@ Output schema:
   "summary": { "count": 5, "rightCount": 5, "leftCount": 0 }
 }
 """
+
 from __future__ import annotations
 
 import argparse
@@ -70,15 +71,47 @@ IDENTIFIER_RE = re.compile(r"^[A-Z][A-Z0-9]{1,}[A-Z0-9\-_]{0,18}$")
 # vendor names, generic hardware nouns, U-numbers, etc. Anything that
 # could legitimately appear as a label is omitted from this list.
 NEGATIVE_TERMS = {
-    "MIKROTIK", "CISCO", "TPLINK", "DLINK", "JUNIPER", "ARUBA",
-    "ARISTA", "HUAWEI", "DELL", "HPE", "NETGEAR", "UBIQUITI",
-    "JETLAN", "GENERAL", "CABLE", "STARTECH", "CLOUD", "ROUTER",
-    "SWITCH", "PORT", "PORTS", "SFP", "QSFP", "POE", "GIGABIT",
-    "ACTLINK", "CONSOLE", "RESET", "MODE", "FAULT", "POWER",
-    "USER", "USB", "MGMT", "PWR",
+    "MIKROTIK",
+    "CISCO",
+    "TPLINK",
+    "DLINK",
+    "JUNIPER",
+    "ARUBA",
+    "ARISTA",
+    "HUAWEI",
+    "DELL",
+    "HPE",
+    "NETGEAR",
+    "UBIQUITI",
+    "JETLAN",
+    "GENERAL",
+    "CABLE",
+    "STARTECH",
+    "CLOUD",
+    "ROUTER",
+    "SWITCH",
+    "PORT",
+    "PORTS",
+    "SFP",
+    "QSFP",
+    "POE",
+    "GIGABIT",
+    "ACTLINK",
+    "CONSOLE",
+    "RESET",
+    "MODE",
+    "FAULT",
+    "POWER",
+    "USER",
+    "USB",
+    "MGMT",
+    "PWR",
     # Common fascia model fragments (these aren't *identifiers*, they're
     # model numbers — handled by ocr_devices.py)
-    "CRS", "CRS328", "CRS326", "CRS518",
+    "CRS",
+    "CRS328",
+    "CRS326",
+    "CRS518",
 }
 
 
@@ -114,8 +147,8 @@ def _is_identifier(text: str) -> bool:
 
 def _ocr_strip(reader, img, x_start: int, x_end: int) -> list[dict]:
     """OCR a vertical slice of the image. Returns labels with image-space
-    coordinates restored from the strip-relative coords easyocr emits."""
-    import numpy as np
+    coordinates restored from the strip-relative coords easyocr emits.
+    """
     if x_end <= x_start:
         return []
     strip = img[:, x_start:x_end]
@@ -123,7 +156,7 @@ def _ocr_strip(reader, img, x_start: int, x_end: int) -> list[dict]:
         return []
     results = reader.readtext(strip, detail=1, paragraph=False)
     out = []
-    for (pts, text, conf) in results:
+    for pts, text, conf in results:
         text = (text or "").strip()
         if not text:
             continue
@@ -131,13 +164,15 @@ def _ocr_strip(reader, img, x_start: int, x_end: int) -> list[dict]:
         xs = [p[0] for p in pts]
         y_mid = (min(ys) + max(ys)) / 2
         x_mid = (min(xs) + max(xs)) / 2 + x_start
-        out.append({
-            "text": text,
-            "raw_conf": float(conf),
-            "x_mid": float(x_mid),
-            "y_mid": float(y_mid),
-            "h": float(max(ys) - min(ys)),
-        })
+        out.append(
+            {
+                "text": text,
+                "raw_conf": float(conf),
+                "x_mid": float(x_mid),
+                "y_mid": float(y_mid),
+                "h": float(max(ys) - min(ys)),
+            }
+        )
     return out
 
 
@@ -154,27 +189,31 @@ def extract_side_labels(image_path: str) -> dict:
     reader = easyocr.Reader(["en"], gpu=False, verbose=False)
 
     right_raw = _ocr_strip(reader, img, w_img - side_w, w_img)
-    left_raw  = _ocr_strip(reader, img, 0, side_w)
+    left_raw = _ocr_strip(reader, img, 0, side_w)
 
     labels = []
     for raw in right_raw:
         if _is_identifier(raw["text"]):
-            labels.append({
-                "text": _normalize(raw["text"]),
-                "yPct": round(raw["y_mid"] / h_img * 100, 2),
-                "y":    int(raw["y_mid"]),
-                "side": "right",
-                "conf": round(raw["raw_conf"], 3),
-            })
+            labels.append(
+                {
+                    "text": _normalize(raw["text"]),
+                    "yPct": round(raw["y_mid"] / h_img * 100, 2),
+                    "y": int(raw["y_mid"]),
+                    "side": "right",
+                    "conf": round(raw["raw_conf"], 3),
+                }
+            )
     for raw in left_raw:
         if _is_identifier(raw["text"]):
-            labels.append({
-                "text": _normalize(raw["text"]),
-                "yPct": round(raw["y_mid"] / h_img * 100, 2),
-                "y":    int(raw["y_mid"]),
-                "side": "left",
-                "conf": round(raw["raw_conf"], 3),
-            })
+            labels.append(
+                {
+                    "text": _normalize(raw["text"]),
+                    "yPct": round(raw["y_mid"] / h_img * 100, 2),
+                    "y": int(raw["y_mid"]),
+                    "side": "left",
+                    "conf": round(raw["raw_conf"], 3),
+                }
+            )
 
     # Dedupe — sometimes the same chip is read twice (slight bbox jitter).
     seen = set()
@@ -187,15 +226,15 @@ def extract_side_labels(image_path: str) -> dict:
         deduped.append(l)
 
     right_count = sum(1 for l in deduped if l["side"] == "right")
-    left_count  = sum(1 for l in deduped if l["side"] == "left")
+    left_count = sum(1 for l in deduped if l["side"] == "left")
 
     return {
-        "image_size": { "w": w_img, "h": h_img },
+        "image_size": {"w": w_img, "h": h_img},
         "labels": deduped,
         "summary": {
             "count": len(deduped),
             "rightCount": right_count,
-            "leftCount":  left_count,
+            "leftCount": left_count,
         },
     }
 
@@ -211,29 +250,39 @@ def _resolve_image(rack_dir: Path) -> Path | None:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("rack_id")
-    ap.add_argument("--json", action="store_true",
-                    help="Emit single-line JSON on stdout instead of writing the cache file")
+    ap.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit single-line JSON on stdout instead of writing the cache file",
+    )
     args = ap.parse_args()
 
     rack_dir = OUTPUTS_DIR / args.rack_id
     if not rack_dir.exists():
-        msg = { "ok": False, "error": f"rack {args.rack_id} not found",
-                "rack_id": args.rack_id, "labels": [] }
+        msg = {
+            "ok": False,
+            "error": f"rack {args.rack_id} not found",
+            "rack_id": args.rack_id,
+            "labels": [],
+        }
         sys.stdout.write(json.dumps(msg))
         sys.exit(1)
 
     img_path = _resolve_image(rack_dir)
     if not img_path:
-        msg = { "ok": False, "error": "no original_image found",
-                "rack_id": args.rack_id, "labels": [] }
+        msg = {
+            "ok": False,
+            "error": "no original_image found",
+            "rack_id": args.rack_id,
+            "labels": [],
+        }
         sys.stdout.write(json.dumps(msg))
         sys.exit(1)
 
     try:
         result = extract_side_labels(str(img_path))
     except Exception as e:
-        msg = { "ok": False, "error": str(e),
-                "rack_id": args.rack_id, "labels": [] }
+        msg = {"ok": False, "error": str(e), "rack_id": args.rack_id, "labels": []}
         sys.stdout.write(json.dumps(msg))
         sys.exit(1)
 

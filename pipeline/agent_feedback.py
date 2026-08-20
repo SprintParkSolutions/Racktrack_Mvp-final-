@@ -13,56 +13,57 @@ State (feedback_state.json) lives under outputs/agent_state/ — outside the
 pipeline package so it survives reinstalls and is co-located with the
 agent's posted.json / unmatched.log.
 """
+
 from __future__ import annotations
 
 import json
 import os
-import re
-from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from pipeline.agent import extract_incident, FAILURE_PATTERNS
+from pipeline.agent import extract_incident
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_STATE_DIR = Path(os.environ.get("RACKTRACK_AGENT_STATE_DIR", _REPO_ROOT / "outputs" / "agent_state"))
+_STATE_DIR = Path(
+    os.environ.get("RACKTRACK_AGENT_STATE_DIR", _REPO_ROOT / "outputs" / "agent_state")
+)
 _STATE_DIR.mkdir(parents=True, exist_ok=True)
 STATE_FILE = _STATE_DIR / "feedback_state.json"
 
 
 # ── Resolution keyword → failure_mode mapping (mirrors agent.py patterns) ──
 RESOLUTION_KEYWORDS = {
-    "replaced cable":      "cable_swap",
-    "swap cable":          "cable_swap",
-    "new cable":           "cable_swap",
-    "reseated":            "port_down",
-    "reseat":              "port_down",
-    "link restored":       "port_down",
-    "port came back":      "port_down",
-    "bouncing":            "flapping",
-    "flapping":            "flapping",
-    "stopped flapping":    "flapping",
-    "crc":                 "crc_errors",
-    "crc cleared":         "crc_errors",
-    "err-disable":         "err_disabled",
-    "errdisable":          "err_disabled",
-    "bpdu":                "err_disabled",
-    "rogue":               "rogue_device",
-    "unauthorized":        "rogue_device",
-    "removed device":      "rogue_device",
-    "poe":                 "poe_issue",
-    "power budget":        "poe_issue",
-    "speed mismatch":      "slow_link",
-    "duplex":              "slow_link",
-    "auto-negotiate":      "slow_link",
-    "vlan":                "config_change",
-    "config":              "config_change",
-    "misconfigured":       "config_change",
-    "unreachable":         "device_unreachable",
-    "power cycled":        "device_unreachable",
-    "psu":                 "hardware_replace",
-    "replaced":            "hardware_replace",
-    "firmware":            "hardware_replace",
+    "replaced cable": "cable_swap",
+    "swap cable": "cable_swap",
+    "new cable": "cable_swap",
+    "reseated": "port_down",
+    "reseat": "port_down",
+    "link restored": "port_down",
+    "port came back": "port_down",
+    "bouncing": "flapping",
+    "flapping": "flapping",
+    "stopped flapping": "flapping",
+    "crc": "crc_errors",
+    "crc cleared": "crc_errors",
+    "err-disable": "err_disabled",
+    "errdisable": "err_disabled",
+    "bpdu": "err_disabled",
+    "rogue": "rogue_device",
+    "unauthorized": "rogue_device",
+    "removed device": "rogue_device",
+    "poe": "poe_issue",
+    "power budget": "poe_issue",
+    "speed mismatch": "slow_link",
+    "duplex": "slow_link",
+    "auto-negotiate": "slow_link",
+    "vlan": "config_change",
+    "config": "config_change",
+    "misconfigured": "config_change",
+    "unreachable": "device_unreachable",
+    "power cycled": "device_unreachable",
+    "psu": "hardware_replace",
+    "replaced": "hardware_replace",
+    "firmware": "hardware_replace",
 }
 
 
@@ -73,12 +74,12 @@ def _load_state() -> dict:
         except (json.JSONDecodeError, OSError):
             pass
     return {
-        "predictions": {},       # inc_number -> prediction record
-        "outcomes": {},          # inc_number -> outcome record
-        "pattern_stats": {},     # failure_mode -> {correct, incorrect, total}
-        "signal_stats": {},      # signal_keyword -> {correct, incorrect}
-        "monthly_stats": {},     # "YYYY-MM" -> {correct, total}
-        "calibration": {},       # confidence_bin -> {correct, total}
+        "predictions": {},  # inc_number -> prediction record
+        "outcomes": {},  # inc_number -> outcome record
+        "pattern_stats": {},  # failure_mode -> {correct, incorrect, total}
+        "signal_stats": {},  # signal_keyword -> {correct, incorrect}
+        "monthly_stats": {},  # "YYYY-MM" -> {correct, total}
+        "calibration": {},  # confidence_bin -> {correct, total}
     }
 
 
@@ -108,13 +109,12 @@ def record_prediction(incident_number: str, extracted: dict) -> None:
         "signals_used": extracted.get("signals_used", []),
         "affected_device": extracted.get("affected_device"),
         "affected_port": extracted.get("affected_port"),
-        "predicted_at": datetime.now(timezone.utc).isoformat(),
+        "predicted_at": datetime.now(UTC).isoformat(),
     }
     _save_state(state)
 
 
-def evaluate_resolution(incident_number: str, resolution_notes: str,
-                        close_notes: str = "") -> dict:
+def evaluate_resolution(incident_number: str, resolution_notes: str, close_notes: str = "") -> dict:
     """Compare the agent's prediction to the actual resolution.
 
     Returns:
@@ -146,7 +146,7 @@ def evaluate_resolution(incident_number: str, resolution_notes: str,
 
     correct = pred["failure_mode"] == actual_mode
     predicted_conf = pred.get("confidence", 0.0)
-    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+    month_key = datetime.now(UTC).strftime("%Y-%m")
 
     # Update pattern stats
     pm = pred["failure_mode"]
@@ -188,7 +188,7 @@ def evaluate_resolution(incident_number: str, resolution_notes: str,
         "actual_mode": actual_mode,
         "correct": correct,
         "resolution_text": combined_text[:500],
-        "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        "evaluated_at": datetime.now(UTC).isoformat(),
     }
 
     _save_state(state)
@@ -203,8 +203,9 @@ def evaluate_resolution(incident_number: str, resolution_notes: str,
     }
 
 
-def process_resolved_incidents(sn_base: str, sn_auth: tuple,
-                               sn_headers: dict, limit: int = 50) -> list[dict]:
+def process_resolved_incidents(
+    sn_base: str, sn_auth: tuple, sn_headers: dict, limit: int = 50
+) -> list[dict]:
     """Fetch recently resolved incidents from ServiceNow and evaluate each.
 
     Returns a list of evaluation results.
@@ -219,10 +220,7 @@ def process_resolved_incidents(sn_base: str, sn_auth: tuple,
         r = requests.get(
             f"{sn_base}/table/incident",
             params={
-                "sysparm_query": (
-                    "state=6^ORstate=7^category=network"
-                    "^ORDERBYDESCresolved_at"
-                ),
+                "sysparm_query": ("state=6^ORstate=7^category=network^ORDERBYDESCresolved_at"),
                 "sysparm_fields": (
                     "sys_id,number,short_description,description,"
                     "close_notes,close_code,resolved_at,priority"
@@ -230,7 +228,9 @@ def process_resolved_incidents(sn_base: str, sn_auth: tuple,
                 "sysparm_display_value": "true",
                 "sysparm_limit": limit,
             },
-            auth=sn_auth, headers=sn_headers, timeout=20,
+            auth=sn_auth,
+            headers=sn_headers,
+            timeout=20,
         )
         r.raise_for_status()
         incidents = r.json().get("result", [])
@@ -274,13 +274,9 @@ def get_scoreboard() -> dict:
     """
     state = _load_state()
 
-    total_correct = sum(
-        1 for o in state.get("outcomes", {}).values()
-        if o.get("correct") is True
-    )
+    total_correct = sum(1 for o in state.get("outcomes", {}).values() if o.get("correct") is True)
     total_evaluated = sum(
-        1 for o in state.get("outcomes", {}).values()
-        if o.get("correct") is not None
+        1 for o in state.get("outcomes", {}).values() if o.get("correct") is not None
     )
 
     # Monthly breakdown
@@ -288,12 +284,14 @@ def get_scoreboard() -> dict:
     for month, stats in sorted(state.get("monthly_stats", {}).items()):
         t = stats["total"]
         c = stats["correct"]
-        monthly.append({
-            "month": month,
-            "correct": c,
-            "total": t,
-            "accuracy_pct": round(c / t * 100, 1) if t > 0 else 0,
-        })
+        monthly.append(
+            {
+                "month": month,
+                "correct": c,
+                "total": t,
+                "accuracy_pct": round(c / t * 100, 1) if t > 0 else 0,
+            }
+        )
 
     # Pattern accuracy — split into worked vs misled
     worked = []
@@ -319,12 +317,14 @@ def get_scoreboard() -> dict:
         t = c + ic
         if t == 0:
             continue
-        signal_board.append({
-            "signal": sig,
-            "correct": c,
-            "incorrect": ic,
-            "accuracy_pct": round(c / t * 100, 1),
-        })
+        signal_board.append(
+            {
+                "signal": sig,
+                "correct": c,
+                "incorrect": ic,
+                "accuracy_pct": round(c / t * 100, 1),
+            }
+        )
     signal_board.sort(key=lambda x: -x["accuracy_pct"])
 
     # Calibration
@@ -332,18 +332,21 @@ def get_scoreboard() -> dict:
     for bin_label, stats in sorted(state.get("calibration", {}).items()):
         t = stats["total"]
         c = stats["correct"]
-        calibration.append({
-            "bin": bin_label,
-            "correct": c,
-            "total": t,
-            "accuracy_pct": round(c / t * 100, 1) if t > 0 else 0,
-        })
+        calibration.append(
+            {
+                "bin": bin_label,
+                "correct": c,
+                "total": t,
+                "accuracy_pct": round(c / t * 100, 1) if t > 0 else 0,
+            }
+        )
 
     return {
         "total_evaluated": total_evaluated,
         "total_correct": total_correct,
         "accuracy_pct": round(total_correct / total_evaluated * 100, 1)
-            if total_evaluated > 0 else 0,
+        if total_evaluated > 0
+        else 0,
         "monthly": monthly,
         "patterns_that_worked": worked,
         "patterns_that_misled": misled,

@@ -14,5 +14,14 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.test.{js,jsx}'],
+    // Coverage measurement: turns "the tests pass" into "and here is how much
+    // of the code they actually exercise". Run with `npm run test:coverage`.
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'lcov'],
+      include: ['src/**/*.{js,jsx}'],
+      // Config, entry points and generated assets are not meaningful to cover.
+      exclude: ['src/**/*.test.{js,jsx}', 'src/main.jsx', 'src/assets/**', 'src/fonts.css'],
+    },
   },
 });

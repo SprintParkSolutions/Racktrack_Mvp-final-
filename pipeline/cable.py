@@ -1,9 +1,10 @@
 import os
+
 import cv2
 import torch
 import torch.nn as nn
-from torchvision import models, transforms
 from PIL import Image
+from torchvision import models, transforms
 
 # Input geometry must match the training script exactly (cable_eff_best):
 #   transforms.Resize((256, 256))
@@ -20,26 +21,28 @@ IMG_SIZE = IMG_HW  # back-compat alias for any caller that imported it
 # — right after `LC_Aqua` — NOT down among the other RJ_45 colors. The exact
 # strings/order here are the argmax→label contract; keep them verbatim.
 FALLBACK_CABLE_CLASSES = [
-    'LC_Aqua',
-    'RJ-45 Violet',
-    'RJ_45 Black',
-    'RJ_45 Blue',
-    'RJ_45 Brown',
-    'RJ_45 Green',
-    'RJ_45 Grey',
-    'RJ_45 Orange',
-    'RJ_45 Pink',
-    'RJ_45 Red',
-    'RJ_45 White',
-    'RJ_45 Yellow',
-    'SC_Orange',
-    'SC_Yellow',
+    "LC_Aqua",
+    "RJ-45 Violet",
+    "RJ_45 Black",
+    "RJ_45 Blue",
+    "RJ_45 Brown",
+    "RJ_45 Green",
+    "RJ_45 Grey",
+    "RJ_45 Orange",
+    "RJ_45 Pink",
+    "RJ_45 Red",
+    "RJ_45 White",
+    "RJ_45 Yellow",
+    "SC_Orange",
+    "SC_Yellow",
 ]
 
-IMAGE_TRANSFORMS = transforms.Compose([
-    transforms.Resize(IMG_HW),
-    transforms.ToTensor(),
-])
+IMAGE_TRANSFORMS = transforms.Compose(
+    [
+        transforms.Resize(IMG_HW),
+        transforms.ToTensor(),
+    ]
+)
 
 _CABLE_MODEL_CACHE = {}
 _PORT_IDENTIFY_CACHE = {}
@@ -49,7 +52,7 @@ def _extract_cable_classes(checkpoint):
     if not isinstance(checkpoint, dict):
         return None
 
-    for key in ('classes', 'labels', 'class_names', 'class_to_idx', 'idx_to_class', 'mapping'):
+    for key in ("classes", "labels", "class_names", "class_to_idx", "idx_to_class", "mapping"):
         if key not in checkpoint:
             continue
         value = checkpoint[key]
@@ -65,7 +68,7 @@ def _extract_cable_classes(checkpoint):
 
 
 def _get_model_output_labels(model):
-    classifier = getattr(model, 'classifier', None)
+    classifier = getattr(model, "classifier", None)
     if classifier is None:
         return None
 
@@ -74,13 +77,13 @@ def _get_model_output_labels(model):
     else:
         last = classifier
 
-    out_features = getattr(last, 'out_features', None)
+    out_features = getattr(last, "out_features", None)
     if isinstance(out_features, int) and out_features > 0:
-        return [f'class_{i}' for i in range(out_features)]
+        return [f"class_{i}" for i in range(out_features)]
     return None
 
 
-def load_cable_model(model_path: str, device: str = 'cpu'):
+def load_cable_model(model_path: str, device: str = "cpu"):
     cache_key = (model_path, device)
     cached = _CABLE_MODEL_CACHE.get(cache_key)
     if cached is not None:
@@ -103,10 +106,7 @@ def load_cable_model(model_path: str, device: str = 'cpu'):
         if isinstance(checkpoint, dict):
             state_dict = checkpoint
             if any(key.startswith("module.") for key in state_dict):
-                state_dict = {
-                    key[len("module."):]: value
-                    for key, value in state_dict.items()
-                }
+                state_dict = {key[len("module.") :]: value for key, value in state_dict.items()}
 
             num_classes = None
             for key in ["classifier.1.weight", "classifier.weight", "fc.weight"]:
@@ -130,7 +130,7 @@ def load_cable_model(model_path: str, device: str = 'cpu'):
 
     model.to(device)
     model.eval()
-    if getattr(model, '_cable_classes', None) is None:
+    if getattr(model, "_cable_classes", None) is None:
         model._cable_classes = FALLBACK_CABLE_CLASSES
     _CABLE_MODEL_CACHE[cache_key] = model
     return model
@@ -142,9 +142,38 @@ def preprocess_image(img):
     return IMAGE_TRANSFORMS(pil).unsqueeze(0)
 
 
-def classify_cable(img, model, classes=None, device: str = 'cpu'):
+# Which connectors can physically be present in a given port category. An SFP
+# cage takes an optical transceiver — LC or SC — and cannot accept an RJ-45
+# plug; the reverse is equally true of an RJ-45 jack. The classifier has no idea
+# which port it is looking at, and 12 of its 14 classes are RJ-45 colours, so on
+# an SFP port it reliably answered with an RJ-45 colour. That is the report
+# "when we are saying the cable type in sfp ports then the type also should be
+# SFP" — the port already tells us the answer cannot be RJ-45.
+_CONNECTOR_PREFIXES_BY_CATEGORY = {
+    "sfp": ("LC", "SC"),  # fibre only
+    "main": ("RJ", "RJ-45", "RJ_45"),  # copper only
+}
+
+
+def _category_allows(label, port_category):
+    """True when `label` names a connector that can exist in this port type."""
+    allowed = _CONNECTOR_PREFIXES_BY_CATEGORY.get(port_category)
+    if not allowed or not label:
+        return True  # console/other/unknown — no physical constraint to apply
+    head = label.replace("_", "-").split("-")[0].split(" ")[0].upper()
+    return any(head == a.replace("_", "-").split("-")[0].upper() for a in allowed)
+
+
+def classify_cable(img, model, classes=None, device: str = "cpu", port_category=None):
     """Classify a cable crop. Returns (label, confidence) where confidence is
     the softmax probability of the chosen class (0.0–1.0).
+
+    `port_category` constrains the answer to connectors that can physically be
+    present in that port. We do NOT simply relabel the winner: we pick the
+    highest-probability class the port can actually accept, so the colour still
+    comes from the image rather than being invented. When the model has no
+    opinion at all among the possible classes, the caller gets None and reports
+    nothing, which is better than reporting a connector the hardware cannot hold.
     """
     if img is None or img.size == 0:
         return None, 0.0
@@ -155,20 +184,23 @@ def classify_cable(img, model, classes=None, device: str = 'cpu'):
     if isinstance(output, tuple):
         output = output[0]
     probs = torch.softmax(output, dim=1)
-    idx = int(probs.argmax(dim=1).item())
-    confidence = float(probs[0, idx].item())
 
     labels = classes
     if labels is None:
-        labels = getattr(model, '_cable_classes', None)
+        labels = getattr(model, "_cable_classes", None)
     if labels is None:
         labels = _get_model_output_labels(model)
     if labels is None:
         labels = FALLBACK_CABLE_CLASSES
 
-    if labels is not None and idx < len(labels):
-        return labels[idx], confidence
-    return f'class_{idx}', confidence
+    order = torch.argsort(probs[0], descending=True).tolist()
+    for idx in order:
+        label = labels[idx] if labels is not None and idx < len(labels) else f"class_{idx}"
+        if _category_allows(label, port_category):
+            return label, float(probs[0, idx].item())
+
+    # Nothing the port can hold scored at all — say nothing rather than guess.
+    return None, 0.0
 
 
 def crop_box(img, box, pad=8, pad_x=None, pad_y=None):
@@ -202,24 +234,24 @@ def parse_cable_type_color(cable_class):
     """
     if not cable_class:
         return None, None
-    if ' ' in cable_class:
-        connector, color = cable_class.rsplit(' ', 1)
-    elif '_' in cable_class:
-        connector, color = cable_class.rsplit('_', 1)
+    if " " in cable_class:
+        connector, color = cable_class.rsplit(" ", 1)
+    elif "_" in cable_class:
+        connector, color = cable_class.rsplit("_", 1)
     else:
         return cable_class, None
-    connector = connector.replace('_', '-')
+    connector = connector.replace("_", "-")
     return connector, color
 
 
-def load_port_identify_model(model_path, device='cpu'):
+def load_port_identify_model(model_path, device="cpu"):
     """Load the port-type identification model (EfficientNet checkpoint)."""
     model = load_cable_model(model_path, device=device)
-    if getattr(model, '_cable_classes', None) is FALLBACK_CABLE_CLASSES:
+    if getattr(model, "_cable_classes", None) is FALLBACK_CABLE_CLASSES:
         model._cable_classes = None
     return model
 
 
-def classify_port_type(img, model, device='cpu'):
+def classify_port_type(img, model, device="cpu"):
     """Classify the port type from a cropped port image. Returns (label, confidence)."""
     return classify_cable(img, model, device=device)

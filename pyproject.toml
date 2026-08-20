@@ -1,0 +1,75 @@
+# Python tooling configuration for the RackTrack computer-vision pipeline.
+#
+# This is the file that benchmarks the Python code against recognised standards:
+#   - Ruff  → PEP 8 (style) + PEP 257 (docstrings) + import order + security (Bandit rules)
+#   - mypy  → optional static type checking (lenient to start; tightened over time)
+#   - Bandit is also runnable standalone via `bandit -r pipeline`.
+#
+# Run locally from the repo root:
+#   ruff format pipeline          # auto-format to PEP 8
+#   ruff check pipeline           # lint (style, bugs, security)
+#   mypy pipeline                 # type check (best-effort)
+#   bandit -r pipeline            # security scan
+#   pip-audit -r requirements.txt # dependency vulnerabilities
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Start with the pipeline (the AI engine). Widen to other Python dirs over time.
+src = ["pipeline"]
+extend-exclude = ["Models", "outputs", ".venv", "active_learning_Cache"]
+
+[tool.ruff.lint]
+# E,W = PEP 8 · F = pyflakes (real bugs) · I = import order · UP = modern syntax
+# B = likely bugs · S = security (Bandit) · D = PEP 257 docstrings
+select = ["E", "W", "F", "I", "UP", "B", "S", "D"]
+# First-pass posture, mirroring the JS side: enforce auto-formatting and the
+# high-value rules from day one, and DEFER the noisy legacy rules below rather
+# than churn hundreds of lines at once. Each deferred code is a to-do to remove
+# as the pipeline is cleaned up module by module — the gate only tightens.
+ignore = [
+  # --- missing docstrings: add gradually, not in one sweep ---
+  "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+  # --- docstring *style* preferences (deferred) ---
+  "D203", "D212", "D205", "D400", "D401", "D301",
+  # --- line length: the formatter wraps code; don't fail the gate on prose/URLs ---
+  "E501",
+  # --- deferred legacy-code cleanups (real, but low-risk; tighten over time) ---
+  "E402",   # imports after sys.path setup — intentional in these entry scripts
+  "E741",   # short/ambiguous variable names in older math code
+  "B905",   # zip() without strict= — behaviour is correct today
+  "B007",   # unused loop variable
+  "B008",   # function call in a default arg — intentional here
+  "F841",   # assigned-but-unused local — harmless
+  # --- security rules verified safe earlier (kept off to avoid false alarms) ---
+  "S110", "S112",  # try/except/pass|continue — deliberate best-effort blocks
+  "S324",          # SHA-1 used only for cache-file names, never for security
+  "S113",          # requests timeout — deferred cleanup, tracked separately
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may use asserts (S101) and don't need the same docstring/security bar.
+"pipeline/tests/*" = ["S101", "S", "D"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true   # the CV libs (torch, cv2, ultralytics) ship few stubs
+warn_unused_ignores = true
+warn_redundant_casts = true
+# Lenient to start — this is a legacy, untyped codebase. Tighten module by module.
+check_untyped_defs = false
+disallow_untyped_defs = false
+exclude = ["pipeline/tests/", "Models/", "outputs/"]
+
+[tool.bandit]
+# Each skip below was individually reviewed and judged safe for this codebase;
+# Bandit still flags everything else, and any NEW issue introduced later.
+#   B324 — SHA-1 is used only to name cache files, never for security.
+#   B614 — torch.load only ever loads our own trusted local model files.
+#   B113 — a couple of outbound requests lack an explicit timeout; tracked as a
+#          follow-up cleanup, not a vulnerability.
+skips = ["B324", "B614", "B113"]
+exclude_dirs = ["pipeline/tests", "Models", "outputs", ".venv", "active_learning_Cache"]

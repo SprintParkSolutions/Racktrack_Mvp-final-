@@ -11,22 +11,34 @@ Stdout (one JSON line):
 
 Progress output goes to stderr so the parent process can parse stdout cleanly.
 
-The MSAL token cache lives at pipeline/shankar_teams_cache.json. Silent refresh
-works as long as that cache has a valid refresh token — run this script once
+The MSAL token cache lives at pipeline/racktrack_teams_cache.json, holding the
+RackTrack Team account (racktrackteam@sprintpark.com). Silent refresh works as
+long as that cache has a valid refresh token — run this script once
 interactively to seed it via device flow.
+
+The cache used to be named after the individual whose Microsoft account had
+signed in, and reports therefore reached recipients FROM that person. There is
+no from-name or display-name setting anywhere in this module: the sender simply
+IS whoever minted the token, so the fix was a different account rather than a
+code change. Both the identifiers and the cache path are env-overridable now, so
+moving to another mailbox never again requires editing this file.
 """
+
+import argparse
+import json
 import os
 import sys
-import json
 import uuid
-import argparse
 from concurrent.futures import ThreadPoolExecutor
 
 import msal
 import requests
 
-CLIENT_ID = "a58b8e87-442d-47a4-8694-87b30bf03efd"
-TENANT_ID = "ee8c7b70-7a3a-4155-b1f2-59ff718e1d5c"
+# Azure app registration for the RackTrack Team mailbox. Not secrets — a public
+# client id and a tenant id are both discoverable — but env-overridable so a
+# different tenant needs no code edit.
+CLIENT_ID = os.environ.get("RACKTRACK_MS_CLIENT_ID", "4f662230-bce9-44ab-86f3-655f918af878")
+TENANT_ID = os.environ.get("RACKTRACK_MS_TENANT_ID", "ee8c7b70-7a3a-4155-b1f2-59ff718e1d5c")
 
 # Shared HTTP session: reuse the TCP/TLS connection across every Graph call
 # instead of paying a fresh handshake per request.
@@ -41,9 +53,12 @@ SCOPES = [
     "User.Read",
 ]
 
-TOKEN_CACHE_FILE = os.path.join(
+# Shared with outlook_send.py — one cache, one signed-in account, so a Teams
+# token and a Mail.Send token both come from the same refresh token without a
+# second login. Keep the two modules pointing at the SAME path.
+TOKEN_CACHE_FILE = os.environ.get("RACKTRACK_MSAL_CACHE") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "shankar_teams_cache.json",
+    "racktrack_teams_cache.json",
 )
 
 
@@ -58,7 +73,7 @@ def _emit(obj):
 def get_access_token(interactive: bool):
     cache = msal.SerializableTokenCache()
     if os.path.exists(TOKEN_CACHE_FILE):
-        with open(TOKEN_CACHE_FILE, "r", encoding="utf-8") as f:
+        with open(TOKEN_CACHE_FILE, encoding="utf-8") as f:
             cache.deserialize(f.read())
         _log(f"[+] loaded token cache {TOKEN_CACHE_FILE}")
     else:
@@ -95,7 +110,9 @@ def get_access_token(interactive: bool):
             f.write(cache.serialize())
 
     if not result or "access_token" not in result:
-        raise RuntimeError(f"login failed: {result.get('error_description', 'unknown') if result else 'no result'}")
+        raise RuntimeError(
+            f"login failed: {result.get('error_description', 'unknown') if result else 'no result'}"
+        )
     return result["access_token"]
 
 
@@ -192,7 +209,7 @@ def send_message(token, chat_id, file_meta, message_text):
     body = {
         "body": {
             "contentType": "html",
-            "content": f"{message_text}<br/><attachment id=\"{attach_id}\"></attachment>",
+            "content": f'{message_text}<br/><attachment id="{attach_id}"></attachment>',
         },
         "attachments": [
             {
@@ -223,7 +240,9 @@ def main():
     p.add_argument("--email", required=True, help="Recipient email/UPN")
     p.add_argument("--file", required=True, help="Path to file to send")
     p.add_argument("--message", default="Hi, please find the attached file.")
-    p.add_argument("--interactive", action="store_true", help="Allow device-flow login if cache missing")
+    p.add_argument(
+        "--interactive", action="store_true", help="Allow device-flow login if cache missing"
+    )
     args = p.parse_args()
 
     try:
@@ -247,12 +266,14 @@ def main():
             file_meta = upload_future.result()
         send_message(token, chat_id, file_meta, args.message)
 
-        _emit({
-            "ok": True,
-            "chat_id": chat_id,
-            "file_name": file_meta["name"],
-            "web_url": file_meta["webUrl"],
-        })
+        _emit(
+            {
+                "ok": True,
+                "chat_id": chat_id,
+                "file_name": file_meta["name"],
+                "web_url": file_meta["webUrl"],
+            }
+        )
     except Exception as err:
         _emit({"ok": False, "error": str(err)})
         sys.exit(1)

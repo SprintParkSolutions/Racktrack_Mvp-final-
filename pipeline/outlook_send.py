@@ -10,35 +10,45 @@ Stdout (one JSON line):
     {"ok": false, "error": "..."}
 
 Auth: MSAL with a shared SerializableTokenCache (the SAME Azure app + account as
-Teams — pipeline/shankar_teams_cache.json). Because that cache holds a refresh
-token, Outlook acquires a Mail.Send token SILENTLY and self-refreshes forever —
-no per-hour re-login. If the shared cache is ever missing an account, run once
-with --interactive to seed it via device flow.
+Teams — pipeline/racktrack_teams_cache.json, holding racktrackteam@sprintpark.com).
+Because that cache holds a refresh token, Outlook acquires a Mail.Send token
+SILENTLY and self-refreshes forever — no per-hour re-login. If the shared cache is
+ever missing an account, run once with --interactive to seed it via device flow.
+
+That silent path is also why a stale cache surfaced as "sharing to Outlook
+redirects to the sign-in page": the server never passes --interactive, so a
+missing or expired refresh token failed the send outright with nowhere for the
+user to complete a login. Reports now send as the RackTrack Team mailbox rather
+than as whichever individual last signed in.
 
 Note: this uses the inline /me/sendMail path (base64 attachment), which caps the
 whole request at ~4 MB. Rack report PDFs are well under that.
 """
+
+import argparse
+import base64
+import json
 import os
 import sys
-import json
-import base64
-import argparse
 
 import msal
 import requests
 
-CLIENT_ID = "a58b8e87-442d-47a4-8694-87b30bf03efd"
-TENANT_ID = "ee8c7b70-7a3a-4155-b1f2-59ff718e1d5c"
+# Must match teams_send.py — the cache below is shared, and a cache is only
+# usable by the client id that created its entries.
+CLIENT_ID = os.environ.get("RACKTRACK_MS_CLIENT_ID", "4f662230-bce9-44ab-86f3-655f918af878")
+TENANT_ID = os.environ.get("RACKTRACK_MS_TENANT_ID", "ee8c7b70-7a3a-4155-b1f2-59ff718e1d5c")
 
 SCOPES = ["Mail.Send"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 GRAPH_API_URL = "https://graph.microsoft.com/v1.0"
 
-# Shared with Teams: same app (a58b8e87) + same signed-in account, so the refresh
-# token already in this cache lets us mint a Mail.Send token with no re-login.
-TOKEN_CACHE_FILE = os.path.join(
+# Shared with Teams: same app + same signed-in account, so the refresh token
+# already in this cache lets us mint a Mail.Send token with no re-login. Keep this
+# path identical to teams_send.py's — they must read and write the same file.
+TOKEN_CACHE_FILE = os.environ.get("RACKTRACK_MSAL_CACHE") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "shankar_teams_cache.json",
+    "racktrack_teams_cache.json",
 )
 
 
@@ -53,7 +63,7 @@ def _emit(obj):
 def get_access_token(interactive: bool) -> str:
     cache = msal.SerializableTokenCache()
     if os.path.exists(TOKEN_CACHE_FILE):
-        with open(TOKEN_CACHE_FILE, "r", encoding="utf-8") as f:
+        with open(TOKEN_CACHE_FILE, encoding="utf-8") as f:
             cache.deserialize(f.read())
 
     app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY, token_cache=cache)
@@ -140,7 +150,8 @@ def main():
     p.add_argument("--subject", default="Device Report - racktrack.ai")
     p.add_argument("--body", default=DEFAULT_BODY)
     p.add_argument(
-        "--interactive", action="store_true",
+        "--interactive",
+        action="store_true",
         help="Allow device-flow login when cache is missing or expired (requires a TTY).",
     )
     args = p.parse_args()

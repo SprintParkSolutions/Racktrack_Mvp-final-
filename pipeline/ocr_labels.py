@@ -21,6 +21,7 @@ Output (stdout, single line of JSON):
       ]
     }
 """
+
 import argparse
 import json
 import sys
@@ -35,11 +36,11 @@ def extract_labels(image_path: str, min_conf: float = 0.25) -> dict:
         raise FileNotFoundError(f"Could not read image: {image_path}")
     h_img, w_img = img.shape[:2]
 
-    reader  = easyocr.Reader(["en"], gpu=False, verbose=False)
+    reader = easyocr.Reader(["en"], gpu=False, verbose=False)
     results = reader.readtext(image_path, detail=1, paragraph=False)
 
     labels = []
-    for (pts, text, conf) in results:
+    for pts, text, conf in results:
         text = (text or "").strip()
         if len(text) < 2 or float(conf) < min_conf:
             continue
@@ -51,19 +52,23 @@ def extract_labels(image_path: str, min_conf: float = 0.25) -> dict:
         y2 = min(h_img, int(max(ys)))
         if x2 - x1 < 5 or y2 - y1 < 5:
             continue
-        labels.append({
-            "text": text,
-            "conf": round(float(conf), 3),
-            "bbox": {
-                "x": x1, "y": y1,
-                "w": x2 - x1, "h": y2 - y1,
-                "yPct": round(y1 / h_img * 100, 2),
-                "xPct": round(x1 / w_img * 100, 2),
-            },
-        })
+        labels.append(
+            {
+                "text": text,
+                "conf": round(float(conf), 3),
+                "bbox": {
+                    "x": x1,
+                    "y": y1,
+                    "w": x2 - x1,
+                    "h": y2 - y1,
+                    "yPct": round(y1 / h_img * 100, 2),
+                    "xPct": round(x1 / w_img * 100, 2),
+                },
+            }
+        )
 
     return {
-        "image_size": { "w": w_img, "h": h_img },
+        "image_size": {"w": w_img, "h": h_img},
         "labels": labels,
     }
 
@@ -71,15 +76,19 @@ def extract_labels(image_path: str, min_conf: float = 0.25) -> dict:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("image_path")
-    ap.add_argument("--min-conf", type=float, default=0.25,
-                    help="Drop OCR detections below this confidence (default: 0.25)")
+    ap.add_argument(
+        "--min-conf",
+        type=float,
+        default=0.25,
+        help="Drop OCR detections below this confidence (default: 0.25)",
+    )
     args = ap.parse_args()
 
     try:
         result = extract_labels(args.image_path, min_conf=args.min_conf)
     except Exception as e:
         # Always emit JSON so the Node side can parse cleanly.
-        sys.stdout.write(json.dumps({ "error": str(e), "labels": [] }))
+        sys.stdout.write(json.dumps({"error": str(e), "labels": []}))
         sys.stdout.flush()
         sys.exit(1)
 

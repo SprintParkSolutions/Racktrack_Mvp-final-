@@ -20,7 +20,6 @@ import shutil
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from . import memory
 
@@ -87,8 +86,8 @@ def add_correction(
     image_path: str,
     pred_label: str,
     final_label: str,
-    source_name: Optional[str] = None,
-    extra: Optional[dict] = None,
+    source_name: str | None = None,
+    extra: dict | None = None,
 ) -> dict:
     """Add or update a correction. Returns the stored record."""
     with _LOCK:
@@ -121,7 +120,7 @@ def add_correction(
         return rec_out
 
 
-def find_match(model: str, image_path: str) -> Optional[dict]:
+def find_match(model: str, image_path: str) -> dict | None:
     """Look up a previously-corrected label for this image. None if no match."""
     h = memory.phash(image_path)
     emb = memory.embed(image_path)
@@ -129,9 +128,13 @@ def find_match(model: str, image_path: str) -> Optional[dict]:
     rec = memory.nearest_correction(h, emb, corrections)
     if rec is None:
         return None
-    return {"label": rec.get("label"), "pred": rec.get("pred"),
-            "timestamp": rec.get("timestamp"), "source": rec.get("source"),
-            "phash": h}
+    return {
+        "label": rec.get("label"),
+        "pred": rec.get("pred"),
+        "timestamp": rec.get("timestamp"),
+        "source": rec.get("source"),
+        "phash": h,
+    }
 
 
 def stats() -> dict:
@@ -150,6 +153,7 @@ def stats() -> dict:
 # ─────────────────────────────────────────────────────────────────────
 # Verified port store — HIGHEST PRIORITY, bypasses YOLO on next upload
 # ─────────────────────────────────────────────────────────────────────
+
 
 def load_verified_ports() -> dict:
     p = _verified_ports_path()
@@ -179,9 +183,7 @@ def add_verified_port_layout(
         emb = memory.embed(image_path)
         verified = load_verified_ports()
         clean_ports = [
-            {"port_number": int(p["port_number"]),
-             "x": int(p["x"]),
-             "y": int(p["y"])}
+            {"port_number": int(p["port_number"]), "x": int(p["x"]), "y": int(p["y"])}
             for p in ports
             if int(p.get("port_number", 0)) >= 1
         ]
@@ -198,7 +200,7 @@ def add_verified_port_layout(
         return {"phash": h, "n_ports": len(clean_ports)}
 
 
-def find_verified_port_layout(image_path: str) -> Optional[dict]:
+def find_verified_port_layout(image_path: str) -> dict | None:
     """Look up a saved verified layout for this image. None if none."""
     h = memory.phash(image_path)
     emb = memory.embed(image_path)
@@ -265,7 +267,8 @@ def save_confirmed_racks(v: dict) -> None:
 
 def add_confirmed_rack(image_path: str, rack_id: str, image_name=None) -> dict:
     """Register a rack image's fingerprint → rackId so a future upload that
-    perceptually matches serves this confirmed rack instead of re-detecting."""
+    perceptually matches serves this confirmed rack instead of re-detecting.
+    """
     with _LOCK:
         h = memory.phash(image_path)
         emb = memory.embed(image_path)
@@ -280,9 +283,10 @@ def add_confirmed_rack(image_path: str, rack_id: str, image_name=None) -> dict:
         return {"phash": h, "rack_id": rack_id}
 
 
-def find_confirmed_rack(image_path: str) -> Optional[dict]:
+def find_confirmed_rack(image_path: str) -> dict | None:
     """Look up a confirmed rackId whose image perceptually matches. None if
-    no confident match. pHash first (cheap), then a strict embedding pass."""
+    no confident match. pHash first (cheap), then a strict embedding pass.
+    """
     confirmed = load_confirmed_racks()
     if not confirmed:
         return None
@@ -293,8 +297,7 @@ def find_confirmed_rack(image_path: str) -> Optional[dict]:
         if d < best_d:
             best, best_d = rec, d
     if best is not None:
-        return {"rack_id": best.get("rack_id"), "match_type": "phash",
-                "match_distance": best_d}
+        return {"rack_id": best.get("rack_id"), "match_type": "phash", "match_distance": best_d}
     emb = memory.embed(image_path)
     best, best_s = None, _RACK_SIM_THRESH
     for rec in confirmed.values():
@@ -306,5 +309,4 @@ def find_confirmed_rack(image_path: str) -> Optional[dict]:
             best, best_s = rec, s
     if best is None:
         return None
-    return {"rack_id": best.get("rack_id"), "match_type": "embedding",
-            "match_score": best_s}
+    return {"rack_id": best.get("rack_id"), "match_type": "embedding", "match_score": best_s}

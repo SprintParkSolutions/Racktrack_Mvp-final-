@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+
 import cv2
 
 logger = logging.getLogger(__name__)
@@ -13,42 +14,48 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from pipeline.config_loader import load_json_config, ensure_dir
-from pipeline.detection import (
-    load_model,
-    print_model_classes,
-    detect_rack_bounds,
-    detect_devices_dual,
-    detect_devices_seg,
-    shift_boxes,
-    derive_unit_height,
-    build_contiguous_unit_grid,
-    remove_overlapping_devices,
-    normalize_device_stack,
-    validate_device_stack,
-    assign_devices_to_units,
-    ensure_every_unit_has_device,
-    build_device_mapping,
-    FALLBACK_DEVICE_CLASS_NAMES,
-)
 from pipeline.annotation import (
-    annotate_units_only,
     annotate_devices_only,
-    annotate_image,
     annotate_full_rack,
+    annotate_image,
+    annotate_units_only,
     save_json,
 )
-from pipeline.selection import select_device, crop_device_with_origin
-from pipeline.port import draw_classified
-from pipeline.port_pattern import classify_ports_by_pattern, classify_ports_with_target_count, detect_patch_panel_ports, detect_pdu_ports
 from pipeline.cable import (
-    load_cable_model,
     classify_cable,
-    crop_box,
-    parse_cable_type_color,
-    load_port_identify_model,
     classify_port_type,
+    crop_box,
+    load_cable_model,
+    load_port_identify_model,
+    parse_cable_type_color,
 )
+from pipeline.config_loader import ensure_dir, load_json_config
+from pipeline.detection import (
+    FALLBACK_DEVICE_CLASS_NAMES,
+    assign_devices_to_units,
+    build_contiguous_unit_grid,
+    build_device_mapping,
+    derive_unit_height,
+    detect_devices_dual,
+    detect_devices_seg,
+    detect_rack_bounds,
+    ensure_every_unit_has_device,
+    load_model,
+    normalize_device_stack,
+    print_model_classes,
+    remove_overlapping_devices,
+    shift_boxes,
+    validate_device_stack,
+)
+from pipeline.port import draw_classified
+from pipeline.port_pattern import (
+    classify_ports_by_pattern,
+    classify_ports_with_target_count,
+    detect_patch_panel_ports,
+    detect_pdu_ports,
+    snap_switch_port_count,
+)
+from pipeline.selection import crop_device_with_origin, select_device
 
 # Step 06: Pipeline runner
 
@@ -116,10 +123,12 @@ def demote_if_no_ports(dev):
     that marker, so a genuine zero-port device (no marker) stays distinguishable
     from a detection failure even after both land on "Unidentified".
     """
-    detected = (list(dev.get("ports") or [])
-                + list(dev.get("console_ports") or [])
-                + list(dev.get("sfp_ports") or [])
-                + list(dev.get("other_ports") or []))
+    detected = (
+        list(dev.get("ports") or [])
+        + list(dev.get("console_ports") or [])
+        + list(dev.get("sfp_ports") or [])
+        + list(dev.get("other_ports") or [])
+    )
     if not detected:
         dev["class_name"] = "Unidentified"
         _clear_port_fields(dev)
@@ -181,6 +190,39 @@ def save_unit_device_report(path, lines):
             f.write(line + "\n")
 
 
+def _analysed_map_devices(json_path):
+    """The device list from an existing device_unit_map.json that has already
+    been through the port-analysis pass, or None.
+
+    "Analysed" means at least one port-bearing device carries a port_count —
+    the field only the --detect_only branch writes. Used by the select path to
+    tell an analysed map (must be preserved and indexed against) from a bare or
+    absent one (safe to overwrite).
+    """
+    try:
+        if not os.path.exists(json_path):
+            return None
+        with open(json_path, encoding="utf-8") as f:
+            payload = json.load(f)
+        devices = payload.get("devices")
+        if not isinstance(devices, list) or not devices:
+            return None
+        if any(
+            isinstance(d, dict) and isinstance(d.get("port_count"), int) and d.get("port_count") > 0
+            for d in devices
+        ):
+            return devices
+        # Every device has a box but none has ports — a map written by a
+        # previous select, or a rack with genuinely no port-bearing devices.
+        # Still preserve it for indexing if the boxes are there.
+        if all(isinstance(d, dict) and d.get("box") for d in devices):
+            return devices
+        return None
+    except Exception as exc:
+        print(f"[select] could not read existing device map ({exc}); treating as absent")
+        return None
+
+
 def enrich_cables_on_map(img, output_dir, cable_model_path):
     """Classify the cable on every CONNECTED port of an already-analyzed rack
     and write cable_type / cable_connector / cable_color / cable_confidence
@@ -199,7 +241,7 @@ def enrich_cables_on_map(img, output_dir, cable_model_path):
         print("[enrich_cables] no cable_classifier configured; skipping")
         return
 
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         payload = json.load(f)
 
     cable_model = load_cable_model(cable_model_path, device="cpu")
@@ -212,11 +254,17 @@ def enrich_cables_on_map(img, output_dir, cable_model_path):
         bx1, by1, bx2, by2 = [int(v) for v in box]
         box_w = max(1, bx2 - bx1)
         box_h = max(1, by2 - by1)
-        crop = crop_box(dev_crop, [bx1, by1, bx2, by2],
-                        pad_x=(box_w * 3) // 2, pad_y=(box_h * 3) // 2)
+        crop = crop_box(
+            dev_crop, [bx1, by1, bx2, by2], pad_x=(box_w * 3) // 2, pad_y=(box_h * 3) // 2
+        )
         if crop is None or crop.size == 0:
             return False
-        cable_class, cable_conf = classify_cable(crop, cable_model)
+        # Each port dict carries the bucket it was classified into, so the
+        # whole-rack enrichment gets the same physical constraint the
+        # single-port path does: fibre connectors on SFP cages, copper on RJ-45.
+        cable_class, cable_conf = classify_cable(
+            crop, cable_model, port_category=port.get("port_category")
+        )
         connector, color = parse_cable_type_color(cable_class)
         port["cable_type"] = cable_class
         port["cable_connector"] = connector
@@ -230,8 +278,7 @@ def enrich_cables_on_map(img, output_dir, cable_model_path):
         # SFP. Console/other rarely, but classify whatever reads 'connected'.
         port_lists = ["ports", "sfp_ports", "other_ports"]
         has_connected = any(
-            p.get("status") == "connected"
-            for lst in port_lists for p in (dev.get(lst) or [])
+            p.get("status") == "connected" for lst in port_lists for p in (dev.get(lst) or [])
         )
         if not has_connected:
             continue
@@ -240,7 +287,7 @@ def enrich_cables_on_map(img, output_dir, cable_model_path):
         except Exception:
             continue
         for lst in port_lists:
-            for port in (dev.get(lst) or []):
+            for port in dev.get(lst) or []:
                 if port.get("status") == "connected":
                     if _classify_port(dev_crop, port):
                         enriched += 1
@@ -252,40 +299,70 @@ def enrich_cables_on_map(img, output_dir, cable_model_path):
 
     payload["cables_enriched"] = True
     save_json(json_path, payload)
-    print(f"[enrich_cables] classified cable on {enriched} connected port(s) "
-          f"across {len(devices)} device(s); saved {json_path}")
+    print(
+        f"[enrich_cables] classified cable on {enriched} connected port(s) "
+        f"across {len(devices)} device(s); saved {json_path}"
+    )
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Run rack unit and device detection, then highlight ports.")
+    parser = argparse.ArgumentParser(
+        description="Run rack unit and device detection, then highlight ports."
+    )
     parser.add_argument("--image", required=True, help="Input rack image path.")
     parser.add_argument("--config", default="config.json", help="Path to pipeline config file.")
     parser.add_argument("--device_index", type=int, help="Select device index without prompt.")
-    parser.add_argument("--port", type=int, help="Port number to highlight in the selected device image.")
-    parser.add_argument("--port_category", choices=["main", "sfp", "console", "other"], default="main",
-                        help="Which port category the --port number refers to (default: main = RJ45; other = USB).")
-    parser.add_argument("--list_device_classes", action="store_true",
-                        help="Print device model classes and exit.")
+    parser.add_argument(
+        "--port", type=int, help="Port number to highlight in the selected device image."
+    )
+    parser.add_argument(
+        "--port_category",
+        choices=["main", "sfp", "console", "other"],
+        default="main",
+        help="Which port category the --port number refers to (default: main = RJ45; other = USB).",
+    )
+    parser.add_argument(
+        "--list_device_classes", action="store_true", help="Print device model classes and exit."
+    )
     parser.add_argument("--output_dir", help="Override output directory from config.")
-    parser.add_argument("--devices_conf", type=float, help="Confidence threshold for general device model.")
+    parser.add_argument(
+        "--devices_conf", type=float, help="Confidence threshold for general device model."
+    )
     parser.add_argument("--server_conf", type=float, help="Confidence threshold for server model.")
     parser.add_argument("--ports_conf", type=float, help="Confidence threshold for port detection.")
-    parser.add_argument("--detect_only", action="store_true",
-                        help="Run detection and annotation only; skip device and port selection.")
-    parser.add_argument("--enrich_cables", action="store_true",
-                        help="Post-analyze pass: classify the cable (type + colour) on every "
-                             "connected port in an existing device_unit_map.json and write the "
-                             "cable_* fields back. Runs no detection; meant to be scheduled in "
-                             "the background right after analyze.")
-    parser.add_argument("--org_id", default=None,
-                        help="Organization id for org-scoped active-learning (cable) lookups.")
-    parser.add_argument("--target_count", type=int, default=0,
-                        help="User-confirmed main-port count for the selected device; "
-                             "forces the port layout to exactly this many so port N "
-                             "on select matches the numbering the user confirmed.")
-    parser.add_argument("--index_offset", type=int, default=0,
-                        help="User's port-number shift; added to every drawn port index "
-                             "so the labels match the user's corrected numbering.")
+    parser.add_argument(
+        "--detect_only",
+        action="store_true",
+        help="Run detection and annotation only; skip device and port selection.",
+    )
+    parser.add_argument(
+        "--enrich_cables",
+        action="store_true",
+        help="Post-analyze pass: classify the cable (type + colour) on every "
+        "connected port in an existing device_unit_map.json and write the "
+        "cable_* fields back. Runs no detection; meant to be scheduled in "
+        "the background right after analyze.",
+    )
+    parser.add_argument(
+        "--org_id",
+        default=None,
+        help="Organization id for org-scoped active-learning (cable) lookups.",
+    )
+    parser.add_argument(
+        "--target_count",
+        type=int,
+        default=0,
+        help="User-confirmed main-port count for the selected device; "
+        "forces the port layout to exactly this many so port N "
+        "on select matches the numbering the user confirmed.",
+    )
+    parser.add_argument(
+        "--index_offset",
+        type=int,
+        default=0,
+        help="User's port-number shift; added to every drawn port index "
+        "so the labels match the user's corrected numbering.",
+    )
     return parser.parse_args()
 
 
@@ -307,17 +384,18 @@ def main():
 
     if device_detect_mode == "dual":
         device_general_path = config["models"].get("devices_general")
-        device_server_path  = config["models"].get("devices_server")
-        device_seg_path     = None
+        device_server_path = config["models"].get("devices_server")
+        device_seg_path = None
         if not device_general_path or not device_server_path:
             raise RuntimeError(
                 "device_detect_mode='dual' requires 'devices_general' and "
                 "'devices_server' in config.json models (removed for seg-only "
-                "mode). Set mode to 'seg' or restore the dual model paths.")
+                "mode). Set mode to 'seg' or restore the dual model paths."
+            )
     else:
         device_general_path = None
-        device_server_path  = None
-        device_seg_path     = config["models"]["devices_seg"]
+        device_server_path = None
+        device_seg_path = config["models"]["devices_seg"]
 
     port_typed_path = config["models"]["ports_typed"]
     port_status_path = config["models"]["ports_status"]
@@ -325,26 +403,32 @@ def main():
     port_identify_model_path = config["models"].get("port_identify")
     pdu_ports_model_path = config["models"].get("pdu_ports")
 
-    devices_conf = args.devices_conf if args.devices_conf is not None else detect_cfg.get("devices_conf", 0.20)
-    server_conf  = args.server_conf  if args.server_conf  is not None else detect_cfg.get("server_conf",  0.25)
-    iou_dedup    = detect_cfg.get("iou_dedup", 0.5)
-    ports_conf   = args.ports_conf if args.ports_conf is not None else detect_cfg.get("ports_conf", 0.23)
+    devices_conf = (
+        args.devices_conf if args.devices_conf is not None else detect_cfg.get("devices_conf", 0.20)
+    )
+    server_conf = (
+        args.server_conf if args.server_conf is not None else detect_cfg.get("server_conf", 0.25)
+    )
+    iou_dedup = detect_cfg.get("iou_dedup", 0.5)
+    ports_conf = (
+        args.ports_conf if args.ports_conf is not None else detect_cfg.get("ports_conf", 0.23)
+    )
     # PDU power outlets use a higher confidence (matches the standalone pdu code).
-    pdu_conf     = detect_cfg.get("pdu_conf", 0.40)
+    pdu_conf = detect_cfg.get("pdu_conf", 0.40)
 
     if device_detect_mode == "dual":
         device_general_model = load_model(device_general_path)
-        device_server_model  = load_model(device_server_path)
-        device_seg_model     = None
+        device_server_model = load_model(device_server_path)
+        device_seg_model = None
     else:
         device_general_model = None
-        device_server_model  = None
-        device_seg_model     = load_model(device_seg_path)
+        device_server_model = None
+        device_seg_model = load_model(device_seg_path)
 
     if args.list_device_classes:
         if device_detect_mode == "dual":
             print_model_classes(device_general_model, "devices (general)")
-            print_model_classes(device_server_model,  "devices (server)")
+            print_model_classes(device_server_model, "devices (server)")
         else:
             print_model_classes(device_seg_model, "devices (seg)")
         return
@@ -384,15 +468,20 @@ def main():
     # agnostic.
     if device_detect_mode == "dual":
         devices = detect_devices_dual(
-            rack_crop, device_server_model, device_general_model,
-            conf_server=server_conf, conf_general=devices_conf,
+            rack_crop,
+            device_server_model,
+            device_general_model,
+            conf_server=server_conf,
+            conf_general=devices_conf,
             iou_thresh=iou_dedup,
         )
         print(f"[devices] dual mode → {len(devices)} devices")
     else:
         devices = detect_devices_seg(
-            rack_crop, device_seg_model,
-            conf=devices_conf, iou_thresh=iou_dedup,
+            rack_crop,
+            device_seg_model,
+            conf=devices_conf,
+            iou_thresh=iou_dedup,
         )
         print(f"[devices] seg mode → {len(devices)} devices")
 
@@ -419,13 +508,15 @@ def main():
     if _org and devices:
         try:
             import tempfile
+
             from pipeline.active_learning import store as _al
+
             _al.set_org(_org)
             # Skip the (per-device) embedding cost entirely unless this org has
             # actually stored device corrections — the common case is none.
             _have_corr = bool(_al.load_corrections("devices"))
             _n_corrected = 0
-            for _dev in (devices if _have_corr else []):
+            for _dev in devices if _have_corr else []:
                 _box = _dev.get("box")
                 if not _box or len(_box) != 4:
                     continue
@@ -454,8 +545,10 @@ def main():
             if _n_corrected:
                 # Re-sort/renormalise so downstream (unit_h from Switch/Patch
                 # Panel, picker protection) sees the corrected classes.
-                print(f"[devices] active learning: corrected {_n_corrected} "
-                      f"device class(es) from org memory")
+                print(
+                    f"[devices] active learning: corrected {_n_corrected} "
+                    f"device class(es) from org memory"
+                )
         except Exception as _e:
             print(f"[devices] (device learning lookup skipped: {_e})")
 
@@ -469,12 +562,17 @@ def main():
     unit_h = derive_unit_height(devices)
     if unit_h:
         units = build_contiguous_unit_grid(
-            devices, unit_h, rack_bounds=rack_box, img_shape=img.shape,
+            devices,
+            unit_h,
+            rack_bounds=rack_box,
+            img_shape=img.shape,
         )
         unit_source = "device_tiling"
-        print(f"[units] contiguous grid: {len(units)} rows "
-              f"(unit_h={unit_h}px, top={units[0]['box'][1]}px, "
-              f"bot={units[-1]['box'][3]}px)")
+        print(
+            f"[units] contiguous grid: {len(units)} rows "
+            f"(unit_h={unit_h}px, top={units[0]['box'][1]}px, "
+            f"bot={units[-1]['box'][3]}px)"
+        )
     else:
         units = []
         unit_source = "none"
@@ -487,10 +585,7 @@ def main():
     # needs to list every one the user can inspect. Only non-port-bearing
     # devices that got zero units are dropped.
     _PICKER_PROTECTED = {"Switch", "Patch Panel", "Firewall", "Gateway", "Router"}
-    devices = [
-        d for d in devices
-        if d.get("units") or d.get("class_name") in _PICKER_PROTECTED
-    ]
+    devices = [d for d in devices if d.get("units") or d.get("class_name") in _PICKER_PROTECTED]
     # Every unit must map to exactly one device. Units left unclaimed by
     # any real detection — even after the low-conf retry — get a synthetic
     # 'Unidentified' placeholder. We deliberately don't call these 'Empty':
@@ -546,14 +641,16 @@ def main():
     #                       the standalone detector for patch panels.
     port_model_inst = load_model(port_typed_path)
     status_model_inst = load_model(port_status_path)
-    pdu_model_inst = (load_model(pdu_ports_model_path)
-                      if pdu_ports_model_path and os.path.exists(pdu_ports_model_path)
-                      else None)
+    pdu_model_inst = (
+        load_model(pdu_ports_model_path)
+        if pdu_ports_model_path and os.path.exists(pdu_ports_model_path)
+        else None
+    )
     rack_ports_img = img.copy()
     CLR_DEV = (0, 255, 0)
-    CLR_CONSOLE = (255, 255, 0)   # cyan
-    CLR_MAIN = (0, 0, 255)        # red
-    CLR_SFP = (0, 255, 255)       # yellow
+    CLR_CONSOLE = (255, 255, 0)  # cyan
+    CLR_MAIN = (0, 0, 255)  # red
+    CLR_SFP = (0, 255, 255)  # yellow
     MAIN_PORTS_ONLY = {"Patch Panel"}
     # Only run port detection on classes that actually have ports on the
     # visible face. Skipping the rest avoids hallucinated port boxes on
@@ -575,11 +672,12 @@ def main():
             try:
                 dev_crop, (ox, oy) = crop_device_with_origin(img, dev["box"])
                 pdu = detect_pdu_ports(dev_crop, pdu_model_inst, conf=pdu_conf)
-                for port in pdu['power_ports']:
-                    px1, py1, px2, py2 = port['box']
-                    clr = CLR_DEV if port['status'] == 'connected' else CLR_MAIN
-                    cv2.rectangle(rack_ports_img,
-                                  (px1 + ox, py1 + oy), (px2 + ox, py2 + oy), clr, 1)
+                for port in pdu["power_ports"]:
+                    px1, py1, px2, py2 = port["box"]
+                    clr = CLR_DEV if port["status"] == "connected" else CLR_MAIN
+                    cv2.rectangle(
+                        rack_ports_img, (px1 + ox, py1 + oy), (px2 + ox, py2 + oy), clr, 1
+                    )
             except Exception:
                 pass
             continue
@@ -592,17 +690,21 @@ def main():
                 classified = detect_patch_panel_ports(dev_crop, status_model_inst, conf=ports_conf)
             else:
                 classified = classify_ports_by_pattern(
-                    dev_crop, port_model_inst, conf=ports_conf,
+                    dev_crop,
+                    port_model_inst,
+                    conf=ports_conf,
                     status_model=status_model_inst,
                 )
-            for p, clr in ((classified.get('console_ports', []), CLR_CONSOLE),
-                           (classified.get('main_ports', []), CLR_MAIN),
-                           (classified.get('sfp_ports', []), CLR_SFP)):
+            for p, clr in (
+                (classified.get("console_ports", []), CLR_CONSOLE),
+                (classified.get("main_ports", []), CLR_MAIN),
+                (classified.get("sfp_ports", []), CLR_SFP),
+            ):
                 for port in p:
-                    px1, py1, px2, py2 = port['box']
-                    cv2.rectangle(rack_ports_img,
-                                  (px1 + ox, py1 + oy), (px2 + ox, py2 + oy),
-                                  clr, 1)
+                    px1, py1, px2, py2 = port["box"]
+                    cv2.rectangle(
+                        rack_ports_img, (px1 + ox, py1 + oy), (px2 + ox, py2 + oy), clr, 1
+                    )
         except Exception:
             pass
     cv2.imwrite(rack_all_ports_path, rack_ports_img)
@@ -647,10 +749,14 @@ def main():
             try:
                 dev_crop, _ = crop_device_with_origin(img, dev["box"])
                 if dev["class_name"] in MAIN_PORTS_ONLY:
-                    classified = detect_patch_panel_ports(dev_crop, status_model_inst, conf=ports_conf)
+                    classified = detect_patch_panel_ports(
+                        dev_crop, status_model_inst, conf=ports_conf
+                    )
                 else:
                     classified = classify_ports_by_pattern(
-                        dev_crop, port_model_inst, conf=ports_conf,
+                        dev_crop,
+                        port_model_inst,
+                        conf=ports_conf,
                         status_model=status_model_inst,
                     )
 
@@ -662,30 +768,50 @@ def main():
                 # this is a no-op.)
                 try:
                     from pipeline.device_db import read_device_model
+
                     ocr_name, ocr_total, ocr_sfp = read_device_model(dev_crop)
                 except Exception:
                     ocr_name = ocr_total = ocr_sfp = None
 
-                visual_main = len(classified['main_ports'])
+                visual_main = len(classified["main_ports"])
+                # Snap the DETECTED count to a size real hardware ships with, so
+                # the app never asserts an impossible switch ("no switch contains
+                # 53 there must be 52"). Applied only to the visual count: an OCR
+                # count comes from the faceplate model via device_db and is
+                # catalogue truth, so it is published as-is. The raw number is
+                # kept on port_count_visual for auditing — without it a snapped
+                # count is indistinguishable from a correctly detected one.
+                snapped_main = snap_switch_port_count(visual_main)
+                if snapped_main != visual_main:
+                    print(
+                        f"  Port count snapped: {visual_main} -> {snapped_main} "
+                        f"({dev['class_name']} @ {dev.get('units')})"
+                    )
                 if ocr_name and ocr_total:
                     expected_main = max(0, ocr_total - (ocr_sfp or 0))
                     if visual_main < expected_main * 0.75:
                         dev["port_count"] = expected_main
                         dev["port_count_source"] = f"ocr:{ocr_name}"
                     else:
-                        dev["port_count"] = visual_main
+                        dev["port_count"] = snapped_main
+                        if snapped_main != visual_main:
+                            dev["port_count_source"] = "snapped"
                     dev["ocr_model"] = ocr_name
                     dev["ocr_expected_ports"] = expected_main
                     dev["ocr_expected_sfp"] = ocr_sfp or 0
                 else:
-                    dev["port_count"] = visual_main
+                    dev["port_count"] = snapped_main
+                    if snapped_main != visual_main:
+                        dev["port_count_source"] = "snapped"
+                dev["port_count_visual"] = visual_main
 
-                dev["ports"] = classified['main_ports']
-                dev["console_ports"] = classified['console_ports']
-                dev["sfp_ports"] = classified['sfp_ports']
-                dev["other_ports"] = classified.get('other_ports', [])
-                dev["connected_ports"] = [p for p in classified['main_ports']
-                                          if p.get("status") == "connected"]
+                dev["ports"] = classified["main_ports"]
+                dev["console_ports"] = classified["console_ports"]
+                dev["sfp_ports"] = classified["sfp_ports"]
+                dev["other_ports"] = classified.get("other_ports", [])
+                dev["connected_ports"] = [
+                    p for p in classified["main_ports"] if p.get("status") == "connected"
+                ]
             except Exception as exc:
                 # A port-detection CRASH must not masquerade as a device that
                 # genuinely has no ports. Log it with context, then MARK the
@@ -694,10 +820,14 @@ def main():
                 # below, but only the crash carries port_detection_failed.
                 logger.exception(
                     "port detection failed for device class=%r units=%s box=%s",
-                    dev.get("class_name"), dev.get("units"), dev.get("box"),
+                    dev.get("class_name"),
+                    dev.get("units"),
+                    dev.get("box"),
                 )
-                print(f"[ports] detection FAILED on {dev.get('class_name')!r} "
-                      f"box={dev.get('box')}: {type(exc).__name__}: {exc}")
+                print(
+                    f"[ports] detection FAILED on {dev.get('class_name')!r} "
+                    f"box={dev.get('box')}: {type(exc).__name__}: {exc}"
+                )
                 mark_port_detection_failed(dev, exc)
 
             # If the port detector found no ports at all on a port-bearing
@@ -717,18 +847,63 @@ def main():
         print("[detect_only] Detection and port analysis complete.")
         return
 
-    save_json(json_path, json_payload)
-    print(f"Saved unit/device mapping JSON to: {json_path}")
+    # ── Don't publish this re-detection over an already-analysed map ──────
+    # Reaching here means a SELECT ("show me port N on device D"), not an
+    # analyze: the --detect_only branch above returns before this line. Only
+    # that branch computes per-device port_count / ports / sfp_ports /
+    # console_ports, so json_payload here carries devices with NO port data —
+    # and saving it stripped those fields off every device in the rack.
+    #
+    # That is what broke the second port lookup. The first lookup read a good
+    # map, worked, and wiped it on the way out. The next one found port_count
+    # gone, so the server had no target count to pin the layout to and the UI
+    # was told the device has 0 ports — "We couldn't read how many ports this
+    # device has. Set the port count below, then pick a port." Rebuilding the
+    # canonical scan_result.json from the stripped map spread it to the ports
+    # dropdown and the report too. (server/app.js grew ensurePortCounts() to
+    # heal this after the fact; better not to break it in the first place.)
+    #
+    # The analysed map is authoritative — keep it, and only write when there
+    # is nothing there to protect.
+    _analysed_devices = _analysed_map_devices(json_path)
+    if _analysed_devices is None:
+        save_json(json_path, json_payload)
+        print(f"Saved unit/device mapping JSON to: {json_path}")
+    else:
+        print(
+            f"[select] preserving analysed device_unit_map.json "
+            f"({len(_analysed_devices)} devices with port data) — not overwriting"
+        )
 
     if not devices:
         raise RuntimeError("No devices detected. Cannot continue to port detection.")
 
+    # Index into the ANALYSED device list whenever we have one. device_index is
+    # defined BY that list — the client numbered the devices it was shown, which
+    # came from the analyze pass — so the analysed map is authoritative here by
+    # construction, and the fresh re-detection above is not.
+    #
+    # This matters because the two genuinely disagree. On a real scan
+    # (RK-2BD4D8B8) the analysed map holds 6 devices while re-detection finds
+    # 5: device 6 falls off the end entirely and devices 3-5 name different
+    # hardware than the user is pointing at. Indexing the fresh list is how
+    # "find port 5" came back with a port on the wrong device, or with nothing.
+    #
+    # Only fall back to the fresh list when there is no analysed map at all
+    # (a single-shot CLI run that goes straight to select without analyzing).
+    _index_source = _analysed_devices if _analysed_devices else devices
+    if _analysed_devices and len(_analysed_devices) != len(devices):
+        print(
+            f"[select] re-detection found {len(devices)} devices but the analysed map "
+            f"has {len(_analysed_devices)}; indexing the analysed map (authoritative)"
+        )
+
     if args.device_index is not None:
-        if not 1 <= args.device_index <= len(devices):
+        if not 1 <= args.device_index <= len(_index_source):
             raise ValueError("device_index is out of range.")
-        selected = devices[args.device_index - 1]
+        selected = _index_source[args.device_index - 1]
     else:
-        selected = select_device(devices, fallback_class_names=FALLBACK_DEVICE_CLASS_NAMES)
+        selected = select_device(_index_source, fallback_class_names=FALLBACK_DEVICE_CLASS_NAMES)
 
     device_crop, crop_origin = crop_device_with_origin(img, selected["box"])
     cv2.imwrite(selected_device_path, device_crop)
@@ -736,8 +911,12 @@ def main():
 
     # port_model_inst and status_model_inst were already loaded above for the
     # full-rack pass; reuse them here instead of re-loading.
-    cable_model = load_cable_model(cable_model_path, device='cpu') if cable_model_path else None
-    port_id_model = load_port_identify_model(port_identify_model_path, device='cpu') if port_identify_model_path else None
+    cable_model = load_cable_model(cable_model_path, device="cpu") if cable_model_path else None
+    port_id_model = (
+        load_port_identify_model(port_identify_model_path, device="cpu")
+        if port_identify_model_path
+        else None
+    )
 
     _target = getattr(args, "target_count", 0) or 0
     if selected["class_name"] in MAIN_PORTS_ONLY:
@@ -746,24 +925,29 @@ def main():
         # Honour the user-confirmed port count so port N here is the same N the
         # user numbered when they corrected the count (24 = the 24th position).
         classified = classify_ports_with_target_count(
-            device_crop, port_model_inst, _target, conf=ports_conf,
+            device_crop,
+            port_model_inst,
+            _target,
+            conf=ports_conf,
             status_model=status_model_inst,
         )
     else:
         classified = classify_ports_by_pattern(
-            device_crop, port_model_inst, conf=ports_conf,
+            device_crop,
+            port_model_inst,
+            conf=ports_conf,
             status_model=status_model_inst,
         )
 
-    n_console = len(classified.get('console_ports', []))
-    n_main = len(classified['main_ports'])
-    n_sfp = len(classified.get('sfp_ports', []))
-    n_other = len(classified.get('other_ports', []))
+    n_console = len(classified.get("console_ports", []))
+    n_main = len(classified["main_ports"])
+    n_sfp = len(classified.get("sfp_ports", []))
+    n_other = len(classified.get("other_ports", []))
 
-    pat = classified.get('pattern_info', {})
-    cluster_sizes = pat.get('cluster_sizes', [])
-    num_clusters = pat.get('num_clusters', 0)
-    main_cluster_size = pat.get('main_cluster_size', 0)
+    pat = classified.get("pattern_info", {})
+    cluster_sizes = pat.get("cluster_sizes", [])
+    num_clusters = pat.get("num_clusters", 0)
+    main_cluster_size = pat.get("main_cluster_size", 0)
 
     print(f"\nPort pattern: {num_clusters} cluster(s) — sizes {cluster_sizes}")
     print(f"  Main pattern: {main_cluster_size} ports/cluster")
@@ -774,26 +958,26 @@ def main():
     if n_sfp:
         print(f"  SFP:     {n_sfp} port(s)")
 
-    port_category = getattr(args, 'port_category', 'main') or 'main'
+    port_category = getattr(args, "port_category", "main") or "main"
     cat_key = {
-        'main': 'main_ports',
-        'sfp': 'sfp_ports',
-        'console': 'console_ports',
-        'other': 'other_ports',
-    }.get(port_category, 'main_ports')
+        "main": "main_ports",
+        "sfp": "sfp_ports",
+        "console": "console_ports",
+        "other": "other_ports",
+    }.get(port_category, "main_ports")
     cat_list = classified.get(cat_key, [])
     cat_count = len(cat_list)
 
     port_number = args.port
     if port_number is None:
         prompt_max = cat_count if cat_count else n_main
-        port_number = int(input(
-            f"Enter {port_category} port number to select (1-{prompt_max}): "
-        ))
+        port_number = int(input(f"Enter {port_category} port number to select (1-{prompt_max}): "))
 
     annotated_device = draw_classified(
-        device_crop, classified,
-        highlight_idx=port_number, highlight_category=port_category,
+        device_crop,
+        classified,
+        highlight_idx=port_number,
+        highlight_category=port_category,
         index_offset=getattr(args, "index_offset", 0) or 0,
     )
     cv2.imwrite(selected_device_port_path, annotated_device)
@@ -835,13 +1019,9 @@ def main():
         # fabricated connected/empty that then fed topology and the CMDB.
         # occupancy_source makes the distinction explicit in the output so a
         # downstream consumer can tell a measured empty from an unknown.
-        selected_port_info["status"] = resolve_port_occupancy(
-            selected_port_info["status"]
-        )
+        selected_port_info["status"] = resolve_port_occupancy(selected_port_info["status"])
         selected_port_info["occupancy_source"] = (
-            "status_model"
-            if selected_port_info["status"] in _OCCUPANCY_STATES
-            else "unknown"
+            "status_model" if selected_port_info["status"] in _OCCUPANCY_STATES else "unknown"
         )
 
         if selected_port_info["status"] == "connected" and cable_model is not None:
@@ -857,10 +1037,16 @@ def main():
             box_w = max(1, bx2 - bx1)
             box_h = max(1, by2 - by1)
             port_crop = crop_box(
-                img, selected_port_box,
-                pad_x=(box_w * 3) // 2, pad_y=(box_h * 3) // 2,
+                img,
+                selected_port_box,
+                pad_x=(box_w * 3) // 2,
+                pad_y=(box_h * 3) // 2,
             )
-            cable_class, cable_conf = classify_cable(port_crop, cable_model)
+            # Constrained by the port we are actually looking at, so an SFP
+            # cage cannot come back described as an RJ-45 cable.
+            cable_class, cable_conf = classify_cable(
+                port_crop, cable_model, port_category=port_category
+            )
             connector, color = parse_cable_type_color(cable_class)
             selected_port_info["cable_type"] = cable_class
             selected_port_info["cable_connector"] = connector
@@ -876,12 +1062,16 @@ def main():
             try:
                 _org = getattr(args, "org_id", None)
                 if _org:
-                    from pipeline.active_learning import store as _al
                     import tempfile
+
+                    from pipeline.active_learning import store as _al
+
                     _al.set_org(_org)
                     _lc = crop_box(
-                        img, selected_port_box,
-                        pad_x=max(2, box_w // 4), pad_y=max(2, box_h // 4),
+                        img,
+                        selected_port_box,
+                        pad_x=max(2, box_w // 4),
+                        pad_y=max(2, box_h // 4),
                     )
                     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as _tf:
                         _cp = _tf.name
@@ -913,14 +1103,17 @@ def main():
         try:
             _org2 = getattr(args, "org_id", None)
             if _org2 and selected_port_box is not None:
-                from pipeline.active_learning import store as _al2
                 import tempfile as _tf2mod
+
+                from pipeline.active_learning import store as _al2
+
                 _al2.set_org(_org2)
                 _tbx1, _tby1, _tbx2, _tby2 = selected_port_box
                 _tbw = max(1, _tbx2 - _tbx1)
                 _tbh = max(1, _tby2 - _tby1)
-                _tcrop = crop_box(img, selected_port_box,
-                                  pad_x=max(2, _tbw // 4), pad_y=max(2, _tbh // 4))
+                _tcrop = crop_box(
+                    img, selected_port_box, pad_x=max(2, _tbw // 4), pad_y=max(2, _tbh // 4)
+                )
                 with _tf2mod.NamedTemporaryFile(suffix=".jpg", delete=False) as _ttf:
                     _tpath = _ttf.name
                 cv2.imwrite(_tpath, _tcrop)
@@ -942,17 +1135,21 @@ def main():
 
     selected_port_info_path = os.path.join(output_dir, "selected_port_info.json")
     with open(selected_port_info_path, "w", encoding="utf-8") as info_file:
-        json.dump({
-            "scan_image": args.image,
-            "device_index": args.device_index,
-            "selected_device": selected,
-            "port_classification": {
-                "console": n_console,
-                "main": n_main,
-                "sfp": n_sfp,
+        json.dump(
+            {
+                "scan_image": args.image,
+                "device_index": args.device_index,
+                "selected_device": selected,
+                "port_classification": {
+                    "console": n_console,
+                    "main": n_main,
+                    "sfp": n_sfp,
+                },
+                "port_info": selected_port_info,
             },
-            "port_info": selected_port_info,
-        }, info_file, indent=2)
+            info_file,
+            indent=2,
+        )
 
     print(f"Saved selected device with port annotation to: {selected_device_port_path}")
     print(f"Saved full rack selected-port annotation to: {full_rack_output_path}")

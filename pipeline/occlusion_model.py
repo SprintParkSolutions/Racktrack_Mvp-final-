@@ -21,6 +21,7 @@ The heuristic is kept as a FALLBACK, not deleted: if torch is missing or the
 weights file isn't deployed, uploads must still work. A quality gate that hard-
 fails closed would block every scan on a box where the model wasn't shipped.
 """
+
 import os
 import pathlib
 import threading
@@ -59,7 +60,8 @@ _load_error = None
 def _ensure_loaded():
     """Load the weights once per process. Cached because the worker is
     long-lived and handles many uploads; reloading a 9MB checkpoint per
-    request would dominate the request time."""
+    request would dominate the request time.
+    """
     global _model, _classes, _load_error
     if _model is not None or _load_error is not None:
         return
@@ -68,8 +70,9 @@ def _ensure_loaded():
             return
         try:
             from pipeline.rack_classifier import load_model
+
             _model, _classes = load_model(MODEL_FILE)
-        except Exception as e:          # missing torch, missing/corrupt weights
+        except Exception as e:  # missing torch, missing/corrupt weights
             _load_error = str(e)
 
 
@@ -92,6 +95,7 @@ def classify_occlusion(bgr_img):
     try:
         import cv2
         from PIL import Image
+
         from pipeline.rack_classifier import predict_image
 
         # cv2 gives BGR; the model's transform expects PIL RGB. Skipping this
@@ -99,7 +103,7 @@ def classify_occlusion(bgr_img):
         # colour statistics the network learned and quietly degrades accuracy.
         pil = Image.fromarray(cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB))
         label, confidence, probs = predict_image(pil, _model, _classes)
-    except Exception as e:
+    except Exception:
         # Never let an inference error break an upload — fall back.
         return None
 

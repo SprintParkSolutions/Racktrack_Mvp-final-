@@ -32,13 +32,12 @@ import argparse
 import json
 import os
 import sys
-from typing import List, Tuple
 
 import numpy as np
 from PIL import Image
 
-
 # ─────────────────────────────────────────── Overlap detection ──────────────
+
 
 def find_overlap(
     img_prev: Image.Image,
@@ -49,7 +48,7 @@ def find_overlap(
     probe_h_min: int = 16,
     x_search: int = 12,
     peak_margin: float = 0.045,
-) -> Tuple[int, int, float, bool]:
+) -> tuple[int, int, float, bool]:
     """
     Edge-based template-matching overlap detector with X-jitter compensation.
 
@@ -89,13 +88,13 @@ def find_overlap(
     pad = max(0, x_search)
     if p_w - 2 * pad < 8:
         pad = 0
-    probe_rgb = p_rgb[-probe_h:, pad: p_w - pad] if pad else p_rgb[-probe_h:]
-    probe_edge = p_edge[-probe_h:, pad: p_w - pad] if pad else p_edge[-probe_h:]
+    probe_rgb = p_rgb[-probe_h:, pad : p_w - pad] if pad else p_rgb[-probe_h:]
+    probe_edge = p_edge[-probe_h:, pad : p_w - pad] if pad else p_edge[-probe_h:]
     probe_w = probe_rgb.shape[1]
 
     probe_edge_mean = float(np.mean(np.abs(probe_edge))) + 1e-6
 
-    scores: List[Tuple[int, int, float]] = []
+    scores: list[tuple[int, int, float]] = []
     dx_range = range(-x_search, x_search + 1) if pad else (0,)
 
     for cut in range(0, max_cut - probe_h + 1):
@@ -104,8 +103,8 @@ def find_overlap(
             x1 = x0 + probe_w
             if x0 < 0 or x1 > n_w:
                 continue
-            wind_rgb = n_rgb[cut: cut + probe_h, x0:x1]
-            wind_edge = n_edge[cut: cut + probe_h, x0:x1]
+            wind_rgb = n_rgb[cut : cut + probe_h, x0:x1]
+            wind_edge = n_edge[cut : cut + probe_h, x0:x1]
 
             rgb_score = 1.0 - float(np.mean(np.abs(probe_rgb - wind_rgb))) / 255.0
 
@@ -136,6 +135,7 @@ def find_overlap(
 
 # ─────────────────────────────────────────── Auto-arrange ──────────────────
 
+
 def _pairwise_score(img_a: Image.Image, img_b: Image.Image) -> float:
     """
     Score for "img_b fits directly below img_a". Reuses find_overlap with
@@ -149,7 +149,8 @@ def _pairwise_score(img_a: Image.Image, img_b: Image.Image) -> float:
     pairs naturally score zero and the chain-finder ignores them.
     """
     _, _, score, accepted = find_overlap(
-        img_a, img_b,
+        img_a,
+        img_b,
         max_overlap_ratio=0.80,
         x_search=4,
         peak_margin=0.06,
@@ -157,7 +158,7 @@ def _pairwise_score(img_a: Image.Image, img_b: Image.Image) -> float:
     return float(score) if accepted else 0.0
 
 
-def auto_arrange_images(images: List[Image.Image]) -> Tuple[List[int], dict]:
+def auto_arrange_images(images: list[Image.Image]) -> tuple[list[int], dict]:
     """
     Infer the top-to-bottom order of a set of rack photos by pairwise overlap
     scoring. The user can upload in any order — this returns the indices in
@@ -174,7 +175,12 @@ def auto_arrange_images(images: List[Image.Image]) -> Tuple[List[int], dict]:
     """
     n = len(images)
     if n <= 1:
-        return list(range(n)), {"method": "trivial", "score_matrix": [], "total_score": 0.0, "confidence": 1.0}
+        return list(range(n)), {
+            "method": "trivial",
+            "score_matrix": [],
+            "total_score": 0.0,
+            "confidence": 1.0,
+        }
 
     # Score matrix: M[i][j] = "score if j fits directly below i". Asymmetric:
     # M[i][j] != M[j][i] because we always compare img_a's BOTTOM to img_b's TOP.
@@ -187,6 +193,7 @@ def auto_arrange_images(images: List[Image.Image]) -> Tuple[List[int], dict]:
 
     if n <= 7:
         from itertools import permutations
+
         best_chain = None
         best_total = -1.0
         for perm in permutations(range(n)):
@@ -229,8 +236,9 @@ def auto_arrange_images(images: List[Image.Image]) -> Tuple[List[int], dict]:
 
 # ─────────────────────────────────────────── Headless stitcher ──────────────
 
+
 def stitch_images(
-    input_paths: List[str],
+    input_paths: list[str],
     output_path: str,
     *,
     require_all_seams: bool = False,
@@ -261,7 +269,13 @@ def stitch_images(
         "error": str (when !ok) }
     """
     if not input_paths:
-        return {"ok": False, "seams": [], "uncertain": [], "input_order": [], "error": "no input images provided"}
+        return {
+            "ok": False,
+            "seams": [],
+            "uncertain": [],
+            "input_order": [],
+            "error": "no input images provided",
+        }
     if len(input_paths) == 1:
         img = Image.open(input_paths[0]).convert("RGB")
         img.save(output_path, quality=92)
@@ -275,14 +289,26 @@ def stitch_images(
             "auto_order": {"method": "trivial", "confidence": 1.0},
         }
 
-    images: List[Image.Image] = []
+    images: list[Image.Image] = []
     for p in input_paths:
         if not os.path.exists(p):
-            return {"ok": False, "seams": [], "uncertain": [], "input_order": [], "error": f"file not found: {p}"}
+            return {
+                "ok": False,
+                "seams": [],
+                "uncertain": [],
+                "input_order": [],
+                "error": f"file not found: {p}",
+            }
         try:
             images.append(Image.open(p).convert("RGB"))
         except Exception as exc:
-            return {"ok": False, "seams": [], "uncertain": [], "input_order": [], "error": f"cannot open {p}: {exc}"}
+            return {
+                "ok": False,
+                "seams": [],
+                "uncertain": [],
+                "input_order": [],
+                "error": f"cannot open {p}: {exc}",
+            }
 
     # Infer the top→bottom order before doing the (slower) full stitch.
     if auto_order:
@@ -298,9 +324,9 @@ def stitch_images(
         r = target_w / img.width
         return img.resize((target_w, max(1, int(img.height * r))), Image.LANCZOS)
 
-    seams: List[dict] = []
-    uncertain: List[int] = []
-    slices: List[Tuple[Image.Image, int]] = [(resize_w(images[0]), 0)]
+    seams: list[dict] = []
+    uncertain: list[int] = []
+    slices: list[tuple[Image.Image, int]] = [(resize_w(images[0]), 0)]
 
     for i in range(1, len(images)):
         prev_pil = images[i - 1]
@@ -313,16 +339,20 @@ def stitch_images(
 
         curr_resized = resize_w(curr_pil)
         if accepted and cut_scaled > 0 and cut_scaled < curr_resized.height:
-            curr_resized = curr_resized.crop((0, cut_scaled, curr_resized.width, curr_resized.height))
+            curr_resized = curr_resized.crop(
+                (0, cut_scaled, curr_resized.width, curr_resized.height)
+            )
 
-        seams.append({
-            "from": i - 1,
-            "to": i,
-            "cut_px": cut_scaled,
-            "x_shift_px": dx_scaled,
-            "score": round(score, 4),
-            "accepted": bool(accepted),
-        })
+        seams.append(
+            {
+                "from": i - 1,
+                "to": i,
+                "cut_px": cut_scaled,
+                "x_shift_px": dx_scaled,
+                "score": round(score, 4),
+                "accepted": bool(accepted),
+            }
+        )
 
         if not accepted:
             uncertain.append(i - 1)
@@ -332,8 +362,11 @@ def stitch_images(
                     "seams": seams,
                     "uncertain": uncertain,
                     "input_order": order,
-                    "auto_order": {"method": order_info.get("method"), "confidence": order_info.get("confidence")},
-                    "error": f"seam {i}->{i+1} could not be detected (best score {score:.2%}); retake those shots with more overlap",
+                    "auto_order": {
+                        "method": order_info.get("method"),
+                        "confidence": order_info.get("confidence"),
+                    },
+                    "error": f"seam {i}->{i + 1} could not be detected (best score {score:.2%}); retake those shots with more overlap",
                 }
 
         slices.append((curr_resized, dx_scaled))
@@ -367,20 +400,32 @@ def stitch_images(
         "seams": seams,
         "uncertain": uncertain,
         "input_order": order,
-        "auto_order": {"method": order_info.get("method"), "confidence": order_info.get("confidence")},
+        "auto_order": {
+            "method": order_info.get("method"),
+            "confidence": order_info.get("confidence"),
+        },
     }
 
 
 # ─────────────────────────────────────────── CLI ────────────────────────────
 
+
 def _cli() -> int:
     ap = argparse.ArgumentParser(description="Stitch multiple rack photos top-to-bottom.")
-    ap.add_argument("--inputs", nargs="+", required=True, help="Input image paths in top-to-bottom order.")
+    ap.add_argument(
+        "--inputs", nargs="+", required=True, help="Input image paths in top-to-bottom order."
+    )
     ap.add_argument("--output", required=True, help="Output image path.")
-    ap.add_argument("--strict", action="store_true",
-                    help="Fail the job if any seam can't be confidently detected.")
-    ap.add_argument("--no-auto-order", action="store_true",
-                    help="Trust the input order; skip pairwise auto-arrangement.")
+    ap.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail the job if any seam can't be confidently detected.",
+    )
+    ap.add_argument(
+        "--no-auto-order",
+        action="store_true",
+        help="Trust the input order; skip pairwise auto-arrangement.",
+    )
     args = ap.parse_args()
 
     result = stitch_images(
@@ -396,9 +441,11 @@ def _cli() -> int:
 # ─────────────────────────────────────────── GUI (dev tool) ─────────────────
 # Tkinter is loaded lazily so the headless API/CLI work on servers without Tk.
 
+
 def _run_gui() -> None:
     import tkinter as tk
-    from tkinter import messagebox, ttk, filedialog
+    from tkinter import filedialog, messagebox, ttk
+
     from PIL import ImageTk
 
     SAVE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -418,41 +465,63 @@ def _run_gui() -> None:
             self._build_ui()
 
         def _build_ui(self):
-            BG = "#f5f5f3"; CARD = "#ffffff"; MUTED = "#6b6b67"
-            ACCENT = "#185FA5"; GREEN = "#1D9E75"
+            BG = "#f5f5f3"
+            CARD = "#ffffff"
+            MUTED = "#6b6b67"
+            ACCENT = "#185FA5"
+            GREEN = "#1D9E75"
 
             hdr = tk.Frame(self.root, bg=BG)
             hdr.pack(fill="x", padx=24, pady=(16, 2))
-            tk.Label(hdr, text="Rack Image Stitcher",
-                     font=("Segoe UI", 17, "bold"), bg=BG, fg="#1a1a19").pack(anchor="w")
-            tk.Label(hdr,
-                     text="Overlapping regions are detected automatically and removed before stitching.",
-                     font=("Segoe UI", 10), bg=BG, fg=MUTED).pack(anchor="w", pady=(2, 0))
+            tk.Label(
+                hdr, text="Rack Image Stitcher", font=("Segoe UI", 17, "bold"), bg=BG, fg="#1a1a19"
+            ).pack(anchor="w")
+            tk.Label(
+                hdr,
+                text="Overlapping regions are detected automatically and removed before stitching.",
+                font=("Segoe UI", 10),
+                bg=BG,
+                fg=MUTED,
+            ).pack(anchor="w", pady=(2, 0))
 
             bar = tk.Frame(self.root, bg=BG)
             bar.pack(fill="x", padx=24, pady=(10, 6))
 
             def mkbtn(parent, label, cmd, bg=CARD, fg="#1a1a19"):
-                return tk.Button(parent, text=label, command=cmd,
-                                 bg=bg, fg=fg, relief="flat", bd=0,
-                                 font=("Segoe UI", 10), padx=14, pady=6, cursor="hand2")
+                return tk.Button(
+                    parent,
+                    text=label,
+                    command=cmd,
+                    bg=bg,
+                    fg=fg,
+                    relief="flat",
+                    bd=0,
+                    font=("Segoe UI", 10),
+                    padx=14,
+                    pady=6,
+                    cursor="hand2",
+                )
 
-            mkbtn(bar, "+  Add Images",       self.add_images, bg=ACCENT, fg="white").pack(side="left", padx=(0,6))
-            mkbtn(bar, "Up",                  self.move_up).pack(side="left", padx=(0,4))
-            mkbtn(bar, "Down",                self.move_down).pack(side="left", padx=(0,4))
-            mkbtn(bar, "X  Remove",           self.remove_selected, fg="#A32D2D").pack(side="left", padx=(0,4))
-            mkbtn(bar, "Clear All",           self.clear_all, fg=MUTED).pack(side="left", padx=(0,4))
-            mkbtn(bar, "Stitch & Preview",    self.stitch, bg=GREEN, fg="white").pack(side="right")
+            mkbtn(bar, "+  Add Images", self.add_images, bg=ACCENT, fg="white").pack(
+                side="left", padx=(0, 6)
+            )
+            mkbtn(bar, "Up", self.move_up).pack(side="left", padx=(0, 4))
+            mkbtn(bar, "Down", self.move_down).pack(side="left", padx=(0, 4))
+            mkbtn(bar, "X  Remove", self.remove_selected, fg="#A32D2D").pack(
+                side="left", padx=(0, 4)
+            )
+            mkbtn(bar, "Clear All", self.clear_all, fg=MUTED).pack(side="left", padx=(0, 4))
+            mkbtn(bar, "Stitch & Preview", self.stitch, bg=GREEN, fg="white").pack(side="right")
 
             self.count_lbl = tk.Label(bar, text="", font=("Segoe UI", 10), bg=BG, fg=MUTED)
             self.count_lbl.pack(side="right", padx=10)
 
-            paned = tk.PanedWindow(self.root, orient="horizontal",
-                                   bg=BG, sashwidth=6, sashrelief="flat")
+            paned = tk.PanedWindow(
+                self.root, orient="horizontal", bg=BG, sashwidth=6, sashrelief="flat"
+            )
             paned.pack(fill="both", expand=True, padx=24, pady=(0, 8))
 
-            left = tk.Frame(paned, bg=CARD,
-                            highlightbackground="#d3d1c7", highlightthickness=1)
+            left = tk.Frame(paned, bg=CARD, highlightbackground="#d3d1c7", highlightthickness=1)
             paned.add(left, minsize=260, width=350)
             self.canvas_list = tk.Canvas(left, bg=CARD, highlightthickness=0)
             sb = ttk.Scrollbar(left, orient="vertical", command=self.canvas_list.yview)
@@ -461,49 +530,73 @@ def _run_gui() -> None:
             self.canvas_list.pack(side="left", fill="both", expand=True)
             self.inner = tk.Frame(self.canvas_list, bg=CARD)
             self._win_id = self.canvas_list.create_window((0, 0), window=self.inner, anchor="nw")
-            self.inner.bind("<Configure>",
-                            lambda e: self.canvas_list.configure(
-                                scrollregion=self.canvas_list.bbox("all")))
-            self.canvas_list.bind("<Configure>",
-                                  lambda e: self.canvas_list.itemconfig(self._win_id, width=e.width))
+            self.inner.bind(
+                "<Configure>",
+                lambda e: self.canvas_list.configure(scrollregion=self.canvas_list.bbox("all")),
+            )
+            self.canvas_list.bind(
+                "<Configure>", lambda e: self.canvas_list.itemconfig(self._win_id, width=e.width)
+            )
             self._show_placeholder()
 
-            right = tk.Frame(paned, bg=CARD,
-                             highlightbackground="#d3d1c7", highlightthickness=1)
+            right = tk.Frame(paned, bg=CARD, highlightbackground="#d3d1c7", highlightthickness=1)
             paned.add(right, minsize=300)
             rh = tk.Frame(right, bg="#f0efeb")
             rh.pack(fill="x")
-            tk.Label(rh, text="Stitched Preview",
-                     font=("Segoe UI", 10, "bold"), bg="#f0efeb", fg="#1a1a19").pack(side="left", padx=10, pady=7)
+            tk.Label(
+                rh,
+                text="Stitched Preview",
+                font=("Segoe UI", 10, "bold"),
+                bg="#f0efeb",
+                fg="#1a1a19",
+            ).pack(side="left", padx=10, pady=7)
             self.result_info = tk.Label(rh, text="", font=("Segoe UI", 9), bg="#f0efeb", fg=MUTED)
             self.result_info.pack(side="left")
             self.result_canvas = tk.Canvas(right, bg="#e8e7e3", highlightthickness=0)
-            vsb = ttk.Scrollbar(right, orient="vertical",   command=self.result_canvas.yview)
+            vsb = ttk.Scrollbar(right, orient="vertical", command=self.result_canvas.yview)
             hsb = ttk.Scrollbar(right, orient="horizontal", command=self.result_canvas.xview)
             self.result_canvas.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
             hsb.pack(side="bottom", fill="x")
-            vsb.pack(side="right",  fill="y")
+            vsb.pack(side="right", fill="y")
             self.result_canvas.pack(fill="both", expand=True)
             self.result_canvas.create_text(
-                10, 10, anchor="nw",
+                10,
+                10,
+                anchor="nw",
                 text="Stitched image will appear here",
-                font=("Segoe UI", 11), fill=MUTED)
+                font=("Segoe UI", 11),
+                fill=MUTED,
+            )
 
             self.status_var = tk.StringVar(value="Ready")
-            tk.Label(self.root, textvariable=self.status_var,
-                     font=("Segoe UI", 10), bg="#e8e7e3", fg=MUTED,
-                     anchor="w", padx=12, pady=5).pack(fill="x", side="bottom")
+            tk.Label(
+                self.root,
+                textvariable=self.status_var,
+                font=("Segoe UI", 10),
+                bg="#e8e7e3",
+                fg=MUTED,
+                anchor="w",
+                padx=12,
+                pady=5,
+            ).pack(fill="x", side="bottom")
             self.overlap_var = tk.StringVar(value="")
-            self.overlap_bar = tk.Label(self.root, textvariable=self.overlap_var,
-                                        font=("Segoe UI", 9), bg="#e1f5ee", fg="#085041",
-                                        anchor="w", padx=12, pady=4)
+            self.overlap_bar = tk.Label(
+                self.root,
+                textvariable=self.overlap_var,
+                font=("Segoe UI", 9),
+                bg="#e1f5ee",
+                fg="#085041",
+                anchor="w",
+                padx=12,
+                pady=4,
+            )
             self.overlap_bar.pack(fill="x", side="bottom")
             self.overlap_bar.pack_forget()
 
         def add_images(self):
             paths = filedialog.askopenfilenames(
                 title="Select rack images",
-                filetypes=[("Images", "*.png *.jpg *.jpeg *.webp *.bmp *.tiff"), ("All", "*.*")]
+                filetypes=[("Images", "*.png *.jpg *.jpeg *.webp *.bmp *.tiff"), ("All", "*.*")],
             )
             for path in paths:
                 try:
@@ -516,21 +609,24 @@ def _run_gui() -> None:
 
         def move_up(self):
             s = self._selection
-            if s is None or s == 0: return
-            self.images[s-1], self.images[s] = self.images[s], self.images[s-1]
+            if s is None or s == 0:
+                return
+            self.images[s - 1], self.images[s] = self.images[s], self.images[s - 1]
             self._refresh_list(select=s - 1)
 
         def move_down(self):
             s = self._selection
-            if s is None or s >= len(self.images) - 1: return
-            self.images[s], self.images[s+1] = self.images[s+1], self.images[s]
+            if s is None or s >= len(self.images) - 1:
+                return
+            self.images[s], self.images[s + 1] = self.images[s + 1], self.images[s]
             self._refresh_list(select=s + 1)
 
         def remove_selected(self):
             s = self._selection
-            if s is None: return
+            if s is None:
+                return
             self.images.pop(s)
-            self._refresh_list(select=min(s, len(self.images)-1) if self.images else None)
+            self._refresh_list(select=min(s, len(self.images) - 1) if self.images else None)
 
         def clear_all(self):
             if self.images and not messagebox.askyesno("Clear all", "Remove all images?"):
@@ -556,9 +652,13 @@ def _run_gui() -> None:
                     parts = []
                     for s in seams:
                         if s.get("accepted"):
-                            parts.append(f"Seam {s['from']+1}->{s['to']+1}: -{s['cut_px']}px (match {s['score']:.0%})")
+                            parts.append(
+                                f"Seam {s['from'] + 1}->{s['to'] + 1}: -{s['cut_px']}px (match {s['score']:.0%})"
+                            )
                         else:
-                            parts.append(f"Seam {s['from']+1}->{s['to']+1}: no overlap (best {s['score']:.0%})")
+                            parts.append(
+                                f"Seam {s['from'] + 1}->{s['to'] + 1}: no overlap (best {s['score']:.0%})"
+                            )
                     self.overlap_var.set("  |  ".join(parts))
                     self.overlap_bar.pack(fill="x", side="bottom")
                 w, h = result["image_size"]
@@ -587,19 +687,27 @@ def _run_gui() -> None:
         def _clear_result(self):
             self.result_canvas.delete("all")
             self.result_canvas.create_text(
-                10, 10, anchor="nw",
+                10,
+                10,
+                anchor="nw",
                 text="Stitched image will appear here",
-                font=("Segoe UI", 11), fill="#6b6b67")
+                font=("Segoe UI", 11),
+                fill="#6b6b67",
+            )
             self.result_canvas.configure(scrollregion=(0, 0, 0, 0))
             self.result_info.config(text="")
             self.overlap_bar.pack_forget()
             self.status_var.set("Ready")
 
         def _show_placeholder(self):
-            tk.Label(self.inner,
-                     text="No images yet.\nClick  + Add Images  to get started.",
-                     font=("Segoe UI", 11), bg="#ffffff", fg="#6b6b67",
-                     justify="center").pack(pady=60)
+            tk.Label(
+                self.inner,
+                text="No images yet.\nClick  + Add Images  to get started.",
+                font=("Segoe UI", 11),
+                bg="#ffffff",
+                fg="#6b6b67",
+                justify="center",
+            ).pack(pady=60)
 
         def _refresh_list(self, select=None):
             for w in self.inner.winfo_children():
@@ -614,7 +722,7 @@ def _run_gui() -> None:
             for i, item in enumerate(self.images):
                 self._build_row(i, item)
             n = len(self.images)
-            self.count_lbl.config(text=f"{n} image{'s' if n>1 else ''}")
+            self.count_lbl.config(text=f"{n} image{'s' if n > 1 else ''}")
             self.status_var.set(f"{n} image(s) loaded — ready to stitch.")
             target = select if select is not None else self._selection
             if target is not None and 0 <= target < n:
@@ -622,8 +730,13 @@ def _run_gui() -> None:
 
         def _build_row(self, i, item):
             CARD = "#ffffff"
-            row = tk.Frame(self.inner, bg=CARD, cursor="hand2",
-                           highlightbackground="#d3d1c7", highlightthickness=1)
+            row = tk.Frame(
+                self.inner,
+                bg=CARD,
+                cursor="hand2",
+                highlightbackground="#d3d1c7",
+                highlightthickness=1,
+            )
             row.pack(fill="x", padx=8, pady=4)
             tk.Label(row, image=item["thumb"], bg=CARD).pack(side="left", padx=10, pady=6)
             info = tk.Frame(row, bg=CARD)
@@ -632,10 +745,22 @@ def _run_gui() -> None:
             pil = item["pil"]
             size_kb = os.path.getsize(item["path"]) // 1024
             tag = "  [full]" if i == 0 else "  [overlap removed]"
-            tk.Label(info, text=f"{i+1}.  {fname}", font=("Segoe UI", 10, "bold"),
-                     bg=CARD, fg="#1a1a19", anchor="w").pack(anchor="w")
-            tk.Label(info, text=f"{pil.width} x {pil.height}px  -  {size_kb} KB{tag}",
-                     font=("Segoe UI", 9), bg=CARD, fg="#6b6b67", anchor="w").pack(anchor="w")
+            tk.Label(
+                info,
+                text=f"{i + 1}.  {fname}",
+                font=("Segoe UI", 10, "bold"),
+                bg=CARD,
+                fg="#1a1a19",
+                anchor="w",
+            ).pack(anchor="w")
+            tk.Label(
+                info,
+                text=f"{pil.width} x {pil.height}px  -  {size_kb} KB{tag}",
+                font=("Segoe UI", 9),
+                bg=CARD,
+                fg="#6b6b67",
+                anchor="w",
+            ).pack(anchor="w")
             for widget in row.winfo_children():
                 widget.bind("<Button-1>", lambda e, idx=i: self._select_row(idx))
                 for sub in widget.winfo_children():
@@ -649,11 +774,15 @@ def _run_gui() -> None:
                 color = "#E6F1FB" if i == index else "#ffffff"
                 row.configure(bg=color)
                 for child in row.winfo_children():
-                    try: child.configure(bg=color)
-                    except Exception: pass
+                    try:
+                        child.configure(bg=color)
+                    except Exception:
+                        pass
                     for sub in child.winfo_children():
-                        try: sub.configure(bg=color)
-                        except Exception: pass
+                        try:
+                            sub.configure(bg=color)
+                        except Exception:
+                            pass
 
         def _make_thumb(self, pil_img):
             t = pil_img.copy()

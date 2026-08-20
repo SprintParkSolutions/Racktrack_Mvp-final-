@@ -1,0 +1,32 @@
+# Dependabot — opens a pull request automatically the day a dependency
+# publishes a security fix (and weekly for routine updates).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/client"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "client"]
+
+  - package-ecosystem: npm
+    directory: "/server"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "server"]
+
+  - package-ecosystem: npm
+    directory: "/e2e"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "e2e"]
+
+  - package-ecosystem: pip
+    directory: "/"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "pipeline"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: weekly }
+    labels: ["dependencies", "ci"]

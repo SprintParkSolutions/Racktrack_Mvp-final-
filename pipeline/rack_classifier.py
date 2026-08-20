@@ -17,15 +17,16 @@ Integration (import into another codebase):
     if label == "occluded":
         ...  # flag for re-capture
 """
-import io
-import sys
-import pathlib
+
 import argparse
+import io
+import pathlib
+import sys
 
 import torch
-from torch import nn
-from torchvision import transforms, models
 from PIL import Image
+from torch import nn
+from torchvision import models, transforms
 
 # --------------------------------------------------------------------------
 # CONFIG — adjust these if paths/classes change
@@ -40,11 +41,13 @@ SERVE_PORT = 5000
 
 
 def _transform():
-    return transforms.Compose([
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=MEAN, std=STD),
-    ])
+    return transforms.Compose(
+        [
+            transforms.Resize((IMG_SIZE, IMG_SIZE)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=MEAN, std=STD),
+        ]
+    )
 
 
 def _build_architecture(num_classes):
@@ -316,7 +319,7 @@ function showResult(data) {
 
 
 def run_server():
-    from flask import Flask, request, jsonify, render_template_string
+    from flask import Flask, jsonify, render_template_string, request
 
     app = Flask(__name__)
     model, classes = load_model()  # loaded once at startup
@@ -369,7 +372,7 @@ def main():
             continue
         print(f"{image_path} -> {label}")
         if args.verbose:
-            breakdown = "  ".join(f"{c}: {p*100:.1f}%" for c, p in probs.items())
+            breakdown = "  ".join(f"{c}: {p * 100:.1f}%" for c, p in probs.items())
             print(f"    ({breakdown})")
 
 

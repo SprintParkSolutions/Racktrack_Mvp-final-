@@ -161,11 +161,101 @@ jobs:
           pip install --extra-index-url https://download.pytorch.org/whl/cpu \
             -r requirements.txt -r requirements-dev.txt
 
+      # --- code standards (config in pyproject.toml) ---
+      # Formatting + lint are a REAL gate: the pipeline is now benchmarked against
+      # PEP 8 / PEP 257 (via Ruff). The rule set starts pragmatic and only tightens.
+      - name: Format check (Ruff / PEP 8)
+        run: ruff format --check pipeline
+
+      - name: Lint (Ruff — PEP 8, imports, bugs, security)
+        run: ruff check pipeline
+
+      # Type checking is best-effort while the legacy code is gradually typed.
+      - name: Type check (mypy, best-effort)
+        continue-on-error: true
+        run: mypy pipeline
+
+      # Python security linter — a real gate; reviewed-safe rules are skipped in pyproject.
+      - name: Security scan (Bandit)
+        run: bandit -c pyproject.toml -r pipeline -ll
+
+      # Dependency vulnerabilities in the Python libraries — a real gate.
+      - name: Dependency audit (pip-audit)
+        run: pip-audit -r requirements.txt --no-deps
+
       # Real gate. Run from the repo root: the modules import each other as
       # `pipeline.*`, so the root has to be the working directory.
       - name: Test pipeline (unit, no model weights)
-        run: python -m pytest pipeline/tests -q
+        run: python -m pytest pipeline/tests -q --cov=pipeline --cov-report=term-missing
 
       - name: Smoke import (best-effort)
         continue-on-error: true
         run: python -c "import ultralytics, torch, cv2; print('imports OK', torch.__version__)"
+
+  # ---------------------------------------------------------------------------
+  # Container scan + software bill of materials (SBOM). Scans the image we ship
+  # for OS-level vulnerabilities (Trivy) and publishes an ingredients list.
+  # ---------------------------------------------------------------------------
+  container:
+    name: Container scan (Trivy) + SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t racktrack:ci .
+
+      - name: Vulnerability scan (fail on CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: racktrack:ci
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: racktrack:ci
+          format: cyclonedx
+          output: racktrack-sbom.cdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: racktrack-sbom.cdx.json
+
+      # Licence compliance. Enterprise buyers ask what open-source licences we
+      # ship; strongly-copyleft ones (GPL/AGPL) can carry obligations we do not
+      # want in a proprietary product. Reported, not blocking — a new licence
+      # should prompt a human decision, not a red build.
+      - name: Licence scan (report)
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: racktrack:ci
+          scanners: license
+          severity: HIGH,CRITICAL
+
+  # ---------------------------------------------------------------------------
+  # Static application security testing (SAST) over our own code. Semgrep reads
+  # the source for injection, path traversal, unsafe calls, etc. Runs on the
+  # OWASP + framework rule packs.
+  # ---------------------------------------------------------------------------
+  sast:
+    name: Code security scan (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep scan
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/owasp-top-ten
+            p/expressjs
+            p/react
+            p/python

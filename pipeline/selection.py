@@ -1,5 +1,6 @@
 # Step 04: Device selection and cropping helpers
 
+
 def select_device(devices, fallback_class_names=None):
     if not devices:
         raise ValueError("No devices were detected in the image.")
@@ -10,8 +11,7 @@ def select_device(devices, fallback_class_names=None):
     fallback_class_names = fallback_class_names or {"Closed Unit", "Empty"}
     ordered_devices = sorted(
         devices,
-        key=lambda d: (d.get("class_name") in fallback_class_names,
-                       d.get("class_name") or "")
+        key=lambda d: (d.get("class_name") in fallback_class_names, d.get("class_name") or ""),
     )
 
     print("\nDetected devices:")
@@ -34,5 +34,5 @@ def crop_device_with_origin(img, box, pad=8):
     h, w = img.shape[:2]
     ox = max(0, x1 - pad)
     oy = max(0, y1 - pad)
-    crop = img[oy:min(h, y2 + pad), ox:min(w, x2 + pad)]
+    crop = img[oy : min(h, y2 + pad), ox : min(w, x2 + pad)]
     return crop, (ox, oy)

@@ -1,0 +1,58 @@
+#!/bin/sh
+# RackTrack pre-commit hook — catches problems at the desk, before they reach CI.
+#
+# Enable once per clone (it is not automatic, by design):
+#     git config core.hooksPath .githooks
+#
+# Deliberately FAST: it only checks the files you are actually committing, and
+# only runs the cheap checks. The full suite still runs in CI.
+# Skip in an emergency with:  git commit --no-verify
+
+set -e
+
+staged() { git diff --cached --name-only --diff-filter=ACM -- "$@"; }
+
+fail=0
+note() { printf '\n\033[31m✖ %s\033[0m\n' "$1"; fail=1; }
+
+# --- 1. Secrets: never let a key reach a commit -----------------------------
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --no-banner >/dev/null 2>&1 \
+    || note "gitleaks found a possible secret in the staged changes."
+fi
+
+# --- 2. JavaScript / JSX: lint only the staged files ------------------------
+JS=$(staged '*.js' '*.jsx' '*.mjs' | grep -E '^(client|server|e2e)/' || true)
+if [ -n "$JS" ]; then
+  CLIENT_JS=$(printf '%s\n' "$JS" | grep '^client/' | sed 's|^client/||' || true)
+  if [ -n "$CLIENT_JS" ]; then
+    (cd client && printf '%s\n' "$CLIENT_JS" | xargs npx --no-install eslint --no-warn-ignored) \
+      || note "ESLint reported errors in the staged client files."
+  fi
+  SERVER_JS=$(printf '%s\n' "$JS" | grep '^server/' | sed 's|^server/||' || true)
+  if [ -n "$SERVER_JS" ]; then
+    (cd server && printf '%s\n' "$SERVER_JS" | xargs npx --no-install eslint --no-warn-ignored) \
+      || note "ESLint reported errors in the staged server files."
+  fi
+fi
+
+# --- 3. Python: format + lint the staged pipeline files ---------------------
+PY=$(staged '*.py' || true)
+if [ -n "$PY" ]; then
+  if command -v ruff >/dev/null 2>&1; then RUFF=ruff
+  elif [ -x .venv/bin/ruff ]; then RUFF=.venv/bin/ruff
+  else RUFF=""; fi
+  if [ -n "$RUFF" ]; then
+    printf '%s\n' "$PY" | xargs $RUFF format --check \
+      || note "Python formatting is off. Run:  ruff format pipeline"
+    printf '%s\n' "$PY" | xargs $RUFF check \
+      || note "Ruff reported lint problems in the staged Python files."
+  fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+  printf '\nCommit aborted. Fix the above, or bypass with: git commit --no-verify\n\n'
+  exit 1
+fi
+
+exit 0

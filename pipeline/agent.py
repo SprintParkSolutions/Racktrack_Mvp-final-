@@ -12,33 +12,34 @@ arithmetic on a confidence score, and string-templated suggested actions.
 State (posted.json, unmatched.log) lives under outputs/agent_state/ — outside
 the pipeline package so it isn't wiped on reinstall.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import os
 import re
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable
 
 try:
-    from rapidfuzz import process as fuzz_process
     from rapidfuzz import fuzz
+    from rapidfuzz import process as fuzz_process
+
     _HAS_RAPIDFUZZ = True
 except ImportError:  # graceful fallback
     _HAS_RAPIDFUZZ = False
 
 from pipeline.agent_actions import render as render_action
 
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_STATE_DIR = Path(os.environ.get("RACKTRACK_AGENT_STATE_DIR", _REPO_ROOT / "outputs" / "agent_state"))
+_STATE_DIR = Path(
+    os.environ.get("RACKTRACK_AGENT_STATE_DIR", _REPO_ROOT / "outputs" / "agent_state")
+)
 _STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-POSTED_LOG = _STATE_DIR / "posted.json"          # Phase 4 dedup state
-UNMATCHED_LOG = _STATE_DIR / "unmatched.log"     # Phase 1 telemetry
+POSTED_LOG = _STATE_DIR / "posted.json"  # Phase 4 dedup state
+UNMATCHED_LOG = _STATE_DIR / "unmatched.log"  # Phase 1 telemetry
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -49,97 +50,101 @@ UNMATCHED_LOG = _STATE_DIR / "unmatched.log"     # Phase 1 telemetry
 # Each keyword has a weight; longer / more specific phrases score higher.
 FAILURE_PATTERNS = {
     # phrase                           # (failure_mode, weight)
-    "err-disabled":                    ("err_disabled",        0.95),
-    "err disabled":                    ("err_disabled",        0.95),
-    "bpdu-guard":                      ("err_disabled",        0.90),
-    "bpdu guard":                      ("err_disabled",        0.90),
-    "storm control":                   ("err_disabled",        0.85),
-
-    "mac flap":                        ("rogue_device",        0.85),
-    "rogue":                           ("rogue_device",        0.80),
-    "unauthorized":                    ("rogue_device",        0.70),
-    "unknown device":                  ("rogue_device",        0.70),
-
-    "poe over-budget":                 ("poe_issue",           0.90),
-    "poe over budget":                 ("poe_issue",           0.90),
-    "poe":                             ("poe_issue",           0.40),
-    "power cycling":                   ("poe_issue",           0.60),
-
-    "crc error":                       ("crc_errors",          0.90),
-    "crc errors":                      ("crc_errors",          0.90),
-    "crc":                             ("crc_errors",          0.60),
-
-    "flapping":                        ("flapping",            0.90),
-    "flap":                            ("flapping",            0.70),
-    "link bounce":                     ("flapping",            0.80),
-
-    "speed mismatch":                  ("slow_link",           0.90),
-    "duplex mismatch":                 ("slow_link",           0.90),
-    "auto-negotiated":                 ("slow_link",           0.60),
-    "slow":                            ("slow_link",           0.50),
-    "throughput":                      ("slow_link",           0.50),
-
-    "wrong vlan":                      ("config_change",       0.85),
-    "vlan":                            ("config_change",       0.50),
-
-    "unreachable":                     ("device_unreachable",  0.85),
-    "cannot be reached":               ("device_unreachable",  0.85),
-    "ping fails":                      ("device_unreachable",  0.80),
-    "no response":                     ("device_unreachable",  0.70),
-
-    "replace":                         ("hardware_replace",    0.50),
-    "swap cable":                      ("cable_swap",          0.80),
-    "replace cable":                   ("cable_swap",          0.85),
-    "patch cable":                     ("cable_swap",          0.50),
-
+    "err-disabled": ("err_disabled", 0.95),
+    "err disabled": ("err_disabled", 0.95),
+    "bpdu-guard": ("err_disabled", 0.90),
+    "bpdu guard": ("err_disabled", 0.90),
+    "storm control": ("err_disabled", 0.85),
+    "mac flap": ("rogue_device", 0.85),
+    "rogue": ("rogue_device", 0.80),
+    "unauthorized": ("rogue_device", 0.70),
+    "unknown device": ("rogue_device", 0.70),
+    "poe over-budget": ("poe_issue", 0.90),
+    "poe over budget": ("poe_issue", 0.90),
+    "poe": ("poe_issue", 0.40),
+    "power cycling": ("poe_issue", 0.60),
+    "crc error": ("crc_errors", 0.90),
+    "crc errors": ("crc_errors", 0.90),
+    "crc": ("crc_errors", 0.60),
+    "flapping": ("flapping", 0.90),
+    "flap": ("flapping", 0.70),
+    "link bounce": ("flapping", 0.80),
+    "speed mismatch": ("slow_link", 0.90),
+    "duplex mismatch": ("slow_link", 0.90),
+    "auto-negotiated": ("slow_link", 0.60),
+    "slow": ("slow_link", 0.50),
+    "throughput": ("slow_link", 0.50),
+    "wrong vlan": ("config_change", 0.85),
+    "vlan": ("config_change", 0.50),
+    "unreachable": ("device_unreachable", 0.85),
+    "cannot be reached": ("device_unreachable", 0.85),
+    "ping fails": ("device_unreachable", 0.80),
+    "no response": ("device_unreachable", 0.70),
+    "replace": ("hardware_replace", 0.50),
+    "swap cable": ("cable_swap", 0.80),
+    "replace cable": ("cable_swap", 0.85),
+    "patch cable": ("cable_swap", 0.50),
     # Port down — keep last because it's a catch-all for many things above
-    "link down":                       ("port_down",           0.90),
-    "port down":                       ("port_down",           0.85),
-    "no link":                         ("port_down",           0.80),
-    "down":                            ("port_down",           0.50),
-    "not working":                     ("port_down",           0.60),
-    "oper-down":                       ("port_down",           0.85),
-    "oper=down":                       ("port_down",           0.85),
-    "dark":                            ("port_down",           0.40),
+    "link down": ("port_down", 0.90),
+    "port down": ("port_down", 0.85),
+    "no link": ("port_down", 0.80),
+    "down": ("port_down", 0.50),
+    "not working": ("port_down", 0.60),
+    "oper-down": ("port_down", 0.85),
+    "oper=down": ("port_down", 0.85),
+    "dark": ("port_down", 0.40),
 }
 
 # Device role inference from text or interface alias
 ROLE_PATTERNS = {
-    "uplink":     ("uplink", 0.85),
-    "trunk":      ("uplink", 0.70),
+    "uplink": ("uplink", 0.85),
+    "trunk": ("uplink", 0.70),
     "management": ("management", 0.85),
-    "mgmt":       ("management", 0.80),
-    "console":    ("management", 0.75),
-    "access":     ("access", 0.70),
-    "user port":  ("access", 0.65),
+    "mgmt": ("management", 0.80),
+    "console": ("management", 0.75),
+    "access": ("access", 0.70),
+    "user port": ("access", 0.65),
 }
 
 URGENCY_PATTERNS = {
-    "user complaint":       ("user_reported",    0.85),
-    "helpdesk ticket":      ("user_reported",    0.85),
-    "user reports":         ("user_reported",    0.80),
-    "monitoring":           ("monitoring_alert", 0.85),
-    "monitoring reports":   ("monitoring_alert", 0.90),
-    "security monitoring":  ("monitoring_alert", 0.85),
-    "scheduled":            ("scheduled",        0.80),
-    "maintenance":          ("scheduled",        0.70),
+    "user complaint": ("user_reported", 0.85),
+    "helpdesk ticket": ("user_reported", 0.85),
+    "user reports": ("user_reported", 0.80),
+    "monitoring": ("monitoring_alert", 0.85),
+    "monitoring reports": ("monitoring_alert", 0.90),
+    "security monitoring": ("monitoring_alert", 0.85),
+    "scheduled": ("scheduled", 0.80),
+    "maintenance": ("scheduled", 0.70),
 }
 
 # Word-to-number expansion — "the third port" → 3.
 WORD_TO_NUM = {
-    "first": 1, "1st": 1,
-    "second": 2, "2nd": 2,
-    "third": 3, "3rd": 3,
-    "fourth": 4, "4th": 4,
-    "fifth": 5, "5th": 5,
-    "sixth": 6, "6th": 6,
-    "seventh": 7, "7th": 7,
-    "eighth": 8, "8th": 8,
-    "ninth": 9, "9th": 9,
-    "tenth": 10, "10th": 10,
-    "eleventh": 11, "twelfth": 12,
-    "thirteenth": 13, "fourteenth": 14,
-    "fifteenth": 15, "sixteenth": 16,
+    "first": 1,
+    "1st": 1,
+    "second": 2,
+    "2nd": 2,
+    "third": 3,
+    "3rd": 3,
+    "fourth": 4,
+    "4th": 4,
+    "fifth": 5,
+    "5th": 5,
+    "sixth": 6,
+    "6th": 6,
+    "seventh": 7,
+    "7th": 7,
+    "eighth": 8,
+    "8th": 8,
+    "ninth": 9,
+    "9th": 9,
+    "tenth": 10,
+    "10th": 10,
+    "eleventh": 11,
+    "twelfth": 12,
+    "thirteenth": 13,
+    "fourteenth": 14,
+    "fifteenth": 15,
+    "sixteenth": 16,
     "twentieth": 20,
 }
 
@@ -177,7 +182,9 @@ def _extract_port_number(text: str) -> tuple[int | None, str | None, float]:
 _DEVICE_RE = re.compile(r"\b((?:SW|SRV|PP|RTR|GW|FW)-[A-Z]*U?\d{1,3})\b", re.I)
 
 
-def _extract_device(text: str, cmdb_device_names: list[str] | None = None) -> tuple[str | None, str | None, float]:
+def _extract_device(
+    text: str, cmdb_device_names: list[str] | None = None
+) -> tuple[str | None, str | None, float]:
     """Returns (device_name, source, weight)."""
     text = text or ""
 
@@ -190,8 +197,10 @@ def _extract_device(text: str, cmdb_device_names: list[str] | None = None) -> tu
     if _HAS_RAPIDFUZZ and cmdb_device_names:
         # Try matching the whole text first
         result = fuzz_process.extractOne(
-            text, cmdb_device_names,
-            scorer=fuzz.partial_ratio, score_cutoff=85,
+            text,
+            cmdb_device_names,
+            scorer=fuzz.partial_ratio,
+            score_cutoff=85,
         )
         if result:
             match, score, _ = result
@@ -300,14 +309,14 @@ def extract_incident(text: str, cmdb_device_list: list[str] | None = None) -> di
     summary = " ".join(parts).strip() or "incident with no extractable details"
 
     result = {
-        "failure_mode":      failure_mode,
-        "affected_device":   device,
-        "affected_port":     port,
-        "affected_role":     role,
-        "urgency_signal":    urgency,
-        "one_line_summary":  summary,
-        "confidence":        round(confidence, 3),
-        "signals_used":      signals,
+        "failure_mode": failure_mode,
+        "affected_device": device,
+        "affected_port": port,
+        "affected_role": role,
+        "urgency_signal": urgency,
+        "one_line_summary": summary,
+        "confidence": round(confidence, 3),
+        "signals_used": signals,
     }
 
     # Log misses for weekly review
@@ -325,6 +334,7 @@ def extract_incident(text: str, cmdb_device_list: list[str] | None = None) -> di
 # Phase 2 — REASONING CHAIN
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def _step(name: str, evidence: str, confidence: float) -> dict:
     return {"step": name, "evidence": evidence, "confidence": round(confidence, 2)}
 
@@ -340,12 +350,14 @@ def build_reasoning(
 
     # Step 1 — parsed incident
     sig_summary = ", ".join(extracted.get("signals_used", [])[:3])
-    steps.append(_step(
-        "parsed_incident",
-        f"Failure mode '{extracted.get('failure_mode')}' via [{sig_summary}]; "
-        f"device={extracted.get('affected_device')}, port={extracted.get('affected_port')}",
-        extracted.get("confidence", 0.0),
-    ))
+    steps.append(
+        _step(
+            "parsed_incident",
+            f"Failure mode '{extracted.get('failure_mode')}' via [{sig_summary}]; "
+            f"device={extracted.get('affected_device')}, port={extracted.get('affected_port')}",
+            extracted.get("confidence", 0.0),
+        )
+    )
 
     # Step 2 — CMDB lookup
     cmdb = cmdb or {}
@@ -359,26 +371,32 @@ def build_reasoning(
             ev_parts.append(f"mgmt={cmdb['mgmt_ip']}")
         if cmdb.get("interface_alias"):
             ev_parts.append(f"if={cmdb['interface_alias']}")
-        steps.append(_step(
-            "looked_up_cmdb",
-            "; ".join(ev_parts) or "CMDB record found",
-            1.0,
-        ))
+        steps.append(
+            _step(
+                "looked_up_cmdb",
+                "; ".join(ev_parts) or "CMDB record found",
+                1.0,
+            )
+        )
     else:
-        steps.append(_step(
-            "looked_up_cmdb",
-            "No matching CMDB record found",
-            0.3,
-        ))
+        steps.append(
+            _step(
+                "looked_up_cmdb",
+                "No matching CMDB record found",
+                0.3,
+            )
+        )
 
     # Step 3 — rack lookup
     if cmdb.get("rack_name"):
         u_str = f"U{cmdb['u_position']:02d}" if isinstance(cmdb.get("u_position"), int) else "U??"
-        steps.append(_step(
-            "found_rack",
-            f"Rack {cmdb['rack_name']} at {u_str}; scan ID {cmdb.get('rack_scan_id') or 'n/a'}",
-            1.0,
-        ))
+        steps.append(
+            _step(
+                "found_rack",
+                f"Rack {cmdb['rack_name']} at {u_str}; scan ID {cmdb.get('rack_scan_id') or 'n/a'}",
+                1.0,
+            )
+        )
 
     # Step 4 — checked last scan
     if last_scan:
@@ -391,66 +409,82 @@ def build_reasoning(
                 if f"u{u:02d}" in (d.get("units") or []):
                     observed = d.get("class_name")
                     break
-        steps.append(_step(
-            "checked_last_scan",
-            f"Last scan {scan_time}: observed {observed or 'nothing'} at "
-            f"U{u:02d}" if isinstance(u, int) else f"Last scan {scan_time}",
-            0.9 if observed else 0.5,
-        ))
+        steps.append(
+            _step(
+                "checked_last_scan",
+                f"Last scan {scan_time}: observed {observed or 'nothing'} at U{u:02d}"
+                if isinstance(u, int)
+                else f"Last scan {scan_time}",
+                0.9 if observed else 0.5,
+            )
+        )
 
         # Step 5 — drift detection (only if both CMDB and scan have an observation)
-        expected_class = _cmdb_to_scan_class(cmdb.get("sys_class_name"), extracted.get("affected_device"))
+        expected_class = _cmdb_to_scan_class(
+            cmdb.get("sys_class_name"), extracted.get("affected_device")
+        )
         if observed and expected_class and observed != expected_class:
-            steps.append(_step(
-                "detected_drift",
-                f"CMDB expects {expected_class} at U{u:02d}; scan saw {observed} — drift detected",
-                0.95,
-            ))
+            steps.append(
+                _step(
+                    "detected_drift",
+                    f"CMDB expects {expected_class} at U{u:02d}; scan saw {observed} — drift detected",
+                    0.95,
+                )
+            )
         elif observed and expected_class and observed == expected_class:
-            steps.append(_step(
-                "verified_no_drift",
-                f"CMDB expects {expected_class} at U{u:02d}; scan confirms — no drift",
-                0.95,
-            ))
+            steps.append(
+                _step(
+                    "verified_no_drift",
+                    f"CMDB expects {expected_class} at U{u:02d}; scan confirms — no drift",
+                    0.95,
+                )
+            )
 
     # Step 6 — suggested action (always last)
-    steps.append(_step(
-        "suggested_action",
-        render_action(
-            extracted.get("failure_mode") or "other",
-            extracted.get("affected_role") or "*",
-            rack=cmdb.get("rack_name") or "?",
-            u_position=cmdb.get("u_position"),
-            port=extracted.get("affected_port"),
-            device=extracted.get("affected_device") or "?",
-        ),
-        0.7,
-    ))
+    steps.append(
+        _step(
+            "suggested_action",
+            render_action(
+                extracted.get("failure_mode") or "other",
+                extracted.get("affected_role") or "*",
+                rack=cmdb.get("rack_name") or "?",
+                u_position=cmdb.get("u_position"),
+                port=extracted.get("affected_port"),
+                device=extracted.get("affected_device") or "?",
+            ),
+            0.7,
+        )
+    )
 
     return steps
 
 
 _CMDB_TO_SCAN = {
     "cmdb_ci_ip_switch": "Switch",
-    "cmdb_ci_switch":    "Switch",
-    "cmdb_ci_server":    "Server",
+    "cmdb_ci_switch": "Switch",
+    "cmdb_ci_server": "Server",
     "cmdb_ci_linux_server": "Server",
-    "cmdb_ci_win_server":   "Server",
+    "cmdb_ci_win_server": "Server",
 }
+
 
 def _cmdb_to_scan_class(sys_class_name: str | None, device_name: str | None) -> str | None:
     if sys_class_name and sys_class_name in _CMDB_TO_SCAN:
         return _CMDB_TO_SCAN[sys_class_name]
     if device_name:
-        if device_name.startswith("SW-"):  return "Switch"
-        if device_name.startswith("PP-"):  return "Patch Panel"
-        if device_name.startswith("SRV-"): return "Server"
+        if device_name.startswith("SW-"):
+            return "Switch"
+        if device_name.startswith("PP-"):
+            return "Patch Panel"
+        if device_name.startswith("SRV-"):
+            return "Server"
     return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Phase 3 — TRIAGE, BATCHING, ANOMALY DETECTION
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def _priority_int(p) -> int:
     """'1 - Critical' → 1; 1 → 1; None → 5."""
@@ -467,8 +501,8 @@ def _age_hours(opened_at: str | None) -> float:
         return 0.0
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
         try:
-            dt = datetime.strptime(opened_at, fmt).replace(tzinfo=timezone.utc)
-            return max(0.0, (datetime.now(timezone.utc) - dt).total_seconds() / 3600)
+            dt = datetime.strptime(opened_at, fmt).replace(tzinfo=UTC)
+            return max(0.0, (datetime.now(UTC) - dt).total_seconds() / 3600)
         except ValueError:
             continue
     return 0.0
@@ -525,15 +559,18 @@ def rank_and_cluster(tickets: list[dict], scan_history: dict | None = None) -> d
             dominant = max(mode_counts, key=mode_counts.get) if mode_counts else None
             hint = (
                 f"All {len(rack_tickets_sorted)} mention {dominant} on devices in "
-                f"same rack within {int((max(ages)-min(ages))*60)}min — possible shared event"
-                if dominant else f"{len(rack_tickets_sorted)} tickets in same rack within 1h"
+                f"same rack within {int((max(ages) - min(ages)) * 60)}min — possible shared event"
+                if dominant
+                else f"{len(rack_tickets_sorted)} tickets in same rack within 1h"
             )
-            batches.append({
-                "rack": rack,
-                "incident_count": len(rack_tickets_sorted),
-                "shared_root_cause_hint": hint,
-                "tickets": [t.get("incident_number") for t in rack_tickets_sorted],
-            })
+            batches.append(
+                {
+                    "rack": rack,
+                    "incident_count": len(rack_tickets_sorted),
+                    "shared_root_cause_hint": hint,
+                    "tickets": [t.get("incident_number") for t in rack_tickets_sorted],
+                }
+            )
 
     # ── Anomaly detection (rack drift from reasoning chain) ───────────────
     drift_by_rack: dict[str, list[str]] = {}
@@ -543,12 +580,14 @@ def rank_and_cluster(tickets: list[dict], scan_history: dict | None = None) -> d
                 rack = (t.get("cmdb") or {}).get("rack_name") or "?"
                 drift_by_rack.setdefault(rack, []).append(t.get("incident_number"))
     for rack, incs in drift_by_rack.items():
-        anomalies.append({
-            "type": "rack_drift",
-            "rack": rack,
-            "evidence": f"CMDB vs. last scan disagree at this rack — flagged on {len(incs)} ticket(s)",
-            "tickets_affected": incs,
-        })
+        anomalies.append(
+            {
+                "type": "rack_drift",
+                "rack": rack,
+                "evidence": f"CMDB vs. last scan disagree at this rack — flagged on {len(incs)} ticket(s)",
+                "tickets_affected": incs,
+            }
+        )
 
     # ── Score each ticket and split into buckets ──────────────────────────
     drift_incidents = {inc for incs in drift_by_rack.values() for inc in incs}
@@ -558,12 +597,14 @@ def rank_and_cluster(tickets: list[dict], scan_history: dict | None = None) -> d
         confidence = ext.get("confidence", 0.0)
 
         if confidence < 0.4:
-            needs_review.append({
-                "incident_number": t.get("incident_number"),
-                "reason": "extraction confidence below 0.4",
-                "confidence": confidence,
-                "summary": ext.get("one_line_summary"),
-            })
+            needs_review.append(
+                {
+                    "incident_number": t.get("incident_number"),
+                    "reason": "extraction confidence below 0.4",
+                    "confidence": confidence,
+                    "summary": ext.get("one_line_summary"),
+                }
+            )
             continue
 
         rack = (t.get("cmdb") or {}).get("rack_name")
@@ -614,21 +655,24 @@ def _save_posted(state: dict) -> None:
 
 def _analysis_hash(extracted: dict, reasoning: list[dict]) -> str:
     """Stable hash of the agent's conclusion. Re-post only when this changes."""
-    blob = json.dumps({
-        "failure_mode":    extracted.get("failure_mode"),
-        "device":          extracted.get("affected_device"),
-        "port":            extracted.get("affected_port"),
-        "confidence_bin":  round(extracted.get("confidence", 0) * 10) / 10,
-        "drift":           any(s.get("step") == "detected_drift" for s in reasoning or []),
-    }, sort_keys=True)
+    blob = json.dumps(
+        {
+            "failure_mode": extracted.get("failure_mode"),
+            "device": extracted.get("affected_device"),
+            "port": extracted.get("affected_port"),
+            "confidence_bin": round(extracted.get("confidence", 0) * 10) / 10,
+            "drift": any(s.get("step") == "detected_drift" for s in reasoning or []),
+        },
+        sort_keys=True,
+    )
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
 def _format_work_note(ticket: dict, related: list[str] | None = None) -> str:
     """Build the work-note text. Templated, not generated."""
-    ext      = ticket.get("extracted") or {}
+    ext = ticket.get("extracted") or {}
     reasoning = ticket.get("reasoning") or []
-    cmdb     = ticket.get("cmdb") or {}
+    cmdb = ticket.get("cmdb") or {}
 
     lines = []
     lines.append("RackTrack Agent Analysis — auto-generated")
@@ -663,8 +707,8 @@ def auto_post_analysis(ticket: dict, sn_client, related_in_batch: list[str] | No
     'skipped_no_change' | 'skipped_rate_limit' | 'error'.
     """
     inc_num = ticket.get("incident_number")
-    sys_id  = ticket.get("sys_id")
-    ext     = ticket.get("extracted") or {}
+    sys_id = ticket.get("sys_id")
+    ext = ticket.get("extracted") or {}
     reasoning = ticket.get("reasoning") or []
     confidence = ext.get("confidence", 0.0)
 
@@ -685,9 +729,8 @@ def auto_post_analysis(ticket: dict, sn_client, related_in_batch: list[str] | No
     if last_posted_iso:
         try:
             last_dt = datetime.fromisoformat(last_posted_iso.replace("Z", "+00:00"))
-            if datetime.now(timezone.utc) - last_dt < timedelta(hours=POST_RATE_LIMIT_HOURS):
-                return {"status": "skipped_rate_limit",
-                        "last_posted": last_posted_iso}
+            if datetime.now(UTC) - last_dt < timedelta(hours=POST_RATE_LIMIT_HOURS):
+                return {"status": "skipped_rate_limit", "last_posted": last_posted_iso}
         except (ValueError, TypeError):
             pass
 
@@ -698,8 +741,8 @@ def auto_post_analysis(ticket: dict, sn_client, related_in_batch: list[str] | No
         return {"status": "error", "reason": str(e)}
 
     posted[inc_num] = {
-        "hash":      cur_hash,
-        "posted_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "hash": cur_hash,
+        "posted_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "confidence": confidence,
     }
     _save_posted(posted)

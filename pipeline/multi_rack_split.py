@@ -46,45 +46,44 @@ Design notes:
     right before it is written. See split_video_into_racks for why.
 """
 
+import hashlib
+import json
 import os
 import sys
-import json
-import hashlib
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-
 # Tunable knobs ------------------------------------------------------------
-MAX_SAMPLED_FRAMES        = 30     # cap on how many frames we score
-MIN_DEVICES_FOR_RACK      = 1      # frames with 0 devices are pan-transitions
-TRANSITION_X_SHIFT_RATIO  = 0.25   # adjacent samples whose mean-X differs
-                                   # by > 25% of frame width = new rack
-VISUAL_CHANGE_THRESHOLD   = 0.35   # 1 - HSV-histogram correlation between
-                                   # adjacent samples. > 0.35 = scene changed
-                                   # (different rack), even if X stayed put.
-MIN_FRAMES_PER_RACK       = 3      # a "rack" must hold the camera for >= N samples.
-                                   # This was 1, which made the filter below a
-                                   # no-op: every segment has at least one frame,
-                                   # so nothing was ever dropped. A single shaky
-                                   # frame mid-pan became its own "rack", and one
-                                   # rack filmed in one pass could split into two
-                                   # near-identical entries — which is why a
-                                   # two-rack video showed the same topology
-                                   # twice. Three samples is roughly a second of
-                                   # the camera actually being held on a rack.
-DEFAULT_DEVICES_CONF      = 0.20   # only used when config.json omits
-                                   # detection.devices_conf — the live value
-                                   # is read from the config so this path and
-                                   # the single-rack path can never drift.
-MAX_ANALYSIS_WIDTH        = 1920   # sampled frames wider than this are
-                                   # downscaled before detection. The detector
-                                   # letterboxes to imgsz=640 internally, so
-                                   # 4K pixels buy nothing but RAM and resize
-                                   # time — and 30 retained 4K BGR frames was
-                                   # ~750 MB inside a worker that already
-                                   # holds several YOLO checkpoints.
+MAX_SAMPLED_FRAMES = 30  # cap on how many frames we score
+MIN_DEVICES_FOR_RACK = 1  # frames with 0 devices are pan-transitions
+TRANSITION_X_SHIFT_RATIO = 0.25  # adjacent samples whose mean-X differs
+# by > 25% of frame width = new rack
+VISUAL_CHANGE_THRESHOLD = 0.35  # 1 - HSV-histogram correlation between
+# adjacent samples. > 0.35 = scene changed
+# (different rack), even if X stayed put.
+MIN_FRAMES_PER_RACK = 3  # a "rack" must hold the camera for >= N samples.
+# This was 1, which made the filter below a
+# no-op: every segment has at least one frame,
+# so nothing was ever dropped. A single shaky
+# frame mid-pan became its own "rack", and one
+# rack filmed in one pass could split into two
+# near-identical entries — which is why a
+# two-rack video showed the same topology
+# twice. Three samples is roughly a second of
+# the camera actually being held on a rack.
+DEFAULT_DEVICES_CONF = 0.20  # only used when config.json omits
+# detection.devices_conf — the live value
+# is read from the config so this path and
+# the single-rack path can never drift.
+MAX_ANALYSIS_WIDTH = 1920  # sampled frames wider than this are
+# downscaled before detection. The detector
+# letterboxes to imgsz=640 internally, so
+# 4K pixels buy nothing but RAM and resize
+# time — and 30 retained 4K BGR frames was
+# ~750 MB inside a worker that already
+# holds several YOLO checkpoints.
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -115,7 +114,8 @@ def _load_config(config_path: str | None = None) -> dict:
     the process cwd. A deployment that points RACKTRACK_CONFIG at a
     non-default config must get the same model + thresholds here as it does
     on the single-rack path. Falling back to the repo-root copy keeps this
-    module usable when it's driven directly (tests, CLI) from elsewhere."""
+    module usable when it's driven directly (tests, CLI) from elsewhere.
+    """
     path = config_path or os.environ.get("RACKTRACK_CONFIG") or "config.json"
     if not os.path.isabs(path) and not os.path.exists(path):
         path = str(_REPO_ROOT / path)
@@ -126,8 +126,10 @@ def _load_config(config_path: str | None = None) -> dict:
 def _load_detector(cfg: dict):
     """Load the device detector through pipeline.detection.load_model so we
     share the worker's warm _MODEL_CACHE instead of loading a second copy of
-    the checkpoint into the same long-lived process."""
+    the checkpoint into the same long-lived process.
+    """
     from pipeline.detection import load_model
+
     # config.json ships "devices_seg" — there has never been a plain "devices"
     # key, so this raised KeyError on every call and the video split silently
     # reported "multi-rack split failed: 'devices'". Accept either spelling.
@@ -142,20 +144,24 @@ def _load_detector(cfg: dict):
 
 def _devices_conf(cfg: dict) -> float:
     """Detection threshold, from the same config key the single-rack path
-    reads. Previously a module constant that only happened to match."""
+    reads. Previously a module constant that only happened to match.
+    """
     return float(cfg.get("detection", {}).get("devices_conf", DEFAULT_DEVICES_CONF))
 
 
 def _downscale_for_analysis(bgr_frame):
     """Shrink oversized frames before detection/scoring. Returns the frame
-    unchanged when it's already narrow enough."""
+    unchanged when it's already narrow enough.
+    """
     w = bgr_frame.shape[1]
     if w <= MAX_ANALYSIS_WIDTH:
         return bgr_frame
     scale = MAX_ANALYSIS_WIDTH / float(w)
-    return cv2.resize(bgr_frame, (MAX_ANALYSIS_WIDTH,
-                                  max(1, int(bgr_frame.shape[0] * scale))),
-                      interpolation=cv2.INTER_AREA)
+    return cv2.resize(
+        bgr_frame,
+        (MAX_ANALYSIS_WIDTH, max(1, int(bgr_frame.shape[0] * scale))),
+        interpolation=cv2.INTER_AREA,
+    )
 
 
 def _read_frame_at(cap, index: int):
@@ -169,7 +175,8 @@ def _read_frame_at(cap, index: int):
 
 def _detect_devices(model, bgr_frame, conf: float):
     """Run device detection on one frame. Returns a list of
-    (x_center, width, conf) tuples."""
+    (x_center, width, conf) tuples.
+    """
     res = model.predict(bgr_frame, verbose=False, conf=conf)[0]
     if res.boxes is None or len(res.boxes) == 0:
         return []
@@ -178,7 +185,7 @@ def _detect_devices(model, bgr_frame, conf: float):
     out = []
     for (x1, y1, x2, y2), c in zip(xyxy, conf):
         cx = (x1 + x2) / 2.0
-        w  = max(1.0, x2 - x1)
+        w = max(1.0, x2 - x1)
         out.append((float(cx), float(w), float(c)))
     return out
 
@@ -186,13 +193,14 @@ def _detect_devices(model, bgr_frame, conf: float):
 def _frame_signature(detections, frame_width):
     """Area-weighted mean X-center of all detected device boxes,
     normalized to [0, 1] across the frame width. Frames with no
-    detections return None (treated as pan-transition)."""
+    detections return None (treated as pan-transition).
+    """
     if not detections or frame_width <= 0:
         return None, 0, 0.0
     weights = [d[1] for d in detections]
-    xs      = [d[0] for d in detections]
-    confs   = [d[2] for d in detections]
-    mean_x  = float(np.average(xs, weights=weights))
+    xs = [d[0] for d in detections]
+    confs = [d[2] for d in detections]
+    mean_x = float(np.average(xs, weights=weights))
     return mean_x / frame_width, len(detections), float(np.mean(confs))
 
 
@@ -207,7 +215,8 @@ def _visual_fingerprint(bgr_frame, target_w: int = 96):
     different devices, cabling, room background). Used as a second
     rack-boundary signal alongside the device-X-shift signature, because
     head-on shots of two different racks can produce the same mean-X
-    even though the visual content is completely different."""
+    even though the visual content is completely different.
+    """
     h, w = bgr_frame.shape[:2]
     if w > target_w:
         scale = target_w / float(w)
@@ -228,38 +237,40 @@ def _visual_distance(hist_a, hist_b) -> float:
     return max(0.0, 1.0 - float(corr))
 
 
-def split_video_into_racks(video_path: str, output_dir: str | None = None,
-                           config_path: str | None = None) -> list[dict]:
+def split_video_into_racks(
+    video_path: str, output_dir: str | None = None, config_path: str | None = None
+) -> list[dict]:
     """Main entry. Returns a list of dicts, one per detected rack:
-        {
-          "position":       1,                     # 1-based, in pan order
-          "label":          "Rack 1",              # auto-generated
-          "best_frame_path": ".../rack_1.jpg",
-          "frame_index":    143,                   # source frame number
-          "device_count":   12,                    # in the best frame
-          "score":          0.84,                  # internal ranking score
-        }
+    {
+      "position":       1,                     # 1-based, in pan order
+      "label":          "Rack 1",              # auto-generated
+      "best_frame_path": ".../rack_1.jpg",
+      "frame_index":    143,                   # source frame number
+      "device_count":   12,                    # in the best frame
+      "score":          0.84,                  # internal ranking score
+    }
     """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         return []
 
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-    fps   = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
+    fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
     if total <= 0 or width <= 0:
         cap.release()
         return []
 
     indices = _sample_timestamps(total, fps, MAX_SAMPLED_FRAMES)
-    print(f"[multi-rack] sampling {len(indices)} of {total} frames @ fps={fps:.1f}",
-          file=sys.stderr)
+    print(
+        f"[multi-rack] sampling {len(indices)} of {total} frames @ fps={fps:.1f}", file=sys.stderr
+    )
 
     # Load detector once (workers reuse it across frames, and load_model
     # reuses the checkpoint the worker already warmed at boot)
-    cfg   = _load_config(config_path)
+    cfg = _load_config(config_path)
     model = _load_detector(cfg)
-    conf  = _devices_conf(cfg)
+    conf = _devices_conf(cfg)
 
     # Sample + detect.
     #
@@ -277,21 +288,23 @@ def split_video_into_racks(video_path: str, output_dir: str | None = None,
         if frame is None:
             continue
         small = _downscale_for_analysis(frame)
-        frame = None                          # release the full-res decode now
+        frame = None  # release the full-res decode now
         dets = _detect_devices(model, small, conf)
         sig, n_dev, mean_conf = _frame_signature(dets, small.shape[1])
         # Sharpness is scale-dependent, but every sample is downscaled by the
         # same factor (one video = one resolution), so the ranking holds.
         sharp = _sharpness(small) if n_dev > 0 else 0.0
-        fp    = _visual_fingerprint(small)
-        samples.append({
-            "index":      idx,
-            "n_devices":  n_dev,
-            "sig":        sig,        # normalized mean X, or None
-            "mean_conf":  mean_conf,
-            "sharpness":  sharp,
-            "fp":         fp,         # HSV histogram fingerprint
-        })
+        fp = _visual_fingerprint(small)
+        samples.append(
+            {
+                "index": idx,
+                "n_devices": n_dev,
+                "sig": sig,  # normalized mean X, or None
+                "mean_conf": mean_conf,
+                "sharpness": sharp,
+                "fp": fp,  # HSV histogram fingerprint
+            }
+        )
 
     if not samples:
         cap.release()
@@ -309,7 +322,7 @@ def split_video_into_racks(video_path: str, output_dir: str | None = None,
     segments: list[list[dict]] = []
     current: list[dict] = []
     last_sig = None
-    last_fp  = None
+    last_fp = None
     for s in samples:
         if s["sig"] is None or s["n_devices"] < MIN_DEVICES_FOR_RACK:
             # Likely mid-pan. Close out the current segment.
@@ -317,23 +330,20 @@ def split_video_into_racks(video_path: str, output_dir: str | None = None,
                 segments.append(current)
                 current = []
             last_sig = None
-            last_fp  = None
+            last_fp = None
             continue
-        big_x_shift     = (last_sig is not None
-                           and abs(s["sig"] - last_sig) > TRANSITION_X_SHIFT_RATIO)
+        big_x_shift = last_sig is not None and abs(s["sig"] - last_sig) > TRANSITION_X_SHIFT_RATIO
         visual_distance = _visual_distance(s["fp"], last_fp)
-        big_visual_jump = (last_fp is not None
-                           and visual_distance > VISUAL_CHANGE_THRESHOLD)
+        big_visual_jump = last_fp is not None and visual_distance > VISUAL_CHANGE_THRESHOLD
         if big_x_shift or big_visual_jump:
             reason = "x-shift" if big_x_shift else f"scene-change(d={visual_distance:.2f})"
-            print(f"[multi-rack]   split at sample idx={s['index']} ({reason})",
-                  file=sys.stderr)
+            print(f"[multi-rack]   split at sample idx={s['index']} ({reason})", file=sys.stderr)
             if current:
                 segments.append(current)
             current = []
         current.append(s)
         last_sig = s["sig"]
-        last_fp  = s["fp"]
+        last_fp = s["fp"]
     if current:
         segments.append(current)
 
@@ -349,10 +359,12 @@ def split_video_into_racks(video_path: str, output_dir: str | None = None,
     kept = [seg for seg in segments if len(seg) >= MIN_FRAMES_PER_RACK]
     dropped = len(segments) - len(kept)
     if dropped:
-        print(f"[multi-rack] dropped {dropped} segment(s) shorter than "
-              f"{MIN_FRAMES_PER_RACK} samples — if a rack is missing from the "
-              f"result, it was panned past too quickly to sample",
-              file=sys.stderr)
+        print(
+            f"[multi-rack] dropped {dropped} segment(s) shorter than "
+            f"{MIN_FRAMES_PER_RACK} samples — if a rack is missing from the "
+            f"result, it was panned past too quickly to sample",
+            file=sys.stderr,
+        )
     segments = kept
     if not segments:
         # If aggressive splitting killed everything, treat the whole
@@ -363,12 +375,13 @@ def split_video_into_racks(video_path: str, output_dir: str | None = None,
             return []
         segments = [viable]
 
-    print(f"[multi-rack] detected {len(segments)} rack segment(s)",
-          file=sys.stderr)
+    print(f"[multi-rack] detected {len(segments)} rack segment(s)", file=sys.stderr)
 
     # ── Pick the best frame per segment + persist ────────────────────
-    out_root = Path(output_dir) if output_dir else (
-        Path(__file__).resolve().parents[1] / "outputs" / "multi" / _video_hash(video_path)
+    out_root = (
+        Path(output_dir)
+        if output_dir
+        else (Path(__file__).resolve().parents[1] / "outputs" / "multi" / _video_hash(video_path))
     )
     out_root.mkdir(parents=True, exist_ok=True)
 
@@ -378,9 +391,11 @@ def split_video_into_racks(video_path: str, output_dir: str | None = None,
     max_sharp = max((s["sharpness"] for seg in segments for s in seg), default=1.0) or 1.0
 
     def _score(s):
-        return (0.45 * (s["n_devices"]  / max_dev) +
-                0.35 *  s["mean_conf"] +
-                0.20 * (s["sharpness"] / max_sharp))
+        return (
+            0.45 * (s["n_devices"] / max_dev)
+            + 0.35 * s["mean_conf"]
+            + 0.20 * (s["sharpness"] / max_sharp)
+        )
 
     results: list[dict] = []
     pos = 0
@@ -396,22 +411,26 @@ def split_video_into_racks(video_path: str, output_dir: str | None = None,
             if full is not None:
                 best = cand
                 break
-            print(f"[multi-rack]   re-read failed for frame {cand['index']}, "
-                  f"trying next-best", file=sys.stderr)
+            print(
+                f"[multi-rack]   re-read failed for frame {cand['index']}, trying next-best",
+                file=sys.stderr,
+            )
         if best is None:
             continue
         pos += 1
         best_path = out_root / f"rack_{pos}.jpg"
         cv2.imwrite(str(best_path), full, [cv2.IMWRITE_JPEG_QUALITY, 92])
         full = None
-        results.append({
-            "position":        pos,
-            "label":           f"Rack {pos}",
-            "best_frame_path": str(best_path),
-            "frame_index":     best["index"],
-            "device_count":    best["n_devices"],
-            "mean_conf":       round(best["mean_conf"], 3),
-            "score":           round(_score(best), 3),
-        })
+        results.append(
+            {
+                "position": pos,
+                "label": f"Rack {pos}",
+                "best_frame_path": str(best_path),
+                "frame_index": best["index"],
+                "device_count": best["n_devices"],
+                "mean_conf": round(best["mean_conf"], 3),
+                "score": round(_score(best), 3),
+            }
+        )
     cap.release()
     return results

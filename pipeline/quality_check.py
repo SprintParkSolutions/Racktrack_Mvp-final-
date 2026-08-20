@@ -17,16 +17,16 @@ import cv2
 import numpy as np
 
 # ── Tolerances (relaxed from original) ──
-TILT_TOLERANCE_DEG = 6.0           # was 4.0
-PERSPECTIVE_TOLERANCE_DEG = 5.0    # was 3.0
+TILT_TOLERANCE_DEG = 6.0  # was 4.0
+PERSPECTIVE_TOLERANCE_DEG = 5.0  # was 3.0
 LETTERBOX_BAND_FRAC = 0.10
-LETTERBOX_DARK_FRAC = 0.92         # was 0.85
-LETTERBOX_DARK_VALUE = 20          # was 25
+LETTERBOX_DARK_FRAC = 0.92  # was 0.85
+LETTERBOX_DARK_VALUE = 20  # was 25
 
 # ── Side-view detection thresholds (NEW) ──
-SIDE_VIEW_AVG_DEG = 20.0           # avg horizontal-line angle > this → side view
-SIDE_VIEW_SPREAD_DEG = 18.0        # P90−P10 of horizontal angles > this → side view
-SIDE_VIEW_MIN_LINES = 8            # need at least this many horizontal lines to judge
+SIDE_VIEW_AVG_DEG = 20.0  # avg horizontal-line angle > this → side view
+SIDE_VIEW_SPREAD_DEG = 18.0  # P90−P10 of horizontal angles > this → side view
+SIDE_VIEW_MIN_LINES = 8  # need at least this many horizontal lines to judge
 
 # ── Occlusion (cable clutter) thresholds ──
 # Image-only heuristic that runs PRE-analyze. Detects heavily-cabled racks
@@ -44,12 +44,12 @@ SIDE_VIEW_MIN_LINES = 8            # need at least this many horizontal lines to
 #      yellow, red); device faces are desaturated (gray/black/white). When
 #      a large fraction of the central rack region is high-saturation
 #      pixels, cables dominate the view.
-OCCLUSION_NONHORIZ_RATIO = 1.45    # non_horizontal/horizontal edge mag → "warning"
-OCCLUSION_NONHORIZ_HARD  = 2.10    # above this → "hard" (offer multi-angle)
-OCCLUSION_SAT_FRAC_WARN  = 0.22    # fraction of high-saturation pixels → warning
-OCCLUSION_SAT_FRAC_HARD  = 0.38    # fraction of high-saturation pixels → hard
-OCCLUSION_SAT_THRESHOLD  = 80      # HSV saturation value considered "vivid"
-OCCLUSION_MIN_STRONG_PX  = 1500    # minimum strong-edge pixel count to judge at all
+OCCLUSION_NONHORIZ_RATIO = 1.45  # non_horizontal/horizontal edge mag → "warning"
+OCCLUSION_NONHORIZ_HARD = 2.10  # above this → "hard" (offer multi-angle)
+OCCLUSION_SAT_FRAC_WARN = 0.22  # fraction of high-saturation pixels → warning
+OCCLUSION_SAT_FRAC_HARD = 0.38  # fraction of high-saturation pixels → hard
+OCCLUSION_SAT_THRESHOLD = 80  # HSV saturation value considered "vivid"
+OCCLUSION_MIN_STRONG_PX = 1500  # minimum strong-edge pixel count to judge at all
 
 
 def check_letterbox(img):
@@ -77,8 +77,9 @@ def check_tilt(img):
     edges = cv2.Canny(gray, 50, 150, apertureSize=3)
 
     min_len = 350
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80,
-                            minLineLength=min_len, maxLineGap=25)
+    lines = cv2.HoughLinesP(
+        edges, 1, np.pi / 180, threshold=80, minLineLength=min_len, maxLineGap=25
+    )
 
     if lines is None:
         return {"ok": True, "metrics": {"note": "no-lines"}}
@@ -139,9 +140,11 @@ def check_tilt(img):
                 "kind": "angle",
                 "retryable": True,
                 "error": "The image appears tilted. Please hold the phone straight and retake.",
-                "metrics": {"skew_deg": round(skew, 2),
-                            "left_deg": round(left_avg, 2),
-                            "right_deg": round(right_avg, 2)},
+                "metrics": {
+                    "skew_deg": round(skew, 2),
+                    "left_deg": round(left_avg, 2),
+                    "right_deg": round(right_avg, 2),
+                },
             }
 
     return {"ok": True, "metrics": {"rotation_deg": round(overall, 2)}}
@@ -161,8 +164,9 @@ def check_side_view(img):
     edges = cv2.Canny(gray, 50, 150, apertureSize=3)
 
     min_len = 350
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=60,
-                            minLineLength=min_len, maxLineGap=15)
+    lines = cv2.HoughLinesP(
+        edges, 1, np.pi / 180, threshold=60, minLineLength=min_len, maxLineGap=15
+    )
 
     if lines is None:
         return {"ok": True, "metrics": {"note": "no-horizontal-lines"}}
@@ -187,8 +191,10 @@ def check_side_view(img):
             horiz_weights.append(length)
 
     if len(horiz_angles) < SIDE_VIEW_MIN_LINES:
-        return {"ok": True, "metrics": {"note": "insufficient-horizontal-lines",
-                                         "count": len(horiz_angles)}}
+        return {
+            "ok": True,
+            "metrics": {"note": "insufficient-horizontal-lines", "count": len(horiz_angles)},
+        }
 
     angles_arr = np.array(horiz_angles)
     weights_arr = np.array(horiz_weights)
@@ -274,8 +280,8 @@ def check_occlusion(img):
         else:
             abs_gx = np.abs(gx[strong])
             abs_gy = np.abs(gy[strong])
-            vertical_line_mag    = float(np.sum(abs_gx[abs_gx > abs_gy * 1.732]))
-            horizontal_line_mag  = float(np.sum(abs_gy[abs_gy > abs_gx * 1.732]))
+            vertical_line_mag = float(np.sum(abs_gx[abs_gx > abs_gy * 1.732]))
+            horizontal_line_mag = float(np.sum(abs_gy[abs_gy > abs_gx * 1.732]))
             if horizontal_line_mag < 1.0:
                 ratio = 99.0
             else:
@@ -292,38 +298,45 @@ def check_occlusion(img):
     mean_sat = float(sat.mean()) if sat.size > 0 else 0.0
 
     metrics = {
-        "v_to_h_ratio":  round(ratio, 2),
+        "v_to_h_ratio": round(ratio, 2),
         "strong_edge_px": strong_count,
-        "sat_frac":      round(sat_frac, 3),
-        "mean_sat":      round(mean_sat, 1),
+        "sat_frac": round(sat_frac, 3),
+        "mean_sat": round(mean_sat, 1),
     }
 
     # ── Decision: hard fail if EITHER signal is severe ──
     hard_by_ratio = ratio >= OCCLUSION_NONHORIZ_HARD
-    hard_by_sat   = sat_frac >= OCCLUSION_SAT_FRAC_HARD
+    hard_by_sat = sat_frac >= OCCLUSION_SAT_FRAC_HARD
     if hard_by_ratio or hard_by_sat:
         reasons = []
-        if hard_by_ratio: reasons.append(f"cable edges dominate ({ratio:.1f}x device edges)")
-        if hard_by_sat:   reasons.append(f"{int(sat_frac*100)}% of view is colored cables")
+        if hard_by_ratio:
+            reasons.append(f"cable edges dominate ({ratio:.1f}x device edges)")
+        if hard_by_sat:
+            reasons.append(f"{int(sat_frac * 100)}% of view is colored cables")
         return {
             "ok": False,
             "kind": "occlusion",
             "retryable": True,
-            "error": ("This rack is heavily covered by cables — " + " and ".join(reasons) +
-                      ". For better accuracy, take additional photos from the left and right "
-                      "sides of the rack so we can see behind the cable bundles, or proceed "
-                      "with this image (results may miss devices)."),
+            "error": (
+                "This rack is heavily covered by cables — "
+                + " and ".join(reasons)
+                + ". For better accuracy, take additional photos from the left and right "
+                "sides of the rack so we can see behind the cable bundles, or proceed "
+                "with this image (results may miss devices)."
+            ),
             "metrics": metrics,
         }
 
     warn_by_ratio = ratio >= OCCLUSION_NONHORIZ_RATIO
-    warn_by_sat   = sat_frac >= OCCLUSION_SAT_FRAC_WARN
+    warn_by_sat = sat_frac >= OCCLUSION_SAT_FRAC_WARN
     if warn_by_ratio or warn_by_sat:
         return {
             "ok": True,
             "warning": "occlusion",
-            "warning_msg": ("Cables cover much of the rack — some devices behind cable bundles "
-                            "may not be detected. Side-angle photos would improve accuracy."),
+            "warning_msg": (
+                "Cables cover much of the rack — some devices behind cable bundles "
+                "may not be detected. Side-angle photos would improve accuracy."
+            ),
             "metrics": metrics,
         }
 
@@ -337,10 +350,9 @@ def main():
 
     img = cv2.imread(args.image)
     if img is None:
-        print(json.dumps({
-            "ok": False,
-            "error": "Could not read image. Please upload a valid photo."
-        }))
+        print(
+            json.dumps({"ok": False, "error": "Could not read image. Please upload a valid photo."})
+        )
         return
 
     # 1. Letterbox check

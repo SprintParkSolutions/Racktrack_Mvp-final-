@@ -40,6 +40,7 @@ Never exits non-zero on a failed READ — an unreadable photo is an ordinary
 outcome the UI handles by falling back to manual entry, not an error. Only a
 crash (missing file, engine failure) sets ok=false.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -93,6 +94,7 @@ def closeup_config(escalate: bool = False):
     escalation so a hopeless photo fails fast instead of stalling the request.
     """
     from switch_ocr import OCRConfig
+
     cfg = dict(
         variants=["enhanced", "upscaled"],
         det_limit_side_len=2000,
@@ -101,9 +103,14 @@ def closeup_config(escalate: bool = False):
         channel_retry=False,
     )
     if not escalate:
-        return OCRConfig(**cfg, orientation_retry=False, deskew_retry=False,
-                         perspective_retry=False, deglare_retry=False,
-                         zoom_retry=False)
+        return OCRConfig(
+            **cfg,
+            orientation_retry=False,
+            deskew_retry=False,
+            perspective_retry=False,
+            deglare_retry=False,
+            zoom_retry=False,
+        )
     return OCRConfig(**cfg, time_budget=10.0)
 
 
@@ -119,9 +126,14 @@ def get_reader(preset: str = "closeup"):
     """
     if preset not in _READERS:
         from switch_ocr import OCRConfig, SwitchTextReader
-        cfg = (OCRConfig.fast() if preset == "fast"
-               else OCRConfig.accurate() if preset == "accurate"
-               else closeup_config(escalate=(preset == "closeup_escalated")))
+
+        cfg = (
+            OCRConfig.fast()
+            if preset == "fast"
+            else OCRConfig.accurate()
+            if preset == "accurate"
+            else closeup_config(escalate=(preset == "closeup_escalated"))
+        )
         print(f"[ocr_closeup] engine: switch-ocr ({preset})", file=sys.stderr)
         _READERS[preset] = SwitchTextReader(cfg)
     return _READERS[preset]
@@ -164,11 +176,13 @@ def _identify(labels: list[dict]) -> tuple[str | None, str | None, float, list[d
             continue
         if (a_make, a_model) == (make, model):
             continue
-        alternates.append({
-            "make": a_make,
-            "model": a_model,
-            "conf": round(float(alt.get("confidence") or 0.0), 3),
-        })
+        alternates.append(
+            {
+                "make": a_make,
+                "model": a_model,
+                "conf": round(float(alt.get("confidence") or 0.0), 3),
+            }
+        )
 
     return make, model, float(dev.confidence or 0.0), alternates
 
@@ -203,15 +217,15 @@ def _read_and_identify(img, preset: str) -> dict:
         match_conf = 0.0
 
     return {
-        "ok":         True,
-        "make":       make,
-        "model":      model,
-        "version":    parse_version(text),
-        "raw_text":   text,
-        "ocr_conf":   ocr_conf,
+        "ok": True,
+        "make": make,
+        "model": model,
+        "version": parse_version(text),
+        "raw_text": text,
+        "ocr_conf": ocr_conf,
         "match_conf": match_conf,
         "detections": len(labels),
-        "source":     source,
+        "source": source,
         "alternates": alternates,
     }
 
@@ -221,8 +235,11 @@ def run(image_path: str, preset: str = "closeup") -> dict:
 
     img = cv2.imread(str(image_path))
     if img is None:
-        return {"ok": False, "error": f"could not read image: {image_path}",
-                "source": "closeup_failed"}
+        return {
+            "ok": False,
+            "error": f"could not read image: {image_path}",
+            "source": "closeup_failed",
+        }
 
     # Explicit presets are honoured as-is; only the default is two-stage.
     if preset != "closeup":
@@ -244,10 +261,12 @@ def run(image_path: str, preset: str = "closeup") -> dict:
     escalated = _read_and_identify(img, "closeup_escalated")
     if escalated["make"] and escalated["model"]:
         return escalated
+
     # Neither pass was complete: keep whichever got further, preferring the
     # escalated pass on a tie since it saw strictly more of the image.
     def rank(r):
         return (bool(r["make"]) + bool(r["model"]), r["match_conf"])
+
     return escalated if rank(escalated) >= rank(result) else result
 
 
@@ -255,10 +274,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("image_path")
     group = ap.add_mutually_exclusive_group()
-    group.add_argument("--fast", action="store_true",
-                       help="Single-pass preset — fastest, lowest recall.")
-    group.add_argument("--accurate", action="store_true",
-                       help="Rack-photo preset — slowest, highest recall.")
+    group.add_argument(
+        "--fast", action="store_true", help="Single-pass preset — fastest, lowest recall."
+    )
+    group.add_argument(
+        "--accurate", action="store_true", help="Rack-photo preset — slowest, highest recall."
+    )
     args = ap.parse_args()
 
     preset = "fast" if args.fast else "accurate" if args.accurate else "closeup"

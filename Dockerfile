@@ -133,6 +133,14 @@ ENV NODE_ENV=production \
 
 EXPOSE 3001
 
+# Run as a non-root user (hardening — audit finding M1). The whole /app tree,
+# including the runtime mount points created above, is handed to this user so it
+# can still read config and write outputs/Models/cache.
+# NOTE: if outputs/ or Models/ are backed by host volumes, make those volumes
+# writable by UID 10001 (chown them on the host, or set the volume's owner).
+RUN groupadd -r app && useradd -r -g app -u 10001 app && chown -R app:app /app
+USER app
+
 # Run from the repo root (/app) so PROJECT_ROOT, config.json, Models/, outputs/
 # and client/dist all resolve correctly.
 CMD ["node", "server/app.js"]

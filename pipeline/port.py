@@ -66,19 +66,27 @@ def load_port_model(model_path: str = MODEL_PATH):
 
 def infer_port_status(class_name: str, confidence: float = None):
     if confidence is not None and confidence < PORT_STATUS_CONF_MIN:
-        return 'unknown'
+        return "unknown"
     if not class_name:
-        return 'unknown'
+        return "unknown"
     key = class_name.strip().lower()
-    if any(term in key for term in (
-            'connect', 'connected', 'plug', 'occupied',
-            'cable', 'linked', 'live', 'active')):
-        return 'connected'
-    if any(term in key for term in (
-            'empty', 'vacant', 'free', 'none',
-            'unused', 'unconnected')):
-        return 'empty'
-    return 'unknown'
+    if any(
+        term in key
+        for term in (
+            "connect",
+            "connected",
+            "plug",
+            "occupied",
+            "cable",
+            "linked",
+            "live",
+            "active",
+        )
+    ):
+        return "connected"
+    if any(term in key for term in ("empty", "vacant", "free", "none", "unused", "unconnected")):
+        return "empty"
+    return "unknown"
 
 
 def get_port_detections(img, model, conf: float = CONF):
@@ -100,7 +108,7 @@ def get_port_detections(img, model, conf: float = CONF):
     xyxy = results[0].boxes.xyxy.cpu().numpy()
     cls_ids = results[0].boxes.cls.cpu().numpy().astype(int)
     scores = results[0].boxes.conf.cpu().numpy()
-    names = getattr(model, 'names', {})
+    names = getattr(model, "names", {})
 
     detections = []
     for i, (x1, y1, x2, y2) in enumerate(xyxy):
@@ -108,16 +116,17 @@ def get_port_detections(img, model, conf: float = CONF):
         cy = int(round((y1 + y2) / 2))
         class_id = int(cls_ids[i])
         class_name = str(names.get(class_id, class_id))
-        detections.append({
-            'center': (cx, cy),
-            'bbox': (int(round(x1)), int(round(y1)),
-                     int(round(x2)), int(round(y2))),
-            'class_id': class_id,
-            'class_name': class_name,
-            'confidence': float(scores[i]),
-        })
+        detections.append(
+            {
+                "center": (cx, cy),
+                "bbox": (int(round(x1)), int(round(y1)), int(round(x2)), int(round(y2))),
+                "class_id": class_id,
+                "class_name": class_name,
+                "confidence": float(scores[i]),
+            }
+        )
 
-    return sorted(detections, key=lambda item: (item['center'][0], item['center'][1]))
+    return sorted(detections, key=lambda item: (item["center"][0], item["center"][1]))
 
 
 def find_rows(ports, H):
@@ -159,9 +168,7 @@ def find_rows(ports, H):
         r1 = int(H - y_mean)
         return [], pts, r1, r2
 
-    return top, bot, \
-        (int(y_mean) if top else None), \
-        (int(y_mean) if bot else None)
+    return top, bot, (int(y_mean) if top else None), (int(y_mean) if bot else None)
 
 
 def get_dx(ports):
@@ -173,8 +180,7 @@ def get_dx(ports):
     return float(np.median(dx)) if len(dx) else BOX_W
 
 
-def draw_classified(img, classified, highlight_idx=None, highlight_category='main',
-                    index_offset=0):
+def draw_classified(img, classified, highlight_idx=None, highlight_category="main", index_offset=0):
     """Mark EVERY classified port with a dot at its centre plus its index. When
     highlight_idx is set, that port (1-based within highlight_category) gets a
     larger green dot so the selected port stands out among all the others.
@@ -188,56 +194,58 @@ def draw_classified(img, classified, highlight_idx=None, highlight_category='mai
     fall before the user's port 1 (index+offset < 1) get a dot but no number.
     """
     out = img.copy()
-    CLR_C = (255, 255, 0)    # cyan   - console
-    CLR_M = (0, 0, 255)      # red    - main
-    CLR_S = (0, 255, 255)    # yellow - sfp
-    CLR_H = (0, 255, 0)      # green  - highlighted
-    CLR_OT = (0, 165, 255)   # orange - other
+    CLR_C = (255, 255, 0)  # cyan   - console
+    CLR_M = (0, 0, 255)  # red    - main
+    CLR_S = (0, 255, 255)  # yellow - sfp
+    CLR_H = (0, 255, 0)  # green  - highlighted
+    CLR_OT = (0, 165, 255)  # orange - other
 
-    def _dot(p, color, prefix='', big=False, place='above', offset=0):
+    def _dot(p, color, prefix="", big=False, place="above", offset=0):
         # Scale the dot + label to the port's own size so a small / dense
         # device crop gets small marks (instead of huge dots and overlapping
         # numbers that bury the image), while big devices stay clearly legible.
         # `place` puts the index above the port (top row) or below it (bottom
         # row) so a two-row device reads cleanly.
-        x1, y1, x2, y2 = [int(v) for v in p['box']]
-        cx, cy = int(p['center'][0]), int(p['center'][1])
+        x1, y1, x2, y2 = [int(v) for v in p["box"]]
+        cx, cy = int(p["center"][0]), int(p["center"][1])
         base = max(6, min(x2 - x1, y2 - y1))
         r = max(2, min(int(base * (0.22 if big else 0.11)), 11 if big else 6))
-        cv2.circle(out, (cx, cy), r + 1, (0, 0, 0), -1, cv2.LINE_AA)   # dark halo for contrast
-        cv2.circle(out, (cx, cy), r, color, -1, cv2.LINE_AA)           # the dot
-        raw = p.get('index', '')
+        cv2.circle(out, (cx, cy), r + 1, (0, 0, 0), -1, cv2.LINE_AA)  # dark halo for contrast
+        cv2.circle(out, (cx, cy), r, color, -1, cv2.LINE_AA)  # the dot
+        raw = p.get("index", "")
         if isinstance(raw, int):
-            disp = raw + offset                # apply the user's numbering shift
-            idx = '' if disp < 1 else f"{prefix}{disp}"
+            disp = raw + offset  # apply the user's numbering shift
+            idx = "" if disp < 1 else f"{prefix}{disp}"
         else:
-            idx = f"{prefix}{raw}" if raw != '' else ''
+            idx = f"{prefix}{raw}" if raw != "" else ""
         if idx:
             fs = max(0.28, min(base / 120.0, 0.50))
             th = 2 if fs >= 0.48 else 1
             (tw, thg), _ = cv2.getTextSize(idx, cv2.FONT_HERSHEY_SIMPLEX, fs, th)
-            if place == 'below':
-                ty = min(out.shape[0] - 2, y2 + thg + 3)              # under the port
+            if place == "below":
+                ty = min(out.shape[0] - 2, y2 + thg + 3)  # under the port
             else:
-                ty = max(y1 - 3, thg + 2)                             # above the port
+                ty = max(y1 - 3, thg + 2)  # above the port
             org = (int(cx - tw / 2), ty)
             cv2.putText(out, idx, org, cv2.FONT_HERSHEY_SIMPLEX, fs, (0, 0, 0), th + 2, cv2.LINE_AA)
-            cv2.putText(out, idx, org, cv2.FONT_HERSHEY_SIMPLEX, fs, (255, 255, 255), th, cv2.LINE_AA)
+            cv2.putText(
+                out, idx, org, cv2.FONT_HERSHEY_SIMPLEX, fs, (255, 255, 255), th, cv2.LINE_AA
+            )
 
     # Decide label placement for the main ports: if they span two rows, the
     # top row labels go above and the bottom row labels go below, so the rows
     # don't collide in the middle. Single row → all above.
-    main = classified.get('main_ports', [])
+    main = classified.get("main_ports", [])
     place_of = {}
     if main:
-        ys = [int(p['center'][1]) for p in main]
-        hs = [max(1, int(p['box'][3]) - int(p['box'][1])) for p in main]
+        ys = [int(p["center"][1]) for p in main]
+        hs = [max(1, int(p["box"][3]) - int(p["box"][1])) for p in main]
         avg_h = sum(hs) / len(hs)
         y_lo, y_hi = min(ys), max(ys)
-        if (y_hi - y_lo) > avg_h * 0.7:            # two distinct rows
+        if (y_hi - y_lo) > avg_h * 0.7:  # two distinct rows
             mid = (y_lo + y_hi) / 2.0
             for p in main:
-                place_of[id(p)] = 'above' if int(p['center'][1]) < mid else 'below'
+                place_of[id(p)] = "above" if int(p["center"][1]) < mid else "below"
 
     # ── A dot + index for every port ── (the numbering shift applies to the
     # MAIN row only; console/sfp/other keep their own C/S/O sequences).
@@ -245,23 +253,32 @@ def draw_classified(img, classified, highlight_idx=None, highlight_category='mai
     # their numbers so the user can pick one. Once a port is located
     # (highlight_idx set), we show ONLY that port and skip every other marker.
     if highlight_idx is None:
-        for p in classified.get('console_ports', []): _dot(p, CLR_C, 'C')
-        for p in main:                                _dot(p, CLR_M, place=place_of.get(id(p), 'above'), offset=index_offset)
-        for p in classified.get('sfp_ports', []):     _dot(p, CLR_S, 'S')
-        for p in classified.get('other_ports', []):   _dot(p, CLR_OT, 'O')
+        for p in classified.get("console_ports", []):
+            _dot(p, CLR_C, "C")
+        for p in main:
+            _dot(p, CLR_M, place=place_of.get(id(p), "above"), offset=index_offset)
+        for p in classified.get("sfp_ports", []):
+            _dot(p, CLR_S, "S")
+        for p in classified.get("other_ports", []):
+            _dot(p, CLR_OT, "O")
 
     # ── Larger green dot on the selected port ──
     if highlight_idx is not None:
         cat_key = {
-            'main': 'main_ports',
-            'sfp': 'sfp_ports',
-            'console': 'console_ports',
-            'other': 'other_ports',
-        }.get(highlight_category, 'main_ports')
+            "main": "main_ports",
+            "sfp": "sfp_ports",
+            "console": "console_ports",
+            "other": "other_ports",
+        }.get(highlight_category, "main_ports")
         target_list = classified.get(cat_key, [])
         if 1 <= highlight_idx <= len(target_list):
             tp = target_list[highlight_idx - 1]
-            _dot(tp, CLR_H, big=True, place=place_of.get(id(tp), 'above'),
-                 offset=(index_offset if highlight_category == 'main' else 0))
+            _dot(
+                tp,
+                CLR_H,
+                big=True,
+                place=place_of.get(id(tp), "above"),
+                offset=(index_offset if highlight_category == "main" else 0),
+            )
 
     return out

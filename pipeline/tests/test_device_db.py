@@ -12,24 +12,30 @@ from pipeline import device_db
 from pipeline.device_db import DEVICE_MODELS, match_model, ocr_text, read_device_model
 
 
-@pytest.mark.parametrize("text,canonical,ports,sfp", [
-    ("TL-SG2428P", "TL-SG2428P", 24, 4),
-    ("DGS-1016D", "DGS-1016D", 16, 0),
-    ("DGS-1210-48", "DGS-1210-48", 48, 4),
-    ("Catalyst 2960X-24TS", "Catalyst 2960X-24", 24, 0),
-    ("TL-SG108E", "TL-SG108", 8, 0),
-])
+@pytest.mark.parametrize(
+    "text,canonical,ports,sfp",
+    [
+        ("TL-SG2428P", "TL-SG2428P", 24, 4),
+        ("DGS-1016D", "DGS-1016D", 16, 0),
+        ("DGS-1210-48", "DGS-1210-48", 48, 4),
+        ("Catalyst 2960X-24TS", "Catalyst 2960X-24", 24, 0),
+        ("TL-SG108E", "TL-SG108", 8, 0),
+    ],
+)
 def test_known_models_return_their_datasheet_counts(text, canonical, ports, sfp):
     spec = match_model(text)
     assert spec is not None
     assert (spec.canonical, spec.port_count, spec.sfp_ports) == (canonical, ports, sfp)
 
 
-@pytest.mark.parametrize("text", [
-    "tl-sg2428p",      # OCR often returns lower case
-    "TL SG2428P",      # dash read as a space
-    "TLSG2428P",       # separator dropped entirely
-])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "tl-sg2428p",  # OCR often returns lower case
+        "TL SG2428P",  # dash read as a space
+        "TLSG2428P",  # separator dropped entirely
+    ],
+)
 def test_matching_tolerates_ocr_case_and_separator_noise(text):
     # Every pattern is compiled re.I with [-\s]? separators precisely because
     # OCR is unreliable about case and punctuation on a printed faceplate.
@@ -50,11 +56,14 @@ def test_no_match_returns_none_for_empty_or_unknown_text(text):
     assert match_model(text) is None
 
 
-@pytest.mark.parametrize("text,ports", [
-    ("CAT.6 1-48", 48),
-    ("CAT6-24", 24),
-    ("PATCH PANEL 48", 48),
-])
+@pytest.mark.parametrize(
+    "text,ports",
+    [
+        ("CAT.6 1-48", 48),
+        ("CAT6-24", 24),
+        ("PATCH PANEL 48", 48),
+    ],
+)
 def test_patch_panel_format_clues(text, ports):
     spec = match_model(text)
     assert spec is not None and spec.port_count == ports

@@ -1,6 +1,8 @@
 {
   "name": "racktrack",
   "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
   "description": "RackTrack - AI-powered datacenter rack identification for technicians",
   "scripts": {
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",

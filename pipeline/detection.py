@@ -1,4 +1,5 @@
 import os
+
 import cv2
 import numpy as np
 from ultralytics import YOLO
@@ -15,18 +16,18 @@ from ultralytics import YOLO
 FALLBACK_DEVICE_CLASS_NAMES = {"Closed Unit", "Empty"}
 
 _CLASS_NAME_OVERRIDES = {
-    "patch panel":   "Patch Panel",
-    "patch_panel":   "Patch Panel",
-    "patchpanel":    "Patch Panel",
-    "closed unit":   "Closed Unit",
-    "closed_unit":   "Closed Unit",
-    "storage unit":  "Storage Unit",
-    "storage_unit":  "Storage Unit",
+    "patch panel": "Patch Panel",
+    "patch_panel": "Patch Panel",
+    "patchpanel": "Patch Panel",
+    "closed unit": "Closed Unit",
+    "closed_unit": "Closed Unit",
+    "storage unit": "Storage Unit",
+    "storage_unit": "Storage Unit",
     "load balancer": "Load Balancer",
     "load_balancer": "Load Balancer",
-    "pdu":           "PDU",
-    "psu":           "PSU",
-    "ups":           "UPS",
+    "pdu": "PDU",
+    "psu": "PSU",
+    "ups": "UPS",
 }
 
 
@@ -70,6 +71,7 @@ def print_model_classes(model, model_name: str):
 
 # ── Geometry helpers ───────────────────────────────────────────
 
+
 def _intersection_area(box_a, box_b):
     ax1, ay1, ax2, ay2 = box_a
     bx1, by1, bx2, by2 = box_b
@@ -102,6 +104,7 @@ def _box_overlap_ratio(box_a, box_b):
 
 # ── Rack bounding box (Hough lines) ────────────────────────────
 
+
 def detect_rack_bounds(img):
     """Detect the rack bounding box using near-horizontal/near-vertical Hough
     line segments. Returns (x1, y1, x2, y2) in the image's pixel space, or
@@ -115,8 +118,12 @@ def detect_rack_bounds(img):
     edges = cv2.Canny(blur, 50, 150)
 
     lines = cv2.HoughLinesP(
-        edges, 1, np.pi / 180,
-        threshold=100, minLineLength=200, maxLineGap=20,
+        edges,
+        1,
+        np.pi / 180,
+        threshold=100,
+        minLineLength=200,
+        maxLineGap=20,
     )
 
     xs, ys = [], []
@@ -143,19 +150,42 @@ def detect_rack_bounds(img):
 
 # Label normalisation table — same dataset as device_detection.py.
 _VALID_LABELS_DUAL = {
-    "Closed Unit", "Empty", "Firewall", "Gateway", "PDU", "PSU",
-    "Patch Panel", "Router", "Server", "Storage Unit", "Switch", "UPS",
+    "Closed Unit",
+    "Empty",
+    "Firewall",
+    "Gateway",
+    "PDU",
+    "PSU",
+    "Patch Panel",
+    "Router",
+    "Server",
+    "Storage Unit",
+    "Switch",
+    "UPS",
 }
 _LABEL_MAP_DUAL = {
-    "patch_panel": "Patch Panel", "patch panel": "Patch Panel",
-    "switch": "Switch", "network switch": "Switch", "ethernet switch": "Switch",
-    "server": "Server", "server rack": "Server",
-    "pdu": "PDU", "power distribution unit": "PDU", "power strip": "PDU",
-    "ups": "UPS", "uninterruptible power supply": "UPS", "cyberpower": "UPS",
-    "firewall": "Firewall", "router": "Router", "gateway": "Gateway",
-    "psu": "PSU", "power supply unit": "PSU",
-    "storage": "Storage Unit", "storage unit": "Storage Unit",
-    "closed unit": "Closed Unit", "empty": "Empty",
+    "patch_panel": "Patch Panel",
+    "patch panel": "Patch Panel",
+    "switch": "Switch",
+    "network switch": "Switch",
+    "ethernet switch": "Switch",
+    "server": "Server",
+    "server rack": "Server",
+    "pdu": "PDU",
+    "power distribution unit": "PDU",
+    "power strip": "PDU",
+    "ups": "UPS",
+    "uninterruptible power supply": "UPS",
+    "cyberpower": "UPS",
+    "firewall": "Firewall",
+    "router": "Router",
+    "gateway": "Gateway",
+    "psu": "PSU",
+    "power supply unit": "PSU",
+    "storage": "Storage Unit",
+    "storage unit": "Storage Unit",
+    "closed unit": "Closed Unit",
+    "empty": "Empty",
 }
 
 
@@ -170,8 +200,9 @@ def _normalize_label_dual(raw: str) -> str:
     return titled if titled in _VALID_LABELS_DUAL else "Empty"
 
 
-def detect_devices_dual(img, model_server, model_general,
-                        conf_server=0.25, conf_general=0.2, iou_thresh=0.5):
+def detect_devices_dual(
+    img, model_server, model_general, conf_server=0.25, conf_general=0.2, iou_thresh=0.5
+):
     """Dual-model device detection — mirrors device_detection.py.
 
     Pass 1: model_server (best 33.pt) → Server class only.
@@ -213,14 +244,16 @@ def detect_devices_dual(img, model_server, model_general,
                     if (x2 - x1) < 10 or (y2 - y1) < 10:
                         continue
                     box_xyxy = [x1, y1, x2, y2]
-                    detections.append({
-                        "class_id":   int(cid),
-                        "class_name": "Server",
-                        "confidence": float(score),
-                        "box":        box_xyxy,
-                        "center":     [(x1 + x2) // 2, (y1 + y2) // 2],
-                        "source":     "server_model",
-                    })
+                    detections.append(
+                        {
+                            "class_id": int(cid),
+                            "class_name": "Server",
+                            "confidence": float(score),
+                            "box": box_xyxy,
+                            "center": [(x1 + x2) // 2, (y1 + y2) // 2],
+                            "source": "server_model",
+                        }
+                    )
                     seen_boxes.append(box_xyxy)
 
     # ── Pass 2: every other class (general model), IoU dedup vs Pass 1
@@ -249,14 +282,16 @@ def detect_devices_dual(img, model_server, model_general,
             if any(_iou(cur, prev) > iou_thresh for prev in seen_boxes):
                 continue
             seen_boxes.append(cur)
-            detections.append({
-                "class_id":   cid,
-                "class_name": _normalize_label_dual(str(g_names.get(cid, cid))),
-                "confidence": float(score),
-                "box":        cur,
-                "center":     [(x1 + x2) // 2, (y1 + y2) // 2],
-                "source":     "general_model",
-            })
+            detections.append(
+                {
+                    "class_id": cid,
+                    "class_name": _normalize_label_dual(str(g_names.get(cid, cid))),
+                    "confidence": float(score),
+                    "box": cur,
+                    "center": [(x1 + x2) // 2, (y1 + y2) // 2],
+                    "source": "general_model",
+                }
+            )
 
     return detections
 
@@ -272,22 +307,22 @@ def detect_devices_dual(img, model_server, model_general,
 # grid) keys off rectangular device regions.
 
 _SEG_LABEL_MAP = {
-    "closed unit":  "Closed Unit",
-    "closed_unit":  "Closed Unit",
-    "empty":        "Empty",
-    "firewall":     "Firewall",
-    "gateway":      "Gateway",
-    "patchpanel":   "Patch Panel",
-    "patch panel":  "Patch Panel",
-    "patch_panel":  "Patch Panel",
-    "pdu":          "PDU",
-    "psu":          "PSU",
-    "router":       "Router",
-    "server":       "Server",
+    "closed unit": "Closed Unit",
+    "closed_unit": "Closed Unit",
+    "empty": "Empty",
+    "firewall": "Firewall",
+    "gateway": "Gateway",
+    "patchpanel": "Patch Panel",
+    "patch panel": "Patch Panel",
+    "patch_panel": "Patch Panel",
+    "pdu": "PDU",
+    "psu": "PSU",
+    "router": "Router",
+    "server": "Server",
     "storage unit": "Storage Unit",
     "storage_unit": "Storage Unit",
-    "switch":       "Switch",
-    "ups":          "UPS",
+    "switch": "Switch",
+    "ups": "UPS",
 }
 
 
@@ -329,20 +364,23 @@ def detect_devices_seg(img, model, conf=0.25, iou_thresh=0.5):
         if (x2 - x1) < 10 or (y2 - y1) < 10:
             continue
         cname = _normalize_seg_label(str(names.get(int(cid), cid)))
-        out.append({
-            "class_id":   int(cid),
-            "class_name": cname,
-            "confidence": float(score),
-            "box":        [x1, y1, x2, y2],
-            "center":     [(x1 + x2) // 2, (y1 + y2) // 2],
-            "source":     "seg_model",
-        })
+        out.append(
+            {
+                "class_id": int(cid),
+                "class_name": cname,
+                "confidence": float(score),
+                "box": [x1, y1, x2, y2],
+                "center": [(x1 + x2) // 2, (y1 + y2) // 2],
+                "source": "seg_model",
+            }
+        )
     return out
 
 
 def shift_boxes(detections, dx, dy):
     """Translate every detection's box + center by (dx, dy). Used to map
-    boxes from a rack-cropped frame back into full-image coordinates."""
+    boxes from a rack-cropped frame back into full-image coordinates.
+    """
     for d in detections:
         x1, y1, x2, y2 = d["box"]
         d["box"] = [x1 + dx, y1 + dy, x2 + dx, y2 + dy]
@@ -351,8 +389,15 @@ def shift_boxes(detections, dx, dy):
     return detections
 
 
-def detect_devices_retry(img, model_server, model_general, primary_devices,
-                         conf_server=0.08, conf_general=0.08, iou_thresh=0.5):
+def detect_devices_retry(
+    img,
+    model_server,
+    model_general,
+    primary_devices,
+    conf_server=0.08,
+    conf_general=0.08,
+    iou_thresh=0.5,
+):
     """Low-conf retry pass — DISABLED.
 
     The primary `detect_devices_dual` now mirrors device_detection.py and is
@@ -365,6 +410,7 @@ def detect_devices_retry(img, model_server, model_general, primary_devices,
 
 
 # ── Unit grid: YOLO unit model + contiguous post-processing ────
+
 
 def build_unit_grid(img, unit_model_path=None, conf=0.25):
     """Build a unit grid using YOLO unit detection + post-processing.
@@ -390,8 +436,9 @@ def build_unit_grid(img, unit_model_path=None, conf=0.25):
     names = getattr(model, "names", {})
     cls_ids = boxes[:, 5].astype(int) if boxes.shape[1] > 5 else None
     if cls_ids is not None:
-        keep = [i for i, cid in enumerate(cls_ids)
-                if str(names.get(int(cid), "")).lower() != "rail"]
+        keep = [
+            i for i, cid in enumerate(cls_ids) if str(names.get(int(cid), "")).lower() != "rail"
+        ]
         if keep:
             boxes = boxes[keep]
 
@@ -419,11 +466,13 @@ def build_unit_grid(img, unit_model_path=None, conf=0.25):
     units = []
     for box in boxes:
         x1, y1, x2, y2 = (int(round(v)) for v in (box[0], box[1], box[2], box[3]))
-        units.append({
-            "box": [x1, y1, x2, y2],
-            "center": [(x1 + x2) // 2, (y1 + y2) // 2],
-            "center_y": (y1 + y2) / 2,
-        })
+        units.append(
+            {
+                "box": [x1, y1, x2, y2],
+                "center": [(x1 + x2) // 2, (y1 + y2) // 2],
+                "center_y": (y1 + y2) / 2,
+            }
+        )
 
     units = assign_units(units)
     return units
@@ -453,7 +502,8 @@ def _snap_to_edge(gray_roi, approx_y, half=45):
 def normalize_units(units, img):
     """Snap each unit's top/bottom edge to the nearest strong horizontal
     gradient in the grayscale image — aligns unit boundaries to visible rack
-    rails. No-op when the YOLO grid is empty."""
+    rails. No-op when the YOLO grid is empty.
+    """
     if not units:
         return units
 
@@ -485,15 +535,17 @@ def normalize_units(units, img):
 
 # ── Device-tiling fallback (used when YOLO unit grid looks wrong) ──
 
+
 def derive_unit_height(devices):
     """Pick unit_h from the median height of detected Switches, falling back
-    to Patch Panels. Returns None when neither type is present."""
-    heights_sw = [d["box"][3] - d["box"][1]
-                  for d in devices if d.get("class_name") == "Switch"]
+    to Patch Panels. Returns None when neither type is present.
+    """
+    heights_sw = [d["box"][3] - d["box"][1] for d in devices if d.get("class_name") == "Switch"]
     if heights_sw:
         return int(np.median(heights_sw))
-    heights_pp = [d["box"][3] - d["box"][1]
-                  for d in devices if d.get("class_name") == "Patch Panel"]
+    heights_pp = [
+        d["box"][3] - d["box"][1] for d in devices if d.get("class_name") == "Patch Panel"
+    ]
     if heights_pp:
         return int(np.median(heights_pp))
     return None
@@ -502,7 +554,8 @@ def derive_unit_height(devices):
 def estimate_expected_units(img, devices, unit_h):
     """Rough count of how many 1U slots the image should contain, based on
     device heights plus gap-tiling estimate. Used as a sanity check for
-    the YOLO unit grid."""
+    the YOLO unit grid.
+    """
     if not devices or not unit_h or unit_h <= 0:
         return 0
     total = 0
@@ -545,11 +598,13 @@ def build_unit_grid_from_devices(img, devices, unit_h):
         y2 = int(min(bot_y, y2))
         if y2 - y1 <= 0:
             return
-        units.append({
-            "box": [left_x, y1, right_x, y2],
-            "center": [(left_x + right_x) // 2, (y1 + y2) // 2],
-            "center_y": float((y1 + y2) / 2),
-        })
+        units.append(
+            {
+                "box": [left_x, y1, right_x, y2],
+                "center": [(left_x + right_x) // 2, (y1 + y2) // 2],
+                "center_y": float((y1 + y2) / 2),
+            }
+        )
 
     def tile_gap(y_from, y_to):
         gap_h = y_to - y_from
@@ -583,6 +638,7 @@ def build_unit_grid_from_devices(img, devices, unit_h):
 
 # ── Device post-processing (used by runner) ────────────────────
 
+
 def remove_overlapping_devices(devices, max_overlap_ratio=0.01):
     filtered = []
     for dev in sorted(devices, key=lambda d: (d["box"][1], -d["confidence"])):
@@ -590,7 +646,9 @@ def remove_overlapping_devices(devices, max_overlap_ratio=0.01):
         for kept in filtered:
             if _box_overlap_ratio(dev["box"], kept["box"]) > max_overlap_ratio:
                 keep = False
-                print(f"[info] removing overlapping device: {dev['class_name']} overlaps {kept['class_name']}")
+                print(
+                    f"[info] removing overlapping device: {dev['class_name']} overlaps {kept['class_name']}"
+                )
                 break
         if keep:
             filtered.append(dev)
@@ -634,8 +692,8 @@ def normalize_device_stack(devices, gap_close_factor=0.4):
     for a, b in zip(devices, devices[1:]):
         a_bottom = a["box"][3]
         b_top = b["box"][1]
-        gap = b_top - a_bottom          # <0 = overlap, >0 = empty space
-        if gap < close_thresh:          # overlap always; a tiny gap too
+        gap = b_top - a_bottom  # <0 = overlap, >0 = empty space
+        if gap < close_thresh:  # overlap always; a tiny gap too
             mid = (a_bottom + b_top) // 2
             a["box"][3] = int(mid)
             b["box"][1] = int(mid)
@@ -650,9 +708,11 @@ def normalize_device_stack(devices, gap_close_factor=0.4):
 
 def validate_device_stack(devices):
     for i, a in enumerate(devices):
-        for b in devices[i + 1:]:
+        for b in devices[i + 1 :]:
             if _intersection_area(a["box"], b["box"]) > 0:
-                print(f"[warning] overlapping devices detected: {a['class_name']} vs {b['class_name']}")
+                print(
+                    f"[warning] overlapping devices detected: {a['class_name']} vs {b['class_name']}"
+                )
 
 
 def is_device_inside_unit(device, unit, threshold=0.99):
@@ -687,7 +747,8 @@ def assign_devices_to_units(devices, units):
     halves — a 1U device straddling two half-units at 50/50 still ends up
     claiming only one. Orphaned grid units (overlap with a device but not
     picked in the top-N) are cleaned up by `cleanup_duplicate_units` so
-    they don't show up as phantom "Empty" rows in the report."""
+    they don't show up as phantom "Empty" rows in the report.
+    """
     if not units:
         for dev in devices:
             dev["units"] = []
@@ -706,9 +767,7 @@ def assign_devices_to_units(devices, units):
             continue
         dev_h = max(1, dev["box"][3] - dev["box"][1])
         expected_n = (
-            max(1, int(round(dev_h / true_unit_h)))
-            if true_unit_h and true_unit_h > 0
-            else 1
+            max(1, int(round(dev_h / true_unit_h))) if true_unit_h and true_unit_h > 0 else 1
         )
 
         # All overlapping units, sorted by overlap area (largest first).
@@ -757,9 +816,7 @@ def cleanup_duplicate_units(devices, units):
         if unit["label"] in claimed:
             kept.append(unit)
             continue
-        overlaps_a_device = any(
-            _intersection_area(unit["box"], d["box"]) > 0 for d in devices
-        )
+        overlaps_a_device = any(_intersection_area(unit["box"], d["box"]) > 0 for d in devices)
         if overlaps_a_device:
             # Orphan duplicate — a device covers this region but chose a
             # different grid unit for it. Drop.
@@ -785,10 +842,21 @@ def cleanup_duplicate_units(devices, units):
 # grid — so a rack rail / frame / nameplate misclassified as "Closed Unit"
 # at the very top or bottom doesn't pull the grid into the ceiling / floor.
 _REAL_EQUIP_CLASSES = {
-    "Switch", "Patch Panel", "Firewall", "Gateway",
-    "Server", "Router", "UPS", "PDU", "PSU",
-    "Storage Unit", "Load Balancer", "Modem",
-    "Controller", "Recorder", "Amplifier",
+    "Switch",
+    "Patch Panel",
+    "Firewall",
+    "Gateway",
+    "Server",
+    "Router",
+    "UPS",
+    "PDU",
+    "PSU",
+    "Storage Unit",
+    "Load Balancer",
+    "Modem",
+    "Controller",
+    "Recorder",
+    "Amplifier",
 }
 
 
@@ -890,13 +958,15 @@ def build_contiguous_unit_grid(devices, unit_h, rack_bounds=None, img_shape=None
     for i in range(count):
         y_top = grid_top + i * unit_h
         y_bot = y_top + unit_h
-        label_num = count - i                    # top row = count, bottom = 1
-        units.append({
-            "label": f"u{label_num:02d}",
-            "box": [left_x, int(y_top), right_x, int(y_bot)],
-            "center": [(left_x + right_x) // 2, int((y_top + y_bot) / 2)],
-            "center_y": float((y_top + y_bot) / 2),
-        })
+        label_num = count - i  # top row = count, bottom = 1
+        units.append(
+            {
+                "label": f"u{label_num:02d}",
+                "box": [left_x, int(y_top), right_x, int(y_bot)],
+                "center": [(left_x + right_x) // 2, int((y_top + y_bot) / 2)],
+                "center_y": float((y_top + y_bot) / 2),
+            }
+        )
     return units
 
 
@@ -935,12 +1005,14 @@ def fill_unit_grid_gaps(units, unit_h, img_w, img_h, rack_bounds=None):
         for i in range(n):
             y1 = int(round(y_from + i * step))
             y2 = int(round(y_from + (i + 1) * step))
-            filled.append({
-                "box": [int(left_x), y1, int(right_x), y2],
-                "center": [int((left_x + right_x) // 2), (y1 + y2) // 2],
-                "center_y": float((y1 + y2) / 2),
-                "source": "synthetic_fill",
-            })
+            filled.append(
+                {
+                    "box": [int(left_x), y1, int(right_x), y2],
+                    "center": [int((left_x + right_x) // 2), (y1 + y2) // 2],
+                    "center_y": float((y1 + y2) / 2),
+                    "source": "synthetic_fill",
+                }
+            )
 
     cursor = top_y
     for u in sorted_u:
@@ -958,7 +1030,8 @@ def ensure_every_unit_has_device(devices, units):
     these 'Empty' because a rack row almost always contains *something*;
     'Empty' would be a false certainty.
 
-    Returns the (possibly extended) devices list, sorted top-to-bottom."""
+    Returns the (possibly extended) devices list, sorted top-to-bottom.
+    """
     if not units:
         return devices
 
@@ -971,20 +1044,22 @@ def ensure_every_unit_has_device(devices, units):
         if unit["label"] in claimed:
             continue
         x1, y1, x2, y2 = unit["box"]
-        synthetic.append({
-            "class_id": -1,
-            "class_name": "Unidentified",
-            "confidence": 0.0,
-            "box": [int(x1), int(y1), int(x2), int(y2)],
-            "center": [int((x1 + x2) // 2), int((y1 + y2) // 2)],
-            "units": [unit["label"]],
-            "port_count": 0,
-            "ports": [],
-            "console_ports": [],
-            "sfp_ports": [],
-            "connected_ports": [],
-            "source": "synthetic_unidentified",
-        })
+        synthetic.append(
+            {
+                "class_id": -1,
+                "class_name": "Unidentified",
+                "confidence": 0.0,
+                "box": [int(x1), int(y1), int(x2), int(y2)],
+                "center": [int((x1 + x2) // 2), int((y1 + y2) // 2)],
+                "units": [unit["label"]],
+                "port_count": 0,
+                "ports": [],
+                "console_ports": [],
+                "sfp_ports": [],
+                "connected_ports": [],
+                "source": "synthetic_unidentified",
+            }
+        )
 
     out = devices + synthetic
     out.sort(key=lambda d: d["box"][1])

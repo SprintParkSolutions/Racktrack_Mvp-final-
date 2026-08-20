@@ -1,12 +1,15 @@
 {
   "name": "racktrack-server",
   "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
     "test": "node --test test/",
-    "lint": "eslint . --max-warnings=99999",
+    "test:coverage": "node --test --experimental-test-coverage test/",
+    "lint": "eslint . --max-warnings=174",
     "format": "prettier --write \"**/*.js\""
   },
   "engines": {
@@ -21,7 +24,7 @@
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^9.0.5",
     "pino": "^9.5.0",
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.3.0",
@@ -30,7 +33,7 @@
     "sharp": "^0.35.3",
     "ssh2": "^1.17.0",
     "stripe": "^22.3.2",
-    "uuid": "^9.0.0"
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

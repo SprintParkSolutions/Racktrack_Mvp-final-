@@ -11,7 +11,6 @@ The ResNet18 embedder is lazy-loaded so importing this module is cheap; the
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 from PIL import Image
@@ -34,18 +33,17 @@ def _load_embedder():
     from torchvision import transforms
 
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    m = torchvision.models.resnet18(
-        weights=torchvision.models.ResNet18_Weights.DEFAULT
-    )
+    m = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.DEFAULT)
     m.fc = torch.nn.Identity()
     m.eval().to(_device)
     _emb_model = m
-    _emb_tf = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
-    ])
+    _emb_tf = transforms.Compose(
+        [
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
 
 
 def _to_pil(img) -> Image.Image:
@@ -55,6 +53,7 @@ def _to_pil(img) -> Image.Image:
         return Image.open(str(img)).convert("RGB")
     # numpy array (BGR from cv2)
     import numpy as _np
+
     arr = _np.asarray(img)
     if arr.ndim == 3 and arr.shape[2] == 3:
         # heuristic: assume BGR; convert
@@ -73,7 +72,7 @@ def phash(img, size: int = HASH_SIZE) -> str:
 
 def hamming(a: str, b: str) -> int:
     if len(a) != len(b):
-        return 10 ** 9
+        return 10**9
     return sum(c1 != c2 for c1, c2 in zip(a, b))
 
 
@@ -81,6 +80,7 @@ def embed(img) -> list:
     """Return L2-normalized 512-d ResNet18 feature vector as a plain list."""
     _load_embedder()
     import torch
+
     pil = _to_pil(img)
     with torch.no_grad():
         x = _emb_tf(pil).unsqueeze(0).to(_device)
@@ -90,11 +90,10 @@ def embed(img) -> list:
 
 
 def cos_sim(a, b) -> float:
-    return float(np.dot(np.asarray(a, dtype=np.float32),
-                        np.asarray(b, dtype=np.float32)))
+    return float(np.dot(np.asarray(a, dtype=np.float32), np.asarray(b, dtype=np.float32)))
 
 
-def nearest_correction(h: str, emb: list, corrections: dict) -> Optional[dict]:
+def nearest_correction(h: str, emb: list, corrections: dict) -> dict | None:
     """Return the best-matching correction record, or None.
 
     Fast path: pHash Hamming <= HAMMING_TOL.

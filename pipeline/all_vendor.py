@@ -1,41 +1,48 @@
 #!/usr/bin/env python3
 
-import re
-import os
-import sys
-import json
 import argparse
+import json
+import os
+import re
+import sys
 from urllib.parse import urlparse
-from bs4 import BeautifulSoup
+
 import openpyxl
+from bs4 import BeautifulSoup
 
 try:
     import cloudscraper
+
     SESSION = cloudscraper.create_scraper(
         browser={"browser": "chrome", "platform": "windows", "mobile": False}
     )
 except ImportError:
     import requests
+
     SESSION = requests.Session()
     SESSION.headers.update({"User-Agent": "Mozilla/5.0"})
-    print("[warn] cloudscraper not installed — Cloudflare-protected sites may return 403. "
-          "Install with: pip install cloudscraper",
-          file=sys.stderr)
+    print(
+        "[warn] cloudscraper not installed — Cloudflare-protected sites may return 403. "
+        "Install with: pip install cloudscraper",
+        file=sys.stderr,
+    )
 
 try:
     from ddgs import DDGS
+
     _HAS_DDGS = True
 except ImportError:
     _HAS_DDGS = False
-    print("[warn] ddgs not installed — vendor product search will fail. "
-          "Install with: pip install ddgs",
-          file=sys.stderr)
+    print(
+        "[warn] ddgs not installed — vendor product search will fail. "
+        "Install with: pip install ddgs",
+        file=sys.stderr,
+    )
 
 import hashlib
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as _FuturesTimeoutError
-
 
 # Default to the spreadsheet shipped with the repo.
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -117,8 +124,7 @@ def normalize_model(raw):
 
     tokens = s.split()
     if len(tokens) > 1:
-        sku_like = [t for t in tokens
-                    if re.search(r"\d", t) and re.search(r"[A-Z]", t)]
+        sku_like = [t for t in tokens if re.search(r"\d", t) and re.search(r"[A-Z]", t)]
         if sku_like:
             s = max(sku_like, key=lambda t: sum(c.isdigit() for c in t))
         else:
@@ -143,66 +149,66 @@ def normalize_model(raw):
 # First match wins, so put more specific patterns before general ones.
 _FUZZY_MODEL_DB = {
     "mikrotik": [
-        (r"^CRS3265?$",          "CRS326-24G-2S+RM"),
-        (r"^CRS3261?",           "CRS326-24G-2S+RM"),
-        (r"^CRS3541?",           "CRS354-48G-4S+2Q+RM"),
-        (r"^CRS3121?",           "CRS312-4C+8XG-RM"),
-        (r"^CRS3171?",           "CRS317-1G-16S+RM"),
-        (r"^CRS3051?",           "CRS305-1G-4S+IN"),
-        (r"^CRS3281?",           "CRS328-24P-4S+RM"),
-        (r"^CRS3282?",           "CRS328-4C-20S-4S+RM"),
-        (r"^CRS5181?",           "CRS518-16XS-2XQ-RM"),
-        (r"^CRS5041?",           "CRS504-4XQ-IN"),
-        (r"^CCR20041?",          "CCR2004-1G-12S+2XS"),
-        (r"^CCR20161?",          "CCR2016-1G-12S+2XS"),
-        (r"^CCR10091?",          "CCR1009-7G-1C-1S+"),
-        (r"^CCR10361?",          "CCR1036-12G-4S"),
-        (r"^CCR10721?",          "CCR1072-1G-8S+"),
-        (r"^RB4011",             "RB4011iGS+RM"),
-        (r"^RB3011",             "RB3011UiAS-RM"),
-        (r"^RB2011",             "RB2011UiAS-2HnD-IN"),
-        (r"^CSS3261?",           "CSS326-24G-2S+RM"),
-        (r"^CSS1061?",           "CSS106-5G-1S"),
+        (r"^CRS3265?$", "CRS326-24G-2S+RM"),
+        (r"^CRS3261?", "CRS326-24G-2S+RM"),
+        (r"^CRS3541?", "CRS354-48G-4S+2Q+RM"),
+        (r"^CRS3121?", "CRS312-4C+8XG-RM"),
+        (r"^CRS3171?", "CRS317-1G-16S+RM"),
+        (r"^CRS3051?", "CRS305-1G-4S+IN"),
+        (r"^CRS3281?", "CRS328-24P-4S+RM"),
+        (r"^CRS3282?", "CRS328-4C-20S-4S+RM"),
+        (r"^CRS5181?", "CRS518-16XS-2XQ-RM"),
+        (r"^CRS5041?", "CRS504-4XQ-IN"),
+        (r"^CCR20041?", "CCR2004-1G-12S+2XS"),
+        (r"^CCR20161?", "CCR2016-1G-12S+2XS"),
+        (r"^CCR10091?", "CCR1009-7G-1C-1S+"),
+        (r"^CCR10361?", "CCR1036-12G-4S"),
+        (r"^CCR10721?", "CCR1072-1G-8S+"),
+        (r"^RB4011", "RB4011iGS+RM"),
+        (r"^RB3011", "RB3011UiAS-RM"),
+        (r"^RB2011", "RB2011UiAS-2HnD-IN"),
+        (r"^CSS3261?", "CSS326-24G-2S+RM"),
+        (r"^CSS1061?", "CSS106-5G-1S"),
     ],
     "cisco": [
-        (r"^C93001?",            "C9300-24T"),
-        (r"^C93004?",            "C9300-48T"),
-        (r"^C93002?",            "C9300-24P"),
-        (r"^C93006?",            "C9300-48P"),
-        (r"^C92001?",            "C9200-24T"),
-        (r"^C92004?",            "C9200-48T"),
-        (r"^WSC29601?",          "WS-C2960X-24TS-L"),
-        (r"^WSC29604?",          "WS-C2960X-48TS-L"),
-        (r"^WSC35601?",          "WS-C3560X-24T-S"),
-        (r"^N93001?",            "N9K-C9300-GX"),
-        (r"^N95001?",            "N9K-C9500-60C"),
+        (r"^C93001?", "C9300-24T"),
+        (r"^C93004?", "C9300-48T"),
+        (r"^C93002?", "C9300-24P"),
+        (r"^C93006?", "C9300-48P"),
+        (r"^C92001?", "C9200-24T"),
+        (r"^C92004?", "C9200-48T"),
+        (r"^WSC29601?", "WS-C2960X-24TS-L"),
+        (r"^WSC29604?", "WS-C2960X-48TS-L"),
+        (r"^WSC35601?", "WS-C3560X-24T-S"),
+        (r"^N93001?", "N9K-C9300-GX"),
+        (r"^N95001?", "N9K-C9500-60C"),
     ],
     "tplink": [
-        (r"^TLSG24281?",         "TL-SG2428P"),
-        (r"^TLSG10081?",         "TL-SG1008"),
-        (r"^TLSG10161?",         "TL-SG1016"),
-        (r"^TLSG30101?",         "TL-SG3210"),
-        (r"^T15281?",            "T1528"),
-        (r"^T25281?",            "T2528"),
-        (r"^T35281?",            "T3528"),
+        (r"^TLSG24281?", "TL-SG2428P"),
+        (r"^TLSG10081?", "TL-SG1008"),
+        (r"^TLSG10161?", "TL-SG1016"),
+        (r"^TLSG30101?", "TL-SG3210"),
+        (r"^T15281?", "T1528"),
+        (r"^T25281?", "T2528"),
+        (r"^T35281?", "T3528"),
     ],
     "juniper": [
-        (r"^EX44001?",           "EX4400-24T"),
-        (r"^EX43001?",           "EX4300-48T"),
-        (r"^EX22001?",           "EX2200-24T-4G"),
-        (r"^QFX51001?",          "QFX5100-48S"),
-        (r"^QFX51001?",          "QFX5100-24Q"),
+        (r"^EX44001?", "EX4400-24T"),
+        (r"^EX43001?", "EX4300-48T"),
+        (r"^EX22001?", "EX2200-24T-4G"),
+        (r"^QFX51001?", "QFX5100-48S"),
+        (r"^QFX51001?", "QFX5100-24Q"),
     ],
     "aruba": [
-        (r"^CX63001?",           "CX 6300M 24-port"),
-        (r"^CX64001?",           "CX 6400 Switch"),
-        (r"^JL6751?",            "JL675A"),
-        (r"^JL3551?",            "JL355A"),
+        (r"^CX63001?", "CX 6300M 24-port"),
+        (r"^CX64001?", "CX 6400 Switch"),
+        (r"^JL6751?", "JL675A"),
+        (r"^JL3551?", "JL355A"),
     ],
     "dlink": [
-        (r"^DGS30281?",          "DGS-3028"),
-        (r"^DGS15101?",          "DGS-1510-28X"),
-        (r"^DXS33001?",          "DXS-3300-28SC"),
+        (r"^DGS30281?", "DGS-3028"),
+        (r"^DGS15101?", "DGS-1510-28X"),
+        (r"^DXS33001?", "DXS-3300-28SC"),
     ],
 }
 
@@ -523,7 +529,8 @@ def _resolve_domains(vendor_name, vendor_url, *, max_domains=3):
     resolve to the same alias list. Vendors whose Excel name contains
     a parenthetical suffix (e.g. 'Phoenix Contact (incl. Hirschmann)')
     are also tried with the suffix stripped, so curator entries like
-    'Phoenix Contact' still match."""
+    'Phoenix Contact' still match.
+    """
     aliases = _VENDOR_DOMAIN_ALIASES_CI.get((vendor_name or "").lower(), [])
     if not aliases and "(" in (vendor_name or ""):
         bare = vendor_name.split("(")[0].strip().lower()
@@ -559,7 +566,8 @@ def _search_query(q, max_results=15):
     """Run an arbitrary query string against multiple backends in parallel;
     return the first non-empty result list. Replaces the old Bing/DDG-HTML
     scrapers that broke in 2026 (Bing went JS-rendered; DDG HTML serves an
-    anti-bot block page). Used by both vendor-restricted and open-web search."""
+    anti-bot block page). Used by both vendor-restricted and open-web search.
+    """
     if not _HAS_DDGS:
         return []
     # No `with` block — its __exit__ blocks until ALL futures complete, killing
@@ -600,7 +608,8 @@ def search_ddgs(domain, model, max_results=15):
 def search_open_web(model, vendor_name="", max_results=15):
     """Open-web search — no site: filter. Used as fallback when the vendor's
     own site has no parseable spec page (eg modern Cisco /site/ pages, or
-    SKUs documented only by third-party distributors / aggregators)."""
+    SKUs documented only by third-party distributors / aggregators).
+    """
     queries = [
         f'"{model}" specifications',
         f'"{model}" product specifications',
@@ -621,8 +630,17 @@ def search_open_web(model, vendor_name="", max_results=15):
 
 _FORUM_SUBDOMAINS = ("community.", "forum.", "forums.", "answers.", "ask.")
 _THREAD_PATH_HINTS = ("/td-p/", "/discussion", "/thread", "/viewprofile", "/t5/")
-_NON_PRODUCT_PATHS = ("/support/", "/download/", "/downloads/", "/manual/",
-                      "/manuals/", "/faq/", "/help/", "/eol/", "/end-of-life")
+_NON_PRODUCT_PATHS = (
+    "/support/",
+    "/download/",
+    "/downloads/",
+    "/manual/",
+    "/manuals/",
+    "/faq/",
+    "/help/",
+    "/eol/",
+    "/end-of-life",
+)
 
 
 _REGION_SUFFIX_RE = re.compile(
@@ -638,7 +656,8 @@ def _model_match_score(url, model_dashed):
       - MikroTik: mikrotik.com/product/crs518_16xs_2xq     (underscores, no -RM)
       - Aruba:    arubanetworks.com/.../jl355a/            (no dashes at all)
     So we compare against several flattened forms and return the strength of
-    the match instead of a yes/no."""
+    the match instead of a yes/no.
+    """
     # Both URL and model: strip - and _ and lowercase, so all vendor flavors
     # collapse to the same comparable shape.
     u_flat = re.sub(r"[-_]", "", url.lower())
@@ -668,7 +687,8 @@ def _model_match_score(url, model_dashed):
 def _score_candidate(url, domain, flat_model, canonical_netloc=None):
     """flat_model here is the model in dashed form (eg 'CRS518-16XS-2XQ-RM');
     we re-flatten variants inside _model_match_score to handle vendor URL
-    quirks."""
+    quirks.
+    """
     u = url.lower()
     netloc = urlparse(u).netloc.lower()
     if domain not in netloc:
@@ -736,17 +756,28 @@ def _score_candidate(url, domain, flat_model, canonical_netloc=None):
 
 
 _OPEN_WEB_BAD_HOSTS = (
-    "reddit.com", "youtube.com", "facebook.com", "twitter.com", "x.com",
-    "linkedin.com", "pinterest.com", "instagram.com", "tiktok.com",
-    "quora.com", "stackexchange.com", "stackoverflow.com",
-    "medium.com", "substack.com",
+    "reddit.com",
+    "youtube.com",
+    "facebook.com",
+    "twitter.com",
+    "x.com",
+    "linkedin.com",
+    "pinterest.com",
+    "instagram.com",
+    "tiktok.com",
+    "quora.com",
+    "stackexchange.com",
+    "stackoverflow.com",
+    "medium.com",
+    "substack.com",
 )
 
 
 def _score_open_web_candidate(url, model):
     """Looser cousin of `_score_candidate` — accepts any host, but rejects
     social/forum noise and rewards datasheet/distributor URLs that name
-    the SKU."""
+    the SKU.
+    """
     u = url.lower()
     netloc = urlparse(u).netloc
     if any(bad in netloc for bad in _OPEN_WEB_BAD_HOSTS):
@@ -771,7 +802,8 @@ def _score_open_web_candidate(url, model):
 def _page_mentions_model(soup, model):
     """Cheap sanity check used for OPEN-WEB results — a third-party page that
     doesn't actually mention our SKU is going to extract specs for someone
-    else's product. Title / headings / first ~5KB of body."""
+    else's product. Title / headings / first ~5KB of body.
+    """
     if not model:
         return True
     flat = re.sub(r"[^a-z0-9]", "", model.lower())
@@ -793,7 +825,8 @@ def _page_mentions_model(soup, model):
 
 def find_open_web_urls(model, vendor_name="", top_n=6):
     """Open-web fallback. Searches without `site:vendor.com`, scores results
-    leniently (any host OK except social/forum), returns top_n ranked."""
+    leniently (any host OK except social/forum), returns top_n ranked.
+    """
     pool = search_open_web(model, vendor_name=vendor_name)
     if not pool:
         return []
@@ -828,8 +861,8 @@ def find_product_urls(vendor_url, model, top_n=6, *, vendor_name=""):
     canonical = urlparse(vendor_url).netloc.lower() if vendor_url else ""
 
     queries = [
-        model,                       # bare query — still cheap, baseline coverage
-        f'"{model}"',                # quoted — pushes search toward exact-match pages
+        model,  # bare query — still cheap, baseline coverage
+        f'"{model}"',  # quoted — pushes search toward exact-match pages
         f"{model} data sheet",
         f"{model} specifications",
     ]
@@ -893,7 +926,8 @@ def _normalize_for_sku_check(key):
     separators so the SKU regex can match real-world key strings.
     Vendor pages routinely append '*', '**', '†' to SKU rows that have
     footnotes, and Cisco occasionally writes 'STACK T3-3M' with a space
-    where a dash belongs."""
+    where a dash belongs.
+    """
     s = (key or "").strip()
     s = re.sub(r"[*†‡§¶]+\s*$", "", s).strip()
     s = re.sub(r"\s+", "-", s)
@@ -903,7 +937,8 @@ def _normalize_for_sku_check(key):
 def _looks_like_any_sku(key):
     """True if `key` matches the shape of a vendor part number — regardless
     of which product. Used both to filter individual rows AND to detect
-    'SKU-list tables' (every row is a different SKU)."""
+    'SKU-list tables' (every row is a different SKU).
+    """
     if not key:
         return False
     s = _normalize_for_sku_check(key).upper()
@@ -932,7 +967,8 @@ def _is_sku_list_table(table):
     """A 'SKU-list table' is one whose first column is mostly vendor part
     numbers — eg an MTBF table or accessory price list on a series
     datasheet. Skip the whole table; even our own SKU's row in such a
-    table is just an MTBF/price, not a real spec."""
+    table is just an MTBF/price, not a real spec.
+    """
     rows = table.find_all("tr")
     if len(rows) < 3:
         return False
@@ -951,7 +987,8 @@ def _is_sku_list_table(table):
 def _extract_from_comparison_table(table, our_model):
     """If `table` is a multi-column comparison table whose header row
     contains our SKU, return only the (label -> value) pairs from our SKU's
-    column. Otherwise return {}."""
+    column. Otherwise return {}.
+    """
     rows = table.find_all("tr")
     if not rows:
         return {}
@@ -1012,9 +1049,23 @@ def _row_in_skipped_table(elem, skipped_table_ids):
 
 
 _HEADER_WORDS = {
-    "description", "specification","product specifications" "specifications", "value", "values",
-    "notes", "note", "details", "detail", "feature", "features",
-    "model", "type", "name", "category", "metric", "measurement",
+    "description",
+    "specification",
+    "product specificationsspecifications",
+    "value",
+    "values",
+    "notes",
+    "note",
+    "details",
+    "detail",
+    "feature",
+    "features",
+    "model",
+    "type",
+    "name",
+    "category",
+    "metric",
+    "measurement",
 }
 
 
@@ -1066,8 +1117,9 @@ def _kv_from_li(li):
     """Some vendor pages (MikroTik's Tailwind product pages, modern
     marketing-template sites) lay out spec rows as <li> with two inline
     children — a label and a value — instead of using a <table> or a
-    'key: value' string. Detect that pattern and return (key, value)."""
-    if li.find("li"):    # nested list: not a leaf row
+    'key: value' string. Detect that pattern and return (key, value).
+    """
+    if li.find("li"):  # nested list: not a leaf row
         return None
     children = [c for c in li.children if getattr(c, "name", None)]
     if len(children) != 2:
@@ -1091,7 +1143,8 @@ def _kv_from_li(li):
 
 def _kv_pairs_from_dl(dl):
     """Definition lists: <dt>key</dt><dd>value</dd>. Some vendors (HPE
-    Aruba, older sites) use these instead of tables."""
+    Aruba, older sites) use these instead of tables.
+    """
     out = []
     dts = dl.find_all("dt", recursive=False) or dl.find_all("dt")
     for dt in dts:
@@ -1108,7 +1161,8 @@ def _kv_pairs_from_dl(dl):
 def _is_header_row(k, v):
     """Drop rows where BOTH cells are generic header words ('Model' /
     'Description', 'Description' / 'Specification'). These are table-header
-    bleeds, not real specs."""
+    bleeds, not real specs.
+    """
     if not k or not v:
         return False
     kl = k.strip().lower()
@@ -1188,7 +1242,7 @@ def extract_specs(soup, our_model=""):
             if ours:
                 for k, v in ours.items():
                     comparison_results.setdefault(k, v)
-                skipped_tables.add(id(el))   # don't double-count its rows
+                skipped_tables.add(id(el))  # don't double-count its rows
                 continue
         if _is_sku_list_table(el):
             skipped_tables.add(id(el))
@@ -1261,7 +1315,8 @@ def fallback_specs(soup, our_model=""):
     """Whole-page fallback when there's no 'Specifications' heading on the
     page (eg Cisco series datasheets, which scatter spec-like info across
     sections without a single heading). Same filters as extract_specs +
-    comparison-table extraction across all tables."""
+    comparison-table extraction across all tables.
+    """
     our_model_flat = our_model.replace("-", "")
 
     # First: check every table on the page for a comparison table whose
@@ -1302,7 +1357,6 @@ def fallback_specs(soup, our_model=""):
     return specs
 
 
-
 # ─────────────────────────────────────────────
 # Programmatic API — used by the JSON CLI mode
 # and the Express backend (via subprocess).
@@ -1339,7 +1393,7 @@ def _cache_load(key):
     try:
         if time.time() - os.path.getmtime(p) > _CACHE_TTL_SEC:
             return None
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return None
@@ -1358,7 +1412,8 @@ def _try_extract(url, model, validate_model=False):
     """Fetch one URL and try to extract specs. Returns (specs, soup) or ({}, None).
     With `validate_model=True`, page must mention the SKU in title/heading/body
     or specs are discarded — used for open-web third-party pages where a URL
-    might match by keyword but the page is actually about a different product."""
+    might match by keyword but the page is actually about a different product.
+    """
     try:
         r = SESSION.get(url, timeout=15)
         soup = BeautifulSoup(r.text, "html.parser")
@@ -1452,10 +1507,12 @@ def main():
     parser.add_argument("--vendor", help="Vendor name (substring match allowed)")
     parser.add_argument("--model", help="Model name")
     parser.add_argument("--excel", default=DEFAULT_EXCEL, help="Path to vendor Excel")
-    parser.add_argument("--json", action="store_true",
-                        help="Emit a single JSON line on stdout (for backend use)")
-    parser.add_argument("--list-vendors", action="store_true",
-                        help="Print vendor list as JSON and exit")
+    parser.add_argument(
+        "--json", action="store_true", help="Emit a single JSON line on stdout (for backend use)"
+    )
+    parser.add_argument(
+        "--list-vendors", action="store_true", help="Print vendor list as JSON and exit"
+    )
     args = parser.parse_args()
 
     if args.list_vendors:
@@ -1470,7 +1527,9 @@ def main():
 
     if args.json:
         if not args.vendor or not args.model:
-            print(json.dumps({"ok": False, "error": "--vendor and --model are required with --json"}))
+            print(
+                json.dumps({"ok": False, "error": "--vendor and --model are required with --json"})
+            )
             sys.exit(1)
         try:
             result = fetch_specs(args.vendor, args.model, args.excel)

@@ -43,12 +43,12 @@ Usage:
 
 Reads paths relative to the project root (parent of this file's dir).
 """
+
 from __future__ import annotations
 
 import argparse
 import datetime as _dt
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -94,11 +94,13 @@ def _slug(s: str) -> str:
 
 def load_vendor_names() -> list[str]:
     """Vendor display names from the Excel sheet (column B). Used as the
-    canonical list to match OCR'd manufacturer text against."""
+    canonical list to match OCR'd manufacturer text against.
+    """
     if not VENDOR_EXCEL.exists():
         return []
     try:
         import openpyxl
+
         wb = openpyxl.load_workbook(VENDOR_EXCEL, read_only=True, data_only=True)
         ws = wb.active
         out = []
@@ -121,65 +123,70 @@ def load_vendor_names() -> list[str]:
 # guess a model.
 MODEL_PATTERNS: list[tuple[str, re.Pattern]] = [
     # Cisco Catalyst part numbers: WS-C2960X-24TS-L, C9300-48P, C9500-32C, etc.
-    ("Cisco",   re.compile(r"\b(?:WS-C|C)\d{4,5}[A-Z]*-\d{1,3}[A-Z]{0,4}(?:-\w{1,4})?\b")),
+    ("Cisco", re.compile(r"\b(?:WS-C|C)\d{4,5}[A-Z]*-\d{1,3}[A-Z]{0,4}(?:-\w{1,4})?\b")),
     # Cisco Nexus
-    ("Cisco",   re.compile(r"\bN\d[A-Z]?-C\d{4,5}[A-Z0-9-]*\b")),
+    ("Cisco", re.compile(r"\bN\d[A-Z]?-C\d{4,5}[A-Z0-9-]*\b")),
     # Cisco PIX firewalls (legacy but still in production at small sites)
-    ("Cisco",   re.compile(r"\bPIX-?\d{3,4}[A-Z]?\b")),
+    ("Cisco", re.compile(r"\bPIX-?\d{3,4}[A-Z]?\b")),
     # TP-Link JetStream / TL-prefix
     ("TP-Link", re.compile(r"\bTL-[A-Z]{2,4}\d{3,5}[A-Z]{0,4}\b")),
     ("TP-Link", re.compile(r"\bT[1-9]\d{2,3}[A-Z]{0,4}\b")),
     # D-Link
-    ("D-Link",  re.compile(r"\bD[GX]S-\d{3,4}[A-Z]?-\d{1,3}[A-Z]{0,4}\b")),
+    ("D-Link", re.compile(r"\bD[GX]S-\d{3,4}[A-Z]?-\d{1,3}[A-Z]{0,4}\b")),
     # D-Link DSR (services router) and DIR (consumer)
-    ("D-Link",  re.compile(r"\bDSR-\d{3,4}[A-Z]?\b")),
+    ("D-Link", re.compile(r"\bDSR-\d{3,4}[A-Z]?\b")),
     # Juniper EX/QFX/MX/SRX
     ("Juniper", re.compile(r"\b(?:EX|QFX|MX|SRX)\d{3,5}[A-Z0-9-]*\b")),
     # Aruba (HPE) — CX 6100, 8320, 8400 series; older 2530/2540
-    ("Aruba",   re.compile(r"\bCX\s?\d{4}[A-Z]?\b")),
-    ("Aruba",   re.compile(r"\b\d{4}[A-Z]{1,3}-\d{1,3}[A-Z]{0,4}\b")),
+    ("Aruba", re.compile(r"\bCX\s?\d{4}[A-Z]?\b")),
+    ("Aruba", re.compile(r"\b\d{4}[A-Z]{1,3}-\d{1,3}[A-Z]{0,4}\b")),
     # HP / HPE OfficeConnect & ProCurve switches: 1820-24G, 1920-48G,
     # 2530-24G-PoE+, 2920-48G, V1810. Also MicroServer Gen8/Gen10.
-    ("HP",      re.compile(r"\b(?:HP[E]?-?)?(?:1810|1820|1910|1920|2530|2540|2620|2920|2930|3810)[A-Z]?-?\d{0,3}[A-Z+]{0,4}\b")),
-    ("HP",      re.compile(r"\bMicroServer\s*Gen\d+\b", re.IGNORECASE)),
-    ("HP",      re.compile(r"\bProLiant\s*[A-Z]{2}\d{2,4}[A-Z0-9]*\b", re.IGNORECASE)),
+    (
+        "HP",
+        re.compile(
+            r"\b(?:HP[E]?-?)?(?:1810|1820|1910|1920|2530|2540|2620|2920|2930|3810)[A-Z]?-?\d{0,3}[A-Z+]{0,4}\b"
+        ),
+    ),
+    ("HP", re.compile(r"\bMicroServer\s*Gen\d+\b", re.IGNORECASE)),
+    ("HP", re.compile(r"\bProLiant\s*[A-Z]{2}\d{2,4}[A-Z0-9]*\b", re.IGNORECASE)),
     # Arista 7050, 7280, 7500 series
-    ("Arista",  re.compile(r"\b(?:DCS-)?7\d{3}[A-Z]?-\d{1,3}[A-Z0-9-]*\b")),
+    ("Arista", re.compile(r"\b(?:DCS-)?7\d{3}[A-Z]?-\d{1,3}[A-Z0-9-]*\b")),
     # Huawei S-series / CE-series
-    ("Huawei",  re.compile(r"\b(?:S|CE)\d{4}[A-Z]?-\d{1,3}[A-Z0-9-]*\b")),
+    ("Huawei", re.compile(r"\b(?:S|CE)\d{4}[A-Z]?-\d{1,3}[A-Z0-9-]*\b")),
     # Dell PowerSwitch / PowerEdge
-    ("Dell",    re.compile(r"\b(?:S|N|R)\d{4}[A-Z]{1,3}\b")),
+    ("Dell", re.compile(r"\b(?:S|N|R)\d{4}[A-Z]{1,3}\b")),
     # Mikrotik CRS / CCR / CSS / RB series. CRS328, CRS354-48G-4S+2Q+RM,
     # CCR2004, CSS326-24G-2S+RM (Cloud Smart Switch), RB2011iL-RM, etc.
-    ("Mikrotik",re.compile(r"\b(?:CRS|CCR|CSS)\d{3,4}(?:-\w{1,12})*\b")),
-    ("Mikrotik",re.compile(r"\bRB\d{3,4}[A-Z]{0,4}(?:-\w{1,8})?\b")),
+    ("Mikrotik", re.compile(r"\b(?:CRS|CCR|CSS)\d{3,4}(?:-\w{1,12})*\b")),
+    ("Mikrotik", re.compile(r"\bRB\d{3,4}[A-Z]{0,4}(?:-\w{1,8})?\b")),
     # Ubiquiti UniFi switches (USW-*), gateways (USG/UDM), access points (UAP-*)
-    ("Ubiquiti",re.compile(r"\bUSW-[A-Z][A-Za-z0-9]*(?:-\w{1,12}){0,3}\b")),
-    ("Ubiquiti",re.compile(r"\bU(?:SG|DM|AP|XG)-[A-Z0-9]{2,12}(?:-\w{1,8}){0,2}\b")),
-    ("Ubiquiti",re.compile(r"\bES-\d{2,4}[A-Z]?(?:-\w{1,8})?\b")),  # EdgeSwitch
-    ("Ubiquiti",re.compile(r"\bER-[A-Z0-9]{2,12}\b")),              # EdgeRouter
+    ("Ubiquiti", re.compile(r"\bUSW-[A-Z][A-Za-z0-9]*(?:-\w{1,12}){0,3}\b")),
+    ("Ubiquiti", re.compile(r"\bU(?:SG|DM|AP|XG)-[A-Z0-9]{2,12}(?:-\w{1,8}){0,2}\b")),
+    ("Ubiquiti", re.compile(r"\bES-\d{2,4}[A-Z]?(?:-\w{1,8})?\b")),  # EdgeSwitch
+    ("Ubiquiti", re.compile(r"\bER-[A-Z0-9]{2,12}\b")),  # EdgeRouter
     # NETGEAR ProSafe / ReadyNAS: GS108, GS724T, JGS524, GS308P, M4300-24X4F
     ("NETGEAR", re.compile(r"\b(?:GS|JGS|FS|XS|MS|M4|M5)\d{3,4}[A-Z]{0,4}(?:-\w{1,8})?\b")),
     # SonicWall TZ-series, NSa, NSv: TZ370, TZ670, NSa-2700, NSv-470
     ("SonicWall", re.compile(r"\b(?:TZ|NSa|NSv|NSsp)-?\d{3,4}[A-Z]?\b")),
     # Synology DiskStation NAS: DS216+II, DS918+, DS1819+
-    ("Synology",re.compile(r"\bDS\d{3,4}\+?(?:II|III)?\b")),
-    ("Synology",re.compile(r"\bRS\d{3,4}\+?(?:II|III)?\b")),  # RackStation
+    ("Synology", re.compile(r"\bDS\d{3,4}\+?(?:II|III)?\b")),
+    ("Synology", re.compile(r"\bRS\d{3,4}\+?(?:II|III)?\b")),  # RackStation
     # QNAP TS-, TVS-, TS-h-, TES-: TS-451+, TVS-872XT, TS-h1290FX
-    ("QNAP",    re.compile(r"\b(?:TS|TVS|TES|TS-h)-\d{2,4}[A-Z+]{0,6}\b")),
+    ("QNAP", re.compile(r"\b(?:TS|TVS|TES|TS-h)-\d{2,4}[A-Z+]{0,6}\b")),
     # APC Smart-UPS / Back-UPS: SUA1500R, SMT2200RM2U, SRT3000RMXLI
-    ("APC",     re.compile(r"\b(?:SU[AM]|SMT|SRT|BR|BX|BE)\d{3,4}[A-Z0-9]{0,8}\b")),
+    ("APC", re.compile(r"\b(?:SU[AM]|SMT|SRT|BR|BX|BE)\d{3,4}[A-Z0-9]{0,8}\b")),
     # Eaton UPS series: 5SC1500i, 9SX2000I, 5P1500R, 5PX1500iRT
-    ("Eaton",   re.compile(r"\b(?:5SC|5PX?|9SX|9PX|EBM)\d{3,4}[A-Za-z0-9]{0,8}\b")),
+    ("Eaton", re.compile(r"\b(?:5SC|5PX?|9SX|9PX|EBM)\d{3,4}[A-Za-z0-9]{0,8}\b")),
     # TRENDnet: TEG-S82g, TPE-S88, TEG-30284
-    ("TRENDnet",re.compile(r"\bT(?:EG|PE|FC|FI|U)-[A-Z0-9]{2,8}\b")),
+    ("TRENDnet", re.compile(r"\bT(?:EG|PE|FC|FI|U)-[A-Z0-9]{2,8}\b")),
     # HikVision NVRs / PoE switches: DS-7732NI-K4, DS-3E0528P-E
-    ("HikVision",re.compile(r"\bDS-\d{1,4}[A-Z]?-\w{2,12}(?:-\w{1,6})?\b")),
+    ("HikVision", re.compile(r"\bDS-\d{1,4}[A-Z]?-\w{2,12}(?:-\w{1,6})?\b")),
 ]
 
 # Firmware-version patterns inside a label region.
 VERSION_PATTERNS = [
-    re.compile(r"\bV\d{3}R\d{1,3}(?:C\d{1,3})?\b"),                 # Huawei VRP
+    re.compile(r"\bV\d{3}R\d{1,3}(?:C\d{1,3})?\b"),  # Huawei VRP
     re.compile(r"\b\d{1,3}\.\d{1,3}\(\d{1,3}[A-Za-z]?\)(?:[A-Z]\d{1,3})?\b"),  # NX-OS
     re.compile(r"\b\d{1,3}\.\d{1,3}(?:\.\d{1,3}){1,3}(?:[A-Za-z]\d{0,3})?\b"),  # standard
 ]
@@ -208,40 +215,50 @@ def _normalize_ocr_text(text: str) -> str:
 # possible mangling — only the ones short enough that fuzzy can't safely
 # bridge them on its own.
 BRAND_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
-    ("Cisco",     ("cisco", "catalyst", "nexus", "meraki", "csco")),
-    ("TP-Link",   ("tplink", "tp-link", "jetstream", "omada")),
-    ("D-Link",    ("dlink", "d-link")),
-    ("Juniper",   ("juniper",)),
-    ("Aruba",     ("aruba", "procurve")),
-    ("Arista",    ("arista",)),
-    ("Huawei",    ("huawei",)),
-    ("Dell",      ("dell", "poweredge", "powerswitch", "idrac")),
-    ("NETGEAR",   ("netgear", "prosafe", "readynas")),
+    ("Cisco", ("cisco", "catalyst", "nexus", "meraki", "csco")),
+    ("TP-Link", ("tplink", "tp-link", "jetstream", "omada")),
+    ("D-Link", ("dlink", "d-link")),
+    ("Juniper", ("juniper",)),
+    ("Aruba", ("aruba", "procurve")),
+    ("Arista", ("arista",)),
+    ("Huawei", ("huawei",)),
+    ("Dell", ("dell", "poweredge", "powerswitch", "idrac")),
+    ("NETGEAR", ("netgear", "prosafe", "readynas")),
     # Ubiquiti / UniFi — OCR commonly drops a letter ("Unfi", "Ubiqui");
     # fuzzy match handles those.
-    ("Ubiquiti",  ("ubiquiti", "unifi", "edgeswitch", "edgemax", "edgerouter",
-                   "amplifi", "ufiber")),
+    ("Ubiquiti", ("ubiquiti", "unifi", "edgeswitch", "edgemax", "edgerouter", "amplifi", "ufiber")),
     # MikroTik OCR misreads we've seen on real photos: Mikrorik, Mikroz,
     # Mikrovi, Mikroi, Ruzot (badly mangled). Fuzzy match takes care of
     # "mikrot" / "mikrok" 1-edit variants.
-    ("Mikrotik",  ("mikrotik", "mikrorik", "mikroz", "mikrot", "routeros",
-                   "routerboard", "cloudrouter", "cloudswitch", "cloudsmart")),
-    ("HP",        ("hewlett", "hewlettpackard", "proliant", "microserver",
-                   "officeconnect")),
-    ("HPE",       ("hpe",)),
+    (
+        "Mikrotik",
+        (
+            "mikrotik",
+            "mikrorik",
+            "mikroz",
+            "mikrot",
+            "routeros",
+            "routerboard",
+            "cloudrouter",
+            "cloudswitch",
+            "cloudsmart",
+        ),
+    ),
+    ("HP", ("hewlett", "hewlettpackard", "proliant", "microserver", "officeconnect")),
+    ("HPE", ("hpe",)),
     ("SonicWall", ("sonicwall", "sonicos")),
-    ("Synology",  ("synology", "diskstation", "rackstation")),
-    ("QNAP",      ("qnap",)),
-    ("APC",       ("apc", "smartups", "smart-ups", "back-ups", "schneider")),
-    ("Eaton",     ("eaton",)),
-    ("TRENDnet",  ("trendnet",)),
+    ("Synology", ("synology", "diskstation", "rackstation")),
+    ("QNAP", ("qnap",)),
+    ("APC", ("apc", "smartups", "smart-ups", "back-ups", "schneider")),
+    ("Eaton", ("eaton",)),
+    ("TRENDnet", ("trendnet",)),
     ("HikVision", ("hikvision", "hikrision")),
-    ("Fortinet",  ("fortinet", "fortigate", "fortiswitch", "fortiap")),
-    ("CheckPoint",("checkpoint",)),
+    ("Fortinet", ("fortinet", "fortigate", "fortiswitch", "fortiap")),
+    ("CheckPoint", ("checkpoint",)),
     ("Palo Alto", ("paloalto", "panos")),
-    ("Extreme",   ("extreme", "extremenetworks", "summit")),
-    ("Brocade",   ("brocade", "ruckus", "icx")),
-    ("Zyxel",     ("zyxel",)),
+    ("Extreme", ("extreme", "extremenetworks", "summit")),
+    ("Brocade", ("brocade", "ruckus", "icx")),
+    ("Zyxel", ("zyxel",)),
     ("Allied Telesis", ("alliedtelesis", "allied-telesis")),
     ("Edge-Core", ("edgecore", "edge-core")),
 ]
@@ -250,19 +267,23 @@ BRAND_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
 def _levenshtein_bounded(a: str, b: str, max_dist: int) -> int:
     """Return Levenshtein distance, but bail out (returning > max_dist) as
     soon as we know the answer can't be ≤ max_dist. Faster than full DP
-    when we only care about close matches."""
+    when we only care about close matches.
+    """
     la, lb = len(a), len(b)
     if abs(la - lb) > max_dist:
         return max_dist + 1
-    if la == 0: return lb
-    if lb == 0: return la
-    if a == b:  return 0
+    if la == 0:
+        return lb
+    if lb == 0:
+        return la
+    if a == b:
+        return 0
     prev = list(range(lb + 1))
     for i, ca in enumerate(a, 1):
         curr = [i] + [0] * lb
         row_min = curr[0]
         for j, cb in enumerate(b, 1):
-            curr[j] = min(prev[j] + 1, curr[j-1] + 1, prev[j-1] + (ca != cb))
+            curr[j] = min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + (ca != cb))
             if curr[j] < row_min:
                 row_min = curr[j]
         if row_min > max_dist:
@@ -291,7 +312,8 @@ def _fuzzy_keyword_match(text_lower: str, keyword: str) -> bool:
 
     Distance scales with length because a single OCR misread
     represents a smaller fraction of total characters in longer words —
-    "Mikrorik" vs "Mikrotik" is still 87% similar at 1 edit / 8 chars."""
+    "Mikrorik" vs "Mikrotik" is still 87% similar at 1 edit / 8 chars.
+    """
     if keyword in text_lower:
         return True
     klen = len(keyword)
@@ -308,7 +330,8 @@ def _fuzzy_keyword_match(text_lower: str, keyword: str) -> bool:
 
 def parse_make_model(text: str, vendor_names: list[str]) -> tuple[str | None, str | None]:
     """Returns (make, model). make is the canonical name from the Excel
-    sheet when matched; model comes from MODEL_PATTERNS."""
+    sheet when matched; model comes from MODEL_PATTERNS.
+    """
     if not text:
         return None, None
 
@@ -378,17 +401,19 @@ def _read_whole_image(reader, img) -> list[dict]:
         if len(text) < 2:
             continue
         box = [int(v) for v in (det.box or [0, 0, 0, 0])]
-        out.append({
-            "text": text,
-            "conf": float(det.confidence),
-            "box":  box,
-            "cx":   (box[0] + box[2]) / 2.0,
-            "cy":   (box[1] + box[3]) / 2.0,
-            # Keep the original detection so a device's make+model can be read
-            # by switch-ocr's own identify_device (see _identify_switch), which
-            # covers far more vendors/models than the local MODEL_PATTERNS.
-            "_det": det,
-        })
+        out.append(
+            {
+                "text": text,
+                "conf": float(det.confidence),
+                "box": box,
+                "cx": (box[0] + box[2]) / 2.0,
+                "cy": (box[1] + box[3]) / 2.0,
+                # Keep the original detection so a device's make+model can be read
+                # by switch-ocr's own identify_device (see _identify_switch), which
+                # covers far more vendors/models than the local MODEL_PATTERNS.
+                "_det": det,
+            }
+        )
     return out
 
 
@@ -413,8 +438,8 @@ def _identify_switch(labels: list[dict]) -> tuple[str | None, str | None]:
         dev = identify_device(dets)
     except Exception:
         return None, None
-    make = (dev.brand or None)
-    model = (dev.model or None)
+    make = dev.brand or None
+    model = dev.model or None
     # A model must look like one (has a digit, not a stray word) so the
     # universal fallback can't promote a random faceplate string to a model.
     if model and not any(c.isdigit() for c in model):
@@ -436,8 +461,10 @@ def _labels_for_box(detections: list[dict], box: list[int], pad: int = 2) -> lis
     # a chassis are a single row far more often than not, so band the y a little
     # before sorting or a 2px baseline wobble scrambles the line.
     inside.sort(key=lambda d: (round(d["cy"] / 12.0), d["cx"]))
-    return [{"text": d["text"], "conf": d["conf"], "x": d["cx"], "y": d["cy"],
-             "_det": d.get("_det")} for d in inside]
+    return [
+        {"text": d["text"], "conf": d["conf"], "x": d["cx"], "y": d["cy"], "_det": d.get("_det")}
+        for d in inside
+    ]
 
 
 def _build_reader():
@@ -451,7 +478,8 @@ def _build_reader():
     produces a confident, wrong inventory, which is worse than a scan that
     fails loudly and can be retried.
     """
-    from switch_ocr import SwitchTextReader, OCRConfig
+    from switch_ocr import OCRConfig, SwitchTextReader
+
     print("[ocr_devices] engine: switch-ocr", file=sys.stderr)
     return SwitchTextReader(OCRConfig.accurate())
 
@@ -466,7 +494,8 @@ def _resolve_image(rack_dir: Path) -> Path | None:
 
 def _sort_labels_by_position(labels: list[dict]) -> list[dict]:
     """OCR returns boxes in detection order. For label-line reading we
-    want top-to-bottom, left-to-right within a row."""
+    want top-to-bottom, left-to-right within a row.
+    """
     return sorted(labels, key=lambda l: (l.get("y", 0), l.get("x", 0)))
 
 
@@ -474,13 +503,21 @@ def run(rack_id: str) -> dict:
     rack_dir = ROOT / "outputs" / rack_id
     dum_path = rack_dir / "device_unit_map.json"
     if not dum_path.exists():
-        return {"ok": False, "error": f"no device_unit_map.json at {dum_path}",
-                "rack_id": rack_id, "devices": []}
+        return {
+            "ok": False,
+            "error": f"no device_unit_map.json at {dum_path}",
+            "rack_id": rack_id,
+            "devices": [],
+        }
 
     img_path = _resolve_image(rack_dir)
     if not img_path:
-        return {"ok": False, "error": f"no original image in {rack_dir}",
-                "rack_id": rack_id, "devices": []}
+        return {
+            "ok": False,
+            "error": f"no original image in {rack_dir}",
+            "rack_id": rack_id,
+            "devices": [],
+        }
 
     dum = json.loads(dum_path.read_text(encoding="utf-8"))
     raw_devices = dum.get("devices") or []
@@ -490,8 +527,12 @@ def run(rack_id: str) -> dict:
 
     img = cv2.imread(str(img_path))
     if img is None:
-        return {"ok": False, "error": f"cv2 could not read image {img_path}",
-                "rack_id": rack_id, "devices": []}
+        return {
+            "ok": False,
+            "error": f"cv2 could not read image {img_path}",
+            "rack_id": rack_id,
+            "devices": [],
+        }
     h_img, w_img = img.shape[:2]
 
     reader = _build_reader()
@@ -510,45 +551,61 @@ def run(rack_id: str) -> dict:
 
         # Skip CV detections we never expect to label-OCR usefully.
         if cls not in OCR_CLASSES:
-            out_devices.append({
-                "position":   position,
-                "class_name": cls,
-                "box":        box,
-                "make":       None,
-                "model":      None,
-                "version":    None,
-                "raw_text":   "",
-                "ocr_conf":   0.0,
-                "match_conf": 0.0,
-                "source":     "skipped",
-            })
+            out_devices.append(
+                {
+                    "position": position,
+                    "class_name": cls,
+                    "box": box,
+                    "make": None,
+                    "model": None,
+                    "version": None,
+                    "raw_text": "",
+                    "ocr_conf": 0.0,
+                    "match_conf": 0.0,
+                    "source": "skipped",
+                }
+            )
             continue
 
         if len(box) != 4:
-            out_devices.append({
-                "position":   position,
-                "class_name": cls,
-                "box":        box,
-                "make":       None, "model": None, "version": None,
-                "raw_text":   "", "ocr_conf": 0.0, "match_conf": 0.0,
-                "source":     "ocr_failed",
-            })
+            out_devices.append(
+                {
+                    "position": position,
+                    "class_name": cls,
+                    "box": box,
+                    "make": None,
+                    "model": None,
+                    "version": None,
+                    "raw_text": "",
+                    "ocr_conf": 0.0,
+                    "match_conf": 0.0,
+                    "source": "ocr_failed",
+                }
+            )
             continue
 
         x1, y1, x2, y2 = [int(v) for v in box]
         # Clamp + tiny pad so tight boxes don't slice off the edge of text.
         pad = 2
-        x1 = max(0, x1 - pad); y1 = max(0, y1 - pad)
-        x2 = min(w_img, x2 + pad); y2 = min(h_img, y2 + pad)
+        x1 = max(0, x1 - pad)
+        y1 = max(0, y1 - pad)
+        x2 = min(w_img, x2 + pad)
+        y2 = min(h_img, y2 + pad)
         if x2 - x1 < 10 or y2 - y1 < 8:
-            out_devices.append({
-                "position":   position,
-                "class_name": cls,
-                "box":        box,
-                "make":       None, "model": None, "version": None,
-                "raw_text":   "", "ocr_conf": 0.0, "match_conf": 0.0,
-                "source":     "ocr_failed",
-            })
+            out_devices.append(
+                {
+                    "position": position,
+                    "class_name": cls,
+                    "box": box,
+                    "make": None,
+                    "model": None,
+                    "version": None,
+                    "raw_text": "",
+                    "ocr_conf": 0.0,
+                    "match_conf": 0.0,
+                    "source": "ocr_failed",
+                }
+            )
             continue
 
         # No crop and no upscale: the image was read once, in full, above.
@@ -583,40 +640,45 @@ def run(rack_id: str) -> dict:
             source = "ocr_failed"
             match_conf = 0.0
 
-        out_devices.append({
-            "position":   position,
-            "class_name": cls,
-            "box":        [x1, y1, x2, y2],
-            "make":       make,
-            "model":      model,
-            "version":    version,
-            "raw_text":   text,
-            "ocr_conf":   ocr_conf,
-            "match_conf": match_conf,
-            "source":     source,
-        })
+        out_devices.append(
+            {
+                "position": position,
+                "class_name": cls,
+                "box": [x1, y1, x2, y2],
+                "make": make,
+                "model": model,
+                "version": version,
+                "raw_text": text,
+                "ocr_conf": ocr_conf,
+                "match_conf": match_conf,
+                "source": source,
+            }
+        )
 
     return {
-        "ok":           True,
-        "rack_id":      rack_id,
-        "image":        img_path.name,
-        "generated_at": _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "devices":      out_devices,
+        "ok": True,
+        "rack_id": rack_id,
+        "image": img_path.name,
+        "generated_at": _dt.datetime.now(_dt.UTC)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "devices": out_devices,
     }
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("rack_id")
-    ap.add_argument("--json", action="store_true",
-                    help="Emit one JSON line on stdout (for backend use).")
+    ap.add_argument(
+        "--json", action="store_true", help="Emit one JSON line on stdout (for backend use)."
+    )
     args = ap.parse_args()
 
     try:
         result = run(args.rack_id)
     except Exception as e:
-        result = {"ok": False, "error": f"unexpected: {e}",
-                  "rack_id": args.rack_id, "devices": []}
+        result = {"ok": False, "error": f"unexpected: {e}", "rack_id": args.rack_id, "devices": []}
 
     # Always persist to outputs/<rackId>/ocr_devices.json so synth.py can
     # pick it up on the next CMDB build, even if --json wasn't requested.
@@ -642,13 +704,17 @@ def main():
     partial = sum(1 for d in devs if d["source"] == "ocr_make_only")
     failed = sum(1 for d in devs if d["source"] == "ocr_failed")
     skipped = sum(1 for d in devs if d["source"] == "skipped")
-    print(f"Rack {args.rack_id}: {full} full / {partial} make-only / "
-          f"{failed} failed / {skipped} skipped (of {len(devs)} devices)")
+    print(
+        f"Rack {args.rack_id}: {full} full / {partial} make-only / "
+        f"{failed} failed / {skipped} skipped (of {len(devs)} devices)"
+    )
     for d in devs:
         if d["source"] in ("ocr_full", "ocr_make_only"):
-            print(f"  {d.get('position') or '?':<5} {d['class_name']:<14} "
-                  f"{d.get('make') or '—'} {d.get('model') or '—'} "
-                  f"v={d.get('version') or '—'} (conf={d['match_conf']})")
+            print(
+                f"  {d.get('position') or '?':<5} {d['class_name']:<14} "
+                f"{d.get('make') or '—'} {d.get('model') or '—'} "
+                f"v={d.get('version') or '—'} (conf={d['match_conf']})"
+            )
 
 
 if __name__ == "__main__":

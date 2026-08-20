@@ -7,7 +7,6 @@ checks the image pipeline uses.
 """
 
 import cv2
-import numpy as np
 
 from pipeline.quality_check import check_letterbox, check_tilt
 
@@ -33,7 +32,7 @@ def _score_frame(frame):
         height_coverage = ch / h
         center_offset = abs((x + cw / 2) - w / 2) / (w / 2)
         center_score = 1 - center_offset
-        crop = gray[y:y + ch, x:x + cw]
+        crop = gray[y : y + ch, x : x + cw]
         sharpness = cv2.Laplacian(crop, cv2.CV_64F).var() / 1000
         score = 0.5 * height_coverage + 0.3 * center_score + 0.2 * sharpness
         if score > best:

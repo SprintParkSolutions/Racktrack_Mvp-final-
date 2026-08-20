@@ -17,22 +17,23 @@ Usage (called by Express backend via runPipelineModule):
          --interfaces Te1/0/1,Te1/0/2
 """
 
-import re
-import os
-import sys
-import json
 import argparse
 import hashlib
+import json
+import os
+import re
+import sys
 import time
-from urllib.parse import urlparse, quote_plus, urljoin
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup
 import requests as _req  # always available; used for the image-validation session
+from bs4 import BeautifulSoup
 
 # ── Dependencies (same as all_vendor.py) ──────────────────────
 try:
     import cloudscraper
+
     SESSION = cloudscraper.create_scraper(
         browser={"browser": "chrome", "platform": "windows", "mobile": False}
     )
@@ -42,6 +43,7 @@ except ImportError:
 
 try:
     from ddgs import DDGS
+
     _HAS_DDGS = True
 except ImportError:
     _HAS_DDGS = False
@@ -49,6 +51,7 @@ except ImportError:
 # Reuse the spec-fetching pipeline for datasheet analysis.
 try:
     from pipeline.all_vendor import fetch_specs
+
     _HAS_SPECS = True
 except ImportError:
     _HAS_SPECS = False
@@ -63,42 +66,55 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 # their results are all generic third-party modules compatible with any switch
 # of the same slot type. No per-vendor list — works for every vendor.
 _SLOT_GENERIC_FALLBACK = {
-    "SFP":     ("Cisco",  "WS-C2960X-24TS-L"),
-    "SFP+":    ("Cisco",  "C9300-24T"),
-    "SFP28":   ("Cisco",  "C9300-24T"),
-    "QSFP+":   ("Cisco",  "N9K-C9300-GX"),
-    "QSFP28":  ("Cisco",  "N9K-C9300-GX"),
+    "SFP": ("Cisco", "WS-C2960X-24TS-L"),
+    "SFP+": ("Cisco", "C9300-24T"),
+    "SFP28": ("Cisco", "C9300-24T"),
+    "QSFP+": ("Cisco", "N9K-C9300-GX"),
+    "QSFP28": ("Cisco", "N9K-C9300-GX"),
     "QSFP-DD": ("Arista", "DCS-7060DX4-32"),
 }
 
 
 def _get_generic_reference(slot_type):
     """Return (ref_vendor, ref_model) for the given slot type, or None."""
-    return (
-        _SLOT_GENERIC_FALLBACK.get(slot_type)
-        or _SLOT_GENERIC_FALLBACK.get("SFP+")
-    )
+    return _SLOT_GENERIC_FALLBACK.get(slot_type) or _SLOT_GENERIC_FALLBACK.get("SFP+")
+
 
 # ── SFP Standards (IEEE / MSA — these are physics, not "static data") ─
 SFP_STANDARDS = {
-    "SFP":      {"speed": "1 Gbps",   "standard": "1000BASE-X",  "connector": "LC Duplex",   "form": "SFP"},
-    "SFP+":     {"speed": "10 Gbps",  "standard": "10GBASE",     "connector": "LC Duplex",   "form": "SFP+"},
-    "SFP28":    {"speed": "25 Gbps",  "standard": "25GBASE",     "connector": "LC Duplex",   "form": "SFP28"},
-    "QSFP+":    {"speed": "40 Gbps",  "standard": "40GBASE",     "connector": "MPO/MTP-12",  "form": "QSFP+"},
-    "QSFP28":   {"speed": "100 Gbps", "standard": "100GBASE",    "connector": "MPO/MTP-12",  "form": "QSFP28"},
-    "QSFP-DD":  {"speed": "400 Gbps", "standard": "400GBASE",    "connector": "MPO/MTP-12",  "form": "QSFP-DD"},
+    "SFP": {"speed": "1 Gbps", "standard": "1000BASE-X", "connector": "LC Duplex", "form": "SFP"},
+    "SFP+": {"speed": "10 Gbps", "standard": "10GBASE", "connector": "LC Duplex", "form": "SFP+"},
+    "SFP28": {"speed": "25 Gbps", "standard": "25GBASE", "connector": "LC Duplex", "form": "SFP28"},
+    "QSFP+": {
+        "speed": "40 Gbps",
+        "standard": "40GBASE",
+        "connector": "MPO/MTP-12",
+        "form": "QSFP+",
+    },
+    "QSFP28": {
+        "speed": "100 Gbps",
+        "standard": "100GBASE",
+        "connector": "MPO/MTP-12",
+        "form": "QSFP28",
+    },
+    "QSFP-DD": {
+        "speed": "400 Gbps",
+        "standard": "400GBASE",
+        "connector": "MPO/MTP-12",
+        "form": "QSFP-DD",
+    },
 }
 
 # Cable standards — engineering facts, not "static data".
 CABLE_STANDARDS = {
-    "SR":   {"fiber": "OM3/OM4 MMF",   "connector": "LC-LC Duplex",   "maxDist": "300m"},
-    "SX":   {"fiber": "OM3/OM4 MMF",   "connector": "LC-LC Duplex",   "maxDist": "550m"},
-    "LR":   {"fiber": "OS2 SMF",       "connector": "LC-LC Duplex",   "maxDist": "10km"},
-    "LX":   {"fiber": "OS2 SMF",       "connector": "LC-LC Duplex",   "maxDist": "10km"},
-    "SR4":  {"fiber": "OM3/OM4 MMF",   "connector": "MPO-12 Trunk",   "maxDist": "150m"},
-    "LR4":  {"fiber": "OS2 SMF",       "connector": "LC-LC Duplex",   "maxDist": "10km"},
-    "T":    {"fiber": "Copper Cat6a",   "connector": "RJ45",           "maxDist": "30-100m"},
-    "DAC":  {"fiber": "Twinax Copper",  "connector": "Direct Attach",  "maxDist": "1-5m"},
+    "SR": {"fiber": "OM3/OM4 MMF", "connector": "LC-LC Duplex", "maxDist": "300m"},
+    "SX": {"fiber": "OM3/OM4 MMF", "connector": "LC-LC Duplex", "maxDist": "550m"},
+    "LR": {"fiber": "OS2 SMF", "connector": "LC-LC Duplex", "maxDist": "10km"},
+    "LX": {"fiber": "OS2 SMF", "connector": "LC-LC Duplex", "maxDist": "10km"},
+    "SR4": {"fiber": "OM3/OM4 MMF", "connector": "MPO-12 Trunk", "maxDist": "150m"},
+    "LR4": {"fiber": "OS2 SMF", "connector": "LC-LC Duplex", "maxDist": "10km"},
+    "T": {"fiber": "Copper Cat6a", "connector": "RJ45", "maxDist": "30-100m"},
+    "DAC": {"fiber": "Twinax Copper", "connector": "Direct Attach", "maxDist": "1-5m"},
 }
 
 # ── Caching ───────────────────────────────────────────────────
@@ -121,7 +137,7 @@ def _cache_load(key):
     try:
         if time.time() - os.path.getmtime(p) > _CACHE_TTL_SEC:
             return None
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return None
@@ -130,8 +146,7 @@ def _cache_load(key):
 def _cache_save(key, payload):
     try:
         os.makedirs(_CACHE_DIR, exist_ok=True)
-        with open(os.path.join(_CACHE_DIR, f"{key}.json"), "w",
-                  encoding="utf-8") as f:
+        with open(os.path.join(_CACHE_DIR, f"{key}.json"), "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
     except Exception:
         pass
@@ -145,18 +160,19 @@ _SFP_SPEC_KEYS = re.compile(
 )
 
 _SLOT_PATTERNS = [
-    (re.compile(r"QSFP-?DD|400G",  re.I), "QSFP-DD"),
-    (re.compile(r"QSFP28|100G",    re.I), "QSFP28"),
-    (re.compile(r"QSFP\+?|40G",    re.I), "QSFP+"),
-    (re.compile(r"SFP28|25G",       re.I), "SFP28"),
+    (re.compile(r"QSFP-?DD|400G", re.I), "QSFP-DD"),
+    (re.compile(r"QSFP28|100G", re.I), "QSFP28"),
+    (re.compile(r"QSFP\+?|40G", re.I), "QSFP+"),
+    (re.compile(r"SFP28|25G", re.I), "SFP28"),
     (re.compile(r"SFP\+|10G\s*SFP|10GbE?\s*SFP|10GBASE", re.I), "SFP+"),
-    (re.compile(r"\bSFP\b|1000BASE|GbE?\s*SFP",            re.I), "SFP"),
+    (re.compile(r"\bSFP\b|1000BASE|GbE?\s*SFP", re.I), "SFP"),
 ]
 
 
 def infer_slot_from_specs(specs):
     """Parse scraped spec data for SFP slot type.
-    Returns (slot_type, evidence_text) or (None, None)."""
+    Returns (slot_type, evidence_text) or (None, None).
+    """
     if not specs:
         return None, None
 
@@ -187,22 +203,32 @@ def infer_slot_from_interfaces(interfaces):
     if not interfaces:
         return None
     for iface in interfaces:
-        if re.match(r"Hu",  iface, re.I): return "QSFP28"
-        if re.match(r"Fo",  iface, re.I): return "QSFP+"
-        if re.match(r"Twe", iface, re.I): return "SFP28"
-        if re.match(r"Te",  iface, re.I): return "SFP+"
-        if re.match(r"Gi|Fa", iface, re.I): return "SFP"
+        if re.match(r"Hu", iface, re.I):
+            return "QSFP28"
+        if re.match(r"Fo", iface, re.I):
+            return "QSFP+"
+        if re.match(r"Twe", iface, re.I):
+            return "SFP28"
+        if re.match(r"Te", iface, re.I):
+            return "SFP+"
+        if re.match(r"Gi|Fa", iface, re.I):
+            return "SFP"
     return "SFP"
 
 
 def infer_slot_from_model(vendor, model):
     """Infer from speed hints in the model string."""
     s = f"{vendor} {model}"
-    if re.search(r"400G|QSFP-DD",             s, re.I): return "QSFP-DD"
-    if re.search(r"100G|QSFP28",              s, re.I): return "QSFP28"
-    if re.search(r"40G|QSFP\+?(?!28|DD)",     s, re.I): return "QSFP+"
-    if re.search(r"25G|SFP28",                s, re.I): return "SFP28"
-    if re.search(r"10G|SFP\+|XG",             s, re.I): return "SFP+"
+    if re.search(r"400G|QSFP-DD", s, re.I):
+        return "QSFP-DD"
+    if re.search(r"100G|QSFP28", s, re.I):
+        return "QSFP28"
+    if re.search(r"40G|QSFP\+?(?!28|DD)", s, re.I):
+        return "QSFP+"
+    if re.search(r"25G|SFP28", s, re.I):
+        return "SFP28"
+    if re.search(r"10G|SFP\+|XG", s, re.I):
+        return "SFP+"
     return None
 
 
@@ -219,8 +245,7 @@ def _ddg_search(query, max_results=8):
 
     for backend in _SEARCH_BACKENDS:
         try:
-            hits = list(DDGS().text(query, max_results=max_results,
-                                    backend=backend))
+            hits = list(DDGS().text(query, max_results=max_results, backend=backend))
             if hits:
                 return hits
         except Exception:
@@ -237,8 +262,7 @@ def _ddg_image_search(query, max_results=6):
     if not _HAS_DDGS:
         return []
     try:
-        hits = list(DDGS().images(query, max_results=max_results,
-                                  safesearch="off"))
+        hits = list(DDGS().images(query, max_results=max_results, safesearch="off"))
     except Exception:
         return []
     out = []
@@ -255,18 +279,23 @@ def _ddg_image_search(query, max_results=6):
 # SFP_IMG_VERIFY_TLS=0 to opt out (some Python trust stores on Windows
 # reject legit retailer certs that every browser accepts via system roots).
 import urllib3 as _urllib3
+
 _IMG_VERIFY_TLS = os.environ.get("SFP_IMG_VERIFY_TLS", "1") != "0"
 if not _IMG_VERIFY_TLS:
     _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
 _IMG_VALIDATION_SESSION = _req.Session()
 _IMG_VALIDATION_SESSION.verify = _IMG_VERIFY_TLS
-_IMG_VALIDATION_SESSION.headers.update({
-    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                   "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/120.0 Safari/537.36"),
-    "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-})
+_IMG_VALIDATION_SESSION.headers.update(
+    {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0 Safari/537.36"
+        ),
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+)
 
 
 # Validate an image URL. Three outcomes:
@@ -304,8 +333,9 @@ def _validate_image_url(url):
     #    content-type. Magic-byte sniff catches images served with
     #    text/html headers (some CDNs misconfigure this).
     try:
-        r = sess.get(url, timeout=5, stream=True, verify=_IMG_VERIFY_TLS,
-                     headers={"Range": "bytes=0-1024"})
+        r = sess.get(
+            url, timeout=5, stream=True, verify=_IMG_VERIFY_TLS, headers={"Range": "bytes=0-1024"}
+        )
     except Exception:
         # Network unreachable from Python — could still work in browser
         # (different proxy path, cert store). Be permissive.
@@ -320,13 +350,13 @@ def _validate_image_url(url):
     except Exception:
         magic = b""
     is_image = (
-        magic.startswith(b"\xff\xd8\xff")       or   # JPEG
-        magic.startswith(b"\x89PNG\r\n\x1a\n")  or   # PNG
-        magic.startswith(b"GIF87a")             or
-        magic.startswith(b"GIF89a")             or
-        (magic.startswith(b"RIFF") and b"WEBP" in magic) or
-        magic.startswith(b"<svg")               or
-        magic.startswith(b"<?xml")
+        magic.startswith(b"\xff\xd8\xff")  # JPEG
+        or magic.startswith(b"\x89PNG\r\n\x1a\n")  # PNG
+        or magic.startswith(b"GIF87a")
+        or magic.startswith(b"GIF89a")
+        or (magic.startswith(b"RIFF") and b"WEBP" in magic)
+        or magic.startswith(b"<svg")
+        or magic.startswith(b"<?xml")
     )
     if is_image:
         return True
@@ -357,20 +387,30 @@ def _pick_first_valid_image(candidates):
 # unavailable to the client — so a successful download is a stronger
 # guarantee than HEAD-validation alone.
 _IMG_CACHE_DIR = os.path.join(_PROJECT_ROOT, "outputs", "sfp_images")
-_MAX_DOWNLOAD_BYTES = 4 * 1024 * 1024   # 4MB hard cap per image
-_MIN_KEEP_BYTES     = 1500              # below this is almost certainly an icon
+_MAX_DOWNLOAD_BYTES = 4 * 1024 * 1024  # 4MB hard cap per image
+_MIN_KEEP_BYTES = 1500  # below this is almost certainly an icon
+
 
 def _detect_image_ext(first_bytes, content_type=""):
-    if first_bytes.startswith(b"\xff\xd8\xff"):           return "jpg"
-    if first_bytes.startswith(b"\x89PNG\r\n\x1a\n"):      return "png"
-    if first_bytes.startswith(b"GIF87a") or first_bytes.startswith(b"GIF89a"): return "gif"
-    if first_bytes.startswith(b"RIFF") and b"WEBP" in first_bytes: return "webp"
+    if first_bytes.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if first_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if first_bytes.startswith(b"GIF87a") or first_bytes.startswith(b"GIF89a"):
+        return "gif"
+    if first_bytes.startswith(b"RIFF") and b"WEBP" in first_bytes:
+        return "webp"
     ct = (content_type or "").lower()
-    if ct.startswith("image/jpeg") or ct.startswith("image/jpg"): return "jpg"
-    if ct.startswith("image/png"):  return "png"
-    if ct.startswith("image/gif"):  return "gif"
-    if ct.startswith("image/webp"): return "webp"
+    if ct.startswith("image/jpeg") or ct.startswith("image/jpg"):
+        return "jpg"
+    if ct.startswith("image/png"):
+        return "png"
+    if ct.startswith("image/gif"):
+        return "gif"
+    if ct.startswith("image/webp"):
+        return "webp"
     return None
+
 
 def _download_image_to_cache(remote_url):
     """Download an image to outputs/sfp_images/<hash>.<ext>.
@@ -391,7 +431,10 @@ def _download_image_to_cache(remote_url):
     os.makedirs(_IMG_CACHE_DIR, exist_ok=True)
     try:
         r = _IMG_VALIDATION_SESSION.get(
-            remote_url, timeout=8, verify=_IMG_VERIFY_TLS, stream=True,
+            remote_url,
+            timeout=8,
+            verify=_IMG_VERIFY_TLS,
+            stream=True,
         )
     except Exception:
         return None
@@ -419,8 +462,10 @@ def _download_image_to_cache(remote_url):
                     raise RuntimeError("too large")
                 f.write(chunk)
     except Exception:
-        try: os.remove(dest)
-        except Exception: pass
+        try:
+            os.remove(dest)
+        except Exception:
+            pass
         return None
     # Reject tiny files — almost always icons / "image not found" pages
     # that slipped past the magic-byte check (e.g. tiny 1px PNG).
@@ -465,6 +510,8 @@ _TRUSTED_IMG_HOST_RE = re.compile(
     r"worldwidesupply\.net|provantage\.com|amazon\.in|flipkart\.com)$",
     re.I,
 )
+
+
 def _is_trusted_image_host(img_url, source_url):
     img_host = (urlparse(img_url).hostname or "").lower()
     src_host = (urlparse(source_url).hostname or "").lower()
@@ -491,7 +538,8 @@ def _is_trusted_image_host(img_url, source_url):
 
 def search_sfp_modules(vendor, model, slot_type):
     """Search the web for compatible SFP modules.
-    Returns list of {url, title, snippet}."""
+    Returns list of {url, title, snippet}.
+    """
     # Multiple targeted queries pull from different retailer ecosystems —
     # FS.com, 10Gtek, Amazon, eBay all index differently, so casting a wider
     # net surfaces more real product listings (each query → up to 6 hits).
@@ -516,16 +564,21 @@ def search_sfp_modules(vendor, model, slot_type):
             if not url or url in seen:
                 continue
             # Skip forums, wikis, Reddit, YouTube — they never have product data
-            if re.search(r"reddit\.com|youtube\.com|wikipedia\.org|forum\.|"
-                         r"community\.|discuss\.|stackoverflow\.|quora\.com",
-                         url, re.I):
+            if re.search(
+                r"reddit\.com|youtube\.com|wikipedia\.org|forum\.|"
+                r"community\.|discuss\.|stackoverflow\.|quora\.com",
+                url,
+                re.I,
+            ):
                 continue
             seen.add(url)
-            results.append({
-                "url": url,
-                "title": (hit.get("title") or "").strip(),
-                "snippet": (hit.get("body") or "").strip(),
-            })
+            results.append(
+                {
+                    "url": url,
+                    "title": (hit.get("title") or "").strip(),
+                    "snippet": (hit.get("body") or "").strip(),
+                }
+            )
         # Stop once we have plenty of URLs — keeps total runtime bounded
         if len(results) >= 18:
             break
@@ -559,16 +612,21 @@ def search_sfp_vendor_only(vendor, slot_type):
             url = (hit.get("href") or hit.get("url") or "").strip()
             if not url or url in seen:
                 continue
-            if re.search(r"reddit\.com|youtube\.com|wikipedia\.org|forum\.|"
-                         r"community\.|discuss\.|stackoverflow\.|quora\.com",
-                         url, re.I):
+            if re.search(
+                r"reddit\.com|youtube\.com|wikipedia\.org|forum\.|"
+                r"community\.|discuss\.|stackoverflow\.|quora\.com",
+                url,
+                re.I,
+            ):
                 continue
             seen.add(url)
-            results.append({
-                "url": url,
-                "title": (hit.get("title") or "").strip(),
-                "snippet": (hit.get("body") or "").strip(),
-            })
+            results.append(
+                {
+                    "url": url,
+                    "title": (hit.get("title") or "").strip(),
+                    "snippet": (hit.get("body") or "").strip(),
+                }
+            )
         if len(results) >= 18:
             break
     return results
@@ -601,23 +659,23 @@ _JUNK_WORDS = re.compile(
 _SPEED_RE = re.compile(r"(?<![.\d])(1|10|25|40|100|400)\s*(?:G(?:bps?|igabit|BE|b/s)?)\b", re.I)
 
 _TYPE_PATTERNS = [
-    (re.compile(r"\bSR4\b",  re.I), "SR4"),
-    (re.compile(r"\bLR4\b",  re.I), "LR4"),
+    (re.compile(r"\bSR4\b", re.I), "SR4"),
+    (re.compile(r"\bLR4\b", re.I), "LR4"),
     (re.compile(r"\bCWDM4\b", re.I), "CWDM4"),
-    (re.compile(r"\bDR4\b",  re.I), "DR4"),
-    (re.compile(r"\bFR4\b",  re.I), "FR4"),
-    (re.compile(r"\bSR\b",   re.I), "SR"),
-    (re.compile(r"\bLR\b",   re.I), "LR"),
-    (re.compile(r"\bSX\b",   re.I), "SX"),
-    (re.compile(r"\bLX\b",   re.I), "LX"),
-    (re.compile(r"\bDAC\b",  re.I), "DAC"),
+    (re.compile(r"\bDR4\b", re.I), "DR4"),
+    (re.compile(r"\bFR4\b", re.I), "FR4"),
+    (re.compile(r"\bSR\b", re.I), "SR"),
+    (re.compile(r"\bLR\b", re.I), "LR"),
+    (re.compile(r"\bSX\b", re.I), "SX"),
+    (re.compile(r"\bLX\b", re.I), "LX"),
+    (re.compile(r"\bDAC\b", re.I), "DAC"),
     (re.compile(r"\bcopper\b", re.I), "T"),
     (re.compile(r"\bRJ45\b", re.I), "T"),
 ]
 
 _PRICE_RE = re.compile(r"\$\s?([\d,]+(?:\.\d{1,2})?)")
-_DIST_RE  = re.compile(r"(\d+)\s*(m|km|meter|kilometer)s?", re.I)
-_WAVE_RE  = re.compile(r"(\d{3,4})\s*nm", re.I)
+_DIST_RE = re.compile(r"(\d+)\s*(m|km|meter|kilometer)s?", re.I)
+_WAVE_RE = re.compile(r"(\d{3,4})\s*nm", re.I)
 _BRAND_RE = re.compile(
     r"\b(Cisco|TP-Link|Juniper|Aruba|HPE|HP|MikroTik|Ubiquiti|Netgear|"
     r"D-Link|Finisar|Brocade|Mellanox|NVIDIA|Intel|FS\.com|10Gtek|"
@@ -637,38 +695,38 @@ _BRAND_RE = re.compile(
 # When page text has no recognisable brand name, use the retailer/vendor
 # domain so we still show something meaningful instead of dropping the module.
 _DOMAIN_BRAND = {
-    "fs.com":              "FS.com",
-    "10gtek.com":          "10Gtek",
-    "cisco.com":           "Cisco",
-    "juniper.net":         "Juniper",
-    "hpe.com":             "HPE",
-    "aruba.com":           "Aruba",
-    "mikrotik.com":        "MikroTik",
-    "ubiquiti.com":        "Ubiquiti",
-    "netgear.com":         "Netgear",
-    "dlink.com":           "D-Link",
-    "tp-link.com":         "TP-Link",
-    "dell.com":            "Dell",
-    "huawei.com":          "Huawei",
+    "fs.com": "FS.com",
+    "10gtek.com": "10Gtek",
+    "cisco.com": "Cisco",
+    "juniper.net": "Juniper",
+    "hpe.com": "HPE",
+    "aruba.com": "Aruba",
+    "mikrotik.com": "MikroTik",
+    "ubiquiti.com": "Ubiquiti",
+    "netgear.com": "Netgear",
+    "dlink.com": "D-Link",
+    "tp-link.com": "TP-Link",
+    "dell.com": "Dell",
+    "huawei.com": "Huawei",
     "extremenetworks.com": "Extreme",
-    "alliedtelesis.com":   "Allied Telesis",
-    "fortinet.com":        "Fortinet",
-    "axiomoptics.com":     "Axiom",
-    "startech.com":        "StarTech",
-    "tripplite.com":       "Tripp Lite",
-    "prolabs.com":         "ProLabs",
-    "addonnetworks.com":   "AddOn Networks",
-    "fluxlight.com":       "FluxLight",
-    "lumentum.com":        "Lumentum",
-    "ii-vi.com":           "II-VI",
-    "viavisolutions.com":  "Viavi",
-    "ciena.com":           "Ciena",
-    "infinera.com":        "Infinera",
-    "adtran.com":          "ADTRAN",
-    "calix.com":           "Calix",
-    "moxa.com":            "Moxa",
-    "blackbox.com":        "Black Box",
-    "monoprice.com":       "Monoprice",
+    "alliedtelesis.com": "Allied Telesis",
+    "fortinet.com": "Fortinet",
+    "axiomoptics.com": "Axiom",
+    "startech.com": "StarTech",
+    "tripplite.com": "Tripp Lite",
+    "prolabs.com": "ProLabs",
+    "addonnetworks.com": "AddOn Networks",
+    "fluxlight.com": "FluxLight",
+    "lumentum.com": "Lumentum",
+    "ii-vi.com": "II-VI",
+    "viavisolutions.com": "Viavi",
+    "ciena.com": "Ciena",
+    "infinera.com": "Infinera",
+    "adtran.com": "ADTRAN",
+    "calix.com": "Calix",
+    "moxa.com": "Moxa",
+    "blackbox.com": "Black Box",
+    "monoprice.com": "Monoprice",
 }
 
 
@@ -715,7 +773,7 @@ def _scrape_page(url):
                             offer = offers[0] if isinstance(offers, list) else offers
                             if isinstance(offer, dict) and offer.get("price"):
                                 json_ld_prices[pn] = f"${offer['price']}"
-                        ld_brand = (data.get("brand") or {})
+                        ld_brand = data.get("brand") or {}
                         if isinstance(ld_brand, dict):
                             ld_brand = ld_brand.get("name", "")
                         if ld_brand:
@@ -736,10 +794,12 @@ def _scrape_page(url):
     # the page is showing a single product. On multi-product list pages
     # the OG image is usually a banner / category hero, not a real photo.
     page_og_image = None
-    for sel in (("meta", {"property": "og:image"}),
-                ("meta", {"name": "og:image"}),
-                ("meta", {"property": "twitter:image"}),
-                ("meta", {"name": "twitter:image"})):
+    for sel in (
+        ("meta", {"property": "og:image"}),
+        ("meta", {"name": "og:image"}),
+        ("meta", {"property": "twitter:image"}),
+        ("meta", {"name": "twitter:image"}),
+    ):
         tag = soup.find(*sel)
         if tag and tag.get("content"):
             page_og_image = urljoin(url, tag["content"].strip())
@@ -806,9 +866,12 @@ def _scrape_page(url):
             mod = _parse_module_text(pn, url) or {"partNumber": pn}
             if not mod.get("partNumber"):
                 mod["partNumber"] = pn
-            if json_ld_prices.get(pn):  mod["price"]    = json_ld_prices[pn]
-            if json_ld_brands.get(pn):  mod["brand"]    = json_ld_brands[pn]
-            if json_ld_images.get(pn):  mod["imageUrl"] = json_ld_images[pn]
+            if json_ld_prices.get(pn):
+                mod["price"] = json_ld_prices[pn]
+            if json_ld_brands.get(pn):
+                mod["brand"] = json_ld_brands[pn]
+            if json_ld_images.get(pn):
+                mod["imageUrl"] = json_ld_images[pn]
             mod["sourceUrl"] = url
             modules.append(mod)
         if not modules:
@@ -920,8 +983,11 @@ _PRODUCT_IMG_CLASS_RE = re.compile(
     re.I,
 )
 _LOGO_ALT_RE = re.compile(
-    r"\b(logo|banner|company|brand|home\s*page|site)\b", re.I,
+    r"\b(logo|banner|company|brand|home\s*page|site)\b",
+    re.I,
 )
+
+
 def _best_img_in(el, base_url, part_number=None):
     # First pass: an <img> whose alt explicitly names this part number is
     # almost certainly the right product photo. Trust it unconditionally.
@@ -966,8 +1032,13 @@ def _best_img_in(el, base_url, part_number=None):
 
 
 def _img_src(img):
-    return (img.get("src") or img.get("data-src") or
-            img.get("data-lazy-src") or img.get("data-original") or "")
+    return (
+        img.get("src")
+        or img.get("data-src")
+        or img.get("data-lazy-src")
+        or img.get("data-original")
+        or ""
+    )
 
 
 _MARKETPLACE_RE = re.compile(
@@ -979,13 +1050,13 @@ _MARKETPLACE_RE = re.compile(
 
 def _humanize_domain(host):
     """Convert a hostname into a readable brand label.
-    'shop.acme-tech.co.uk' → 'Acme Tech', 'foo.com' → 'Foo'."""
+    'shop.acme-tech.co.uk' → 'Acme Tech', 'foo.com' → 'Foo'.
+    """
     if not host:
         return None
     parts = host.split(".")
     # Handle multi-level TLDs like .co.uk / .com.au
-    if (len(parts) >= 3 and
-            parts[-2] in ("co", "com", "org", "net", "ac", "gov", "edu")):
+    if len(parts) >= 3 and parts[-2] in ("co", "com", "org", "net", "ac", "gov", "edu"):
         sld = parts[-3]
     elif len(parts) >= 2:
         sld = parts[-2]
@@ -1001,7 +1072,8 @@ def _domain_brand(url):
     1. Known vendor/retailer → mapped brand label
     2. Marketplace listing  → None (so the JSON-LD brand wins instead)
     3. Anything else        → humanized domain (e.g. 'fluxlight' → 'Fluxlight')
-       — gives us *some* attribution so the UI never shows 'Unknown'."""
+       — gives us *some* attribution so the UI never shows 'Unknown'.
+    """
     try:
         host = urlparse(url).hostname or ""
         host = re.sub(r"^www\.", "", host)
@@ -1040,20 +1112,26 @@ def _parse_module_text(text, source_url=""):
     # e.g. "sfp-sfpplus1", "sfp-sfp28", "qsfp-qsfpdd" — these are type names,
     # not product SKUs. Real SKUs like "SFP-10G-SR" pair the form factor with
     # a speed/type, not with another form factor.
-    if re.match(r"^(sfp|sfp\+|sfp28|qsfp|qsfp28|qsfp-dd|xfp|gbic)[-_]"
-                r"(sfp|sfp\+|sfp28|qsfp|qsfp28|qsfp-dd|xfp|gbic)",
-                part_number, re.I):
+    if re.match(
+        r"^(sfp|sfp\+|sfp28|qsfp|qsfp28|qsfp-dd|xfp|gbic)[-_]"
+        r"(sfp|sfp\+|sfp28|qsfp|qsfp28|qsfp-dd|xfp|gbic)",
+        part_number,
+        re.I,
+    ):
         return None
     # Reject MSA / IEEE / industry spec references masquerading as SKUs.
     # e.g. SFF-8431 (SFP+ form factor MSA), SFF-8472 (diagnostics MSA),
     # IEEE-802.3, MSA-XXX — these are standards documents, not products.
-    if re.match(r"^(sff|ieee|msa|iso|iec|ansi|tia|eia|rfc)[-_]\d",
-                part_number, re.I):
+    if re.match(r"^(sff|ieee|msa|iso|iec|ansi|tia|eia|rfc)[-_]\d", part_number, re.I):
         return None
     # Skip switch models, cables, UPS, and other non-SFP items.
-    if re.match(r"(TL-SG|TL-ER|C9[23]|DGS-|DXS-|USW-|CRS\d|WS-C|N9K|N5K|"
-                r"LC-LC|SC-SC|FTC\d|UPS-|CAT-|OM[1-5]-|OS[12]-|"
-                r"HTTP|HTML|CSS-|URL-)", part_number, re.I):
+    if re.match(
+        r"(TL-SG|TL-ER|C9[23]|DGS-|DXS-|USW-|CRS\d|WS-C|N9K|N5K|"
+        r"LC-LC|SC-SC|FTC\d|UPS-|CAT-|OM[1-5]-|OS[12]-|"
+        r"HTTP|HTML|CSS-|URL-)",
+        part_number,
+        re.I,
+    ):
         return None
 
     speed_m = _SPEED_RE.search(text)
@@ -1104,7 +1182,8 @@ _SFP_PRESENCE_RE = re.compile(
 
 def specs_have_sfp(specs):
     """True if the datasheet mentions any SFP/fiber/uplink capability, False if
-    it has specs but none, None if there are no specs to judge from."""
+    it has specs but none, None if there are no specs to judge from.
+    """
     if not specs:
         return None
     text = " ".join(f"{k} {v}" for k, v in specs.items())
@@ -1122,10 +1201,15 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
     # misleading generic recommendation.
     if _is_blank_id(vendor) or _is_blank_id(model):
         return {
-            "ok": True, "status": "need_make_model",
-            "vendor": vendor, "model": model,
+            "ok": True,
+            "status": "need_make_model",
+            "vendor": vendor,
+            "model": model,
             "message": "Add the switch make and model to get SFP advice.",
-            "modules": [], "cables": [], "recommended": None, "budget": None,
+            "modules": [],
+            "cables": [],
+            "recommended": None,
+            "budget": None,
         }
 
     key = _cache_key(vendor, model)
@@ -1158,11 +1242,16 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
     # "no SFP required" instead of guessing a slot type and recommending optics.
     if spec_data and not slot_type and specs_have_sfp(spec_data) is False:
         return {
-            "ok": True, "status": "no_sfp",
-            "vendor": vendor, "model": model,
+            "ok": True,
+            "status": "no_sfp",
+            "vendor": vendor,
+            "model": model,
             "message": "This switch has no SFP/fiber slots — no SFP transceiver required.",
             "productUrl": product_url,
-            "modules": [], "cables": [], "recommended": None, "budget": None,
+            "modules": [],
+            "cables": [],
+            "recommended": None,
+            "budget": None,
         }
 
     # 4b. Fallback: infer from model name.
@@ -1253,7 +1342,7 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
     # we never recommend a part the user can't see.
     def _resolve(mod):
         existing = mod.get("imageUrl")
-        source   = mod.get("sourceUrl", "")
+        source = mod.get("sourceUrl", "")
         candidates = []
         # Scraped URL is tried first only if it came from a trusted host
         # (page's own domain or a recognized retailer). Random off-site
@@ -1266,6 +1355,7 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
             if c not in candidates:
                 candidates.append(c)
         return mod, _pick_and_cache_image(candidates)
+
     try:
         with ThreadPoolExecutor(max_workers=8) as ex:
             for mod, img in ex.map(_resolve, modules):
@@ -1288,6 +1378,7 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
     # per pass until the cap is reached. Within a brand we keep input
     # order, so the most-relevant SKU still surfaces first.
     from collections import OrderedDict
+
     by_brand = OrderedDict()
     for m in modules:
         by_brand.setdefault(m["brand"], []).append(m)
@@ -1311,8 +1402,7 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
     # Every fallback module is still a REAL scraped product (with a working
     # image); we never fabricate entries. _is_fallback caps recursion at one.
     if not modules and not _is_fallback:
-        print(f"[sfp] 0 modules for {vendor} {model} → trying vendor-only search",
-              file=sys.stderr)
+        print(f"[sfp] 0 modules for {vendor} {model} → trying vendor-only search", file=sys.stderr)
         try:
             vo_results = search_sfp_vendor_only(vendor, slot_type)
         except Exception as e:
@@ -1366,23 +1456,28 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
             vo_modules = [m for m in vo_modules if m.get("imageUrl")]
 
         if vo_modules:
-            print(f"[sfp] vendor-only search found {len(vo_modules)} modules for {vendor}",
-                  file=sys.stderr)
+            print(
+                f"[sfp] vendor-only search found {len(vo_modules)} modules for {vendor}",
+                file=sys.stderr,
+            )
             modules = vo_modules[:15]
         else:
             ref = _get_generic_reference(slot_type)
             if ref:
                 ref_vendor, ref_model = ref
-                print(f"[sfp] vendor-only also empty → retrying with generic "
-                      f"{ref_vendor} {ref_model} (slot={slot_type})", file=sys.stderr)
+                print(
+                    f"[sfp] vendor-only also empty → retrying with generic "
+                    f"{ref_vendor} {ref_model} (slot={slot_type})",
+                    file=sys.stderr,
+                )
                 fb = recommend(ref_vendor, ref_model, interfaces, _is_fallback=True)
                 if fb.get("modules"):
-                    fb["vendor"]        = vendor
-                    fb["model"]         = model
+                    fb["vendor"] = vendor
+                    fb["model"] = model
                     fb["fallbackModel"] = ref_model
-                    fb["slotType"]      = slot_type
-                    fb["slotSource"]    = slot_source
-                    fb["status"]        = "nearest_match"
+                    fb["slotType"] = slot_type
+                    fb["slotSource"] = slot_source
+                    fb["status"] = "nearest_match"
                     return fb
 
     # (Cap of 15 already enforced by the diversity round-robin above.)
@@ -1413,14 +1508,22 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
     # (e.g. MikroTik for a TP-Link switch) since lock-coding can fail.
     def _norm(s):
         return re.sub(r"[\s\.\-_]", "", (s or "").lower())
+
     vendor_norm = _norm(vendor)
     # Pre-normalized: "fs.com" → "fscom", "Tripp Lite" → "tripplite", etc.
-    third_party = {"fscom", "10gtek", "prolabs", "addon", "addonnetworks",
-                   "fluxlight", "axiom", "tripplite", "startech"}
-    same_vendor = [m for m in modules
-                   if vendor_norm and _norm(m.get("brand")) == vendor_norm]
-    third_party_modules = [m for m in modules
-                           if _norm(m.get("brand")) in third_party]
+    third_party = {
+        "fscom",
+        "10gtek",
+        "prolabs",
+        "addon",
+        "addonnetworks",
+        "fluxlight",
+        "axiom",
+        "tripplite",
+        "startech",
+    }
+    same_vendor = [m for m in modules if vendor_norm and _norm(m.get("brand")) == vendor_norm]
+    third_party_modules = [m for m in modules if _norm(m.get("brand")) in third_party]
     if same_vendor:
         recommended = same_vendor[0]
     elif third_party_modules:
@@ -1433,8 +1536,7 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
     if modules:
         priced = [m for m in modules if m.get("price")]
         if priced:
-            priced.sort(key=lambda m: float(
-                re.sub(r"[^\d.]", "", m["price"])[:10] or "9999"))
+            priced.sort(key=lambda m: float(re.sub(r"[^\d.]", "", m["price"])[:10] or "9999"))
             budget = priced[0]
 
     payload = {
@@ -1466,25 +1568,27 @@ def recommend(vendor, model, interfaces=None, _is_fallback=False):
 
 # ── CLI ───────────────────────────────────────────────────────
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Dynamic SFP procurement recommender")
+    parser = argparse.ArgumentParser(description="Dynamic SFP procurement recommender")
     parser.add_argument("--vendor", required=True)
-    parser.add_argument("--model",  required=True)
-    parser.add_argument("--interfaces", default="",
-                        help="Comma-separated interface names (e.g. Te1/0/1,Te1/0/2)")
-    parser.add_argument("--json", action="store_true",
-                        help="Emit single JSON line on stdout")
+    parser.add_argument("--model", required=True)
+    parser.add_argument(
+        "--interfaces", default="", help="Comma-separated interface names (e.g. Te1/0/1,Te1/0/2)"
+    )
+    parser.add_argument("--json", action="store_true", help="Emit single JSON line on stdout")
     args = parser.parse_args()
 
-    ifaces = [i.strip() for i in args.interfaces.split(",") if i.strip()] \
-             if args.interfaces else None
+    ifaces = (
+        [i.strip() for i in args.interfaces.split(",") if i.strip()] if args.interfaces else None
+    )
 
     try:
         result = recommend(args.vendor, args.model, interfaces=ifaces)
     except Exception as e:
-        slot = infer_slot_from_model(args.vendor, args.model) or \
-               (infer_slot_from_interfaces(ifaces) if ifaces else "SFP")
+        slot = infer_slot_from_model(args.vendor, args.model) or (
+            infer_slot_from_interfaces(ifaces) if ifaces else "SFP"
+        )
         result = {
             "ok": True,
             "vendor": args.vendor,
