@@ -1,10 +1,10 @@
 {
   "models": {
-    "devices_seg":        "Models/devices_seg.pt",
-    "ports_typed":        "Models/ports_9.pt",
-    "ports_status":       "Models/port_count.pt",
-    "pdu_ports":          "Models/pdu_ports_v1_det_best.pt",
-    "cable_classifier":   "Models/cable_eff_best"
+    "devices_seg": "Models/master_best.pt",
+    "ports_typed": "Models/ports_9.pt",
+    "ports_status": "Models/port_count.pt",
+    "pdu_ports": "Models/pdu_ports_v1_det_best.pt",
+    "cable_classifier": "Models/cable_eff_best"
   },
   "paths": {
     "output_dir": "outputs",
@@ -15,11 +15,11 @@
   },
   "detection": {
     "device_detect_mode": "seg",
-    "units_conf":   0.25,
-    "devices_conf": 0.20,
-    "server_conf":  0.25,
-    "iou_dedup":    0.5,
-    "ports_conf":   0.23,
-    "pdu_conf":     0.40
+    "units_conf": 0.25,
+    "devices_conf": 0.2,
+    "server_conf": 0.25,
+    "iou_dedup": 0.5,
+    "ports_conf": 0.23,
+    "pdu_conf": 0.4
   }
 }

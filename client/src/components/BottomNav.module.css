@@ -48,8 +48,10 @@
   font: inherit;
   background: none;
   border: 0;
-  /* Four equal slots that shrink together, so the bar fits a 320px phone
-     rather than pushing the last tab off the edge. */
+  /* Equal slots that shrink together, so the bar fits a 320px phone rather
+     than pushing the last tab off the edge. Now five of them — Home, Scan,
+     2 Racks, Profile and More — which is why the two-rack entry carries a
+     shortened barLabel. */
   flex: 1 1 0;
   min-width: 0;
 }

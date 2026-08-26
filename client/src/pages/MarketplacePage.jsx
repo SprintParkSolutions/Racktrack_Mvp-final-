@@ -395,12 +395,12 @@ function ListingDetailModal({ listing, partners, onClose, onPatch, onDelete, isM
                   className="mkt-btn mkt-btn--primary mkt-btn--tall mkt-btn--block"
                   onClick={() => onBuy(listing.id)}
                 >
-                  Buy now — {formatPrice(listing)}
+                  Buy now - {formatPrice(listing)}
                 </button>
               )}
               {listing.priceCents == null && (
                 <p className={`mkt-banner ${styles.offerNote}`}>
-                  No set price on this listing — contact @{listing.seller?.username} to
+                  No set price on this listing - contact @{listing.seller?.username} to
                   make an offer.
                 </p>
               )}
@@ -812,7 +812,7 @@ export default function MarketplacePage() {
             </p>
             <p className="mkt-empty__text">
               {tab === 'mine'
-                ? 'List surplus gear from a scan or add it manually — it takes about a minute.'
+                ? 'List surplus gear from a scan or add it manually - it takes about a minute.'
                 : hasFilters
                   ? 'Try a broader search, or clear the filters to see everything on offer.'
                   : kind === 'want'

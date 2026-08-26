@@ -417,3 +417,30 @@
   /* Six starters as two clean rows of three, spanning the full canvas. */
   .starters { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* Permanent route to a human from the assistant's header. Quiet on purpose —
+   it must not compete with DOT itself, only be findable without a menu. */
+.headContact {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.004em;
+  color: var(--muted, #5C6672);
+  background: none;
+  border: 0;
+  padding: 8px 4px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color .16s;
+}
+.headContact:hover { color: var(--accent, #121212); }
+.headContact:focus-visible {
+  outline: 2px solid var(--accent-ring, rgba(18,18,18,.16));
+  outline-offset: 2px;
+  border-radius: 4px;
+}

@@ -117,7 +117,7 @@ export default function SignupPage() {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Enter a valid email.'); return; }
     // Account creation is limited to Gmail addresses (the server enforces this too).
     if (!/@gmail\.com$/i.test(email.trim()))                { setError('Please use a @gmail.com email address to create an account.'); return; }
-    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username))            { setError('Username 3–32 chars (letters, digits, . _ -).'); return; }
+    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username))            { setError('Username 3-32 chars (letters, digits, . _ -).'); return; }
     if (!company.trim() || company.trim().length < 2)        { setError('Organization name is required.'); return; }
     if (!pwInfo.allOk)                                       { setError('Password is too weak.'); return; }
     if (!matchOk)                                            { setError('Passwords do not match.'); return; }

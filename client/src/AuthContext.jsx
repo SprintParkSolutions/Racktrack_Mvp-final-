@@ -109,7 +109,7 @@ export function AuthProvider({ children }) {
         // reachable.
       });
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // Any /api request that comes back 401 fires this event (set up by the
   // global fetch interceptor in main.jsx). Treat it as "your token is no

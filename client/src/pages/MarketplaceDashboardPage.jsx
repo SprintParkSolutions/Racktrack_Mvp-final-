@@ -30,7 +30,7 @@ const STATUS_PILL = {
 };
 
 function formatCurrency(cents, currency = 'USD') {
-  if (cents == null) return '—';
+  if (cents == null) return '-';
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency', currency, maximumFractionDigits: 2,
@@ -160,7 +160,7 @@ export default function MarketplaceDashboardPage() {
                 <CategoryIcon category="other" size={40} className="mkt-empty__icon" />
                 <p className="mkt-empty__title">Nothing listed yet</p>
                 <p className="mkt-empty__text">
-                  Your most recent listings appear here once you post one — the numbers
+                  Your most recent listings appear here once you post one - the numbers
                   above fill in from the same place.
                 </p>
                 <button className="mkt-btn mkt-btn--primary" onClick={() => navigate('/marketplace/new')}>

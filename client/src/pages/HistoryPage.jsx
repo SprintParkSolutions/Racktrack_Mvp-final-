@@ -52,7 +52,7 @@ function time(d) {
 
 function formatRelative(d) {
   const t = time(d);
-  if (!t) return '—';
+  if (!t) return '-';
   const ms = Date.now() - t;
   if (ms < 0) return 'now';
   const m = Math.floor(ms / 60000);
@@ -235,7 +235,7 @@ export default function HistoryPage() {
           </div>
           <div className={styles.stat}>
             <span className={`${styles.statValue} ${styles.statValueWord}`}>
-              {scans.length ? formatRelative(scans[0].timestamp) : '—'}
+              {scans.length ? formatRelative(scans[0].timestamp) : '-'}
             </span>
             <span className={styles.statLabel}>Last scan</span>
           </div>
@@ -297,7 +297,7 @@ export default function HistoryPage() {
         <div className={styles.resultLine} ref={listTop} aria-live="polite">
           {loading ? 'Loading scans…'
             : filtered.length === 0 ? 'No matching scans'
-            : `Showing ${from + 1}–${Math.min(from + PAGE_SIZE, filtered.length)} of ${filtered.length}${filtering ? ' matching' : ''} scan${filtered.length === 1 ? '' : 's'}`}
+            : `Showing ${from + 1}-${Math.min(from + PAGE_SIZE, filtered.length)} of ${filtered.length}${filtering ? ' matching' : ''} scan${filtered.length === 1 ? '' : 's'}`}
         </div>
 
         {loading && (
@@ -317,7 +317,7 @@ export default function HistoryPage() {
             {scans.length === 0 ? (
               <>
                 <p className={styles.emptyTitle}>No scans yet</p>
-                <p className={styles.emptyText}>Scanned racks land here — every one you capture, kept.</p>
+                <p className={styles.emptyText}>Scanned racks land here - every one you capture, kept.</p>
                 <button className={styles.startBtn} onClick={() => navigate('/scan')}>Start your first scan</button>
               </>
             ) : (

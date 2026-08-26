@@ -98,7 +98,21 @@
 
 /* Desaturated so a photograph with its own colour cast cannot fight the UI,
    and so it reads as editorial rather than as a stock hero. */
-.media { display: none; }
+/* This was `display: none`, which produced two separate tester reports: the
+   Contact photo "not loading" (it was never rendered below 900px, so on a phone
+   or a narrow window there was nothing to load), and the web and mobile Contact
+   pages "not the same" (the photo appeared on one and not the other). One rule
+   caused both.
+   Shown at every width now, shorter on a phone so it introduces the page
+   instead of filling it. The 900px block below still takes over the height and
+   moves it beside the copy. */
+.media {
+  display: block;
+  height: 148px;
+  border: 1px solid var(--ct-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
 .mediaImg {
   width: 100%; height: 100%;
   object-fit: cover; object-position: 60% 50%;

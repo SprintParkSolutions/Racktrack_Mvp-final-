@@ -152,9 +152,9 @@ function OperationsView({ live = true, refreshTick = 0 }) {
         <StatCard label="Scans today"      value={t.scansToday ?? 0} tone="accent" />
         <StatCard label="Active users today" value={t.activeToday ?? 0} />
         <StatCard label="Total scans"      value={t.scansOk ?? 0} sub={t.scansFail ? `${t.scansFail} failed` : null} />
-        <StatCard label="Success rate"     value={t.successRate != null ? `${t.successRate}%` : '—'}
+        <StatCard label="Success rate"     value={t.successRate != null ? `${t.successRate}%` : '-'}
                   tone={t.successRate != null && t.successRate < 90 ? 'warn' : 'good'} />
-        <StatCard label="Accuracy (feedback)" value={fb.accuracy != null ? `${fb.accuracy}%` : '—'}
+        <StatCard label="Accuracy (feedback)" value={fb.accuracy != null ? `${fb.accuracy}%` : '-'}
                   sub={fb.right + fb.wrong ? `${fb.right} right · ${fb.wrong} wrong` : 'no feedback yet'}
                   tone={fb.accuracy != null && fb.accuracy < 80 ? 'warn' : 'good'} />
         <StatCard label="Users"            value={t.users ?? 0} />
@@ -231,7 +231,7 @@ function OperationsView({ live = true, refreshTick = 0 }) {
                   <span className={styles.rankNum}>{u.scans}</span>
                 </div>
               ))}
-              {!(data?.topUsers || []).length && <div className={styles.empty}>—</div>}
+              {!(data?.topUsers || []).length && <div className={styles.empty}>-</div>}
             </div>
           </section>
 
@@ -249,7 +249,7 @@ function OperationsView({ live = true, refreshTick = 0 }) {
                   <span className={styles.rankNum}>{o.scans}</span>
                 </div>
               ))}
-              {!(data?.byOrg || []).length && <div className={styles.empty}>—</div>}
+              {!(data?.byOrg || []).length && <div className={styles.empty}>-</div>}
             </div>
           </section>
 
@@ -267,7 +267,7 @@ function OperationsView({ live = true, refreshTick = 0 }) {
                   <span className={styles.rankNum}>{s.scans}</span>
                 </div>
               ))}
-              {!(data?.bySite || []).length && <div className={styles.empty}>—</div>}
+              {!(data?.bySite || []).length && <div className={styles.empty}>-</div>}
             </div>
           </section>
 
@@ -291,7 +291,7 @@ function OperationsView({ live = true, refreshTick = 0 }) {
                   </div>
                 );
               })}
-              {!(data?.actions || []).length && <div className={styles.empty}>—</div>}
+              {!(data?.actions || []).length && <div className={styles.empty}>-</div>}
             </div>
           </section>
         </div>
@@ -309,10 +309,10 @@ function OperationsView({ live = true, refreshTick = 0 }) {
             <tbody>
               {(data?.recentScans || []).map((s, i) => (
                 <tr key={i}>
-                  <td><code className={styles.userId}>{s.rack || '—'}</code></td>
+                  <td><code className={styles.userId}>{s.rack || '-'}</code></td>
                   <td>{s.username}</td>
-                  <td>{s.site || '—'}</td>
-                  <td>{s.org || '—'}</td>
+                  <td>{s.site || '-'}</td>
+                  <td>{s.org || '-'}</td>
                   <td className={styles.dim}>{relTime(s.ts)}</td>
                 </tr>
               ))}
@@ -346,10 +346,10 @@ function OperationsView({ live = true, refreshTick = 0 }) {
             <tbody>
               {(data?.allUsers || []).map((u, i) => (
                 <tr key={i}>
-                  <td><code className={styles.userId}>{u.public_id || '—'}</code></td>
+                  <td><code className={styles.userId}>{u.public_id || '-'}</code></td>
                   <td>{u.username}{u.active === 0 && <span className={styles.inactive}> · inactive</span>}</td>
                   <td><span className={styles.roleTag}>{u.role}</span></td>
-                  <td>{u.org || '—'}</td>
+                  <td>{u.org || '-'}</td>
                   <td className={styles.num}>{u.scans}</td>
                   <td className={styles.num}>{u.events}</td>
                   <td className={styles.num}>{u.fails ? <b className={styles.authFail}>{u.fails}</b> : 0}</td>
@@ -390,8 +390,8 @@ function OperationsView({ live = true, refreshTick = 0 }) {
 }
 
 const TABS = [
-  { key: 'ops',  label: 'Operations', sub: "Everything happening across RackTrack — who's scanning, what's working, what's failing." },
-  { key: 'logs', label: 'Logs',       sub: 'Live application log — email delivery, errors, and requests as the server records them.' },
+  { key: 'ops',  label: 'Operations', sub: "Everything happening across RackTrack - who's scanning, what's working, what's failing." },
+  { key: 'logs', label: 'Logs',       sub: 'Live application log - email delivery, errors, and requests as the server records them.' },
 ];
 
 // The owner console: one place for all operations AND logs. A shared header

@@ -42,7 +42,7 @@ export default function PendingApprovalPage() {
     ? {
         title: 'Waiting for approval',
         body: <>Your request to create <b>{orgName}</b> has been sent to the platform owner.
-              You’ll be let in as soon as they approve it — this usually doesn’t take long.</>,
+              You’ll be let in as soon as they approve it - this usually doesn’t take long.</>,
         sub: 'This page checks automatically every few seconds.',
       }
     : status === 'rejected'

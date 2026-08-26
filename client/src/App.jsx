@@ -29,8 +29,6 @@ import AcceptInvitePage from './pages/AcceptInvitePage.jsx';
 import PendingApprovalPage from './pages/PendingApprovalPage.jsx';
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
 import AuthCallbackPage from './pages/AuthCallbackPage.jsx';
-import SpecificationsPage from './pages/SpecificationsPage.jsx';
-import FirmwarePage from './pages/FirmwarePage.jsx';
 import SwitchInformationPage from './pages/SwitchInformationPage.jsx';
 import MultiRackRedirect from './pages/MultiRackRedirect.jsx';
 import PortHistoryPage from './pages/PortHistoryPage.jsx';
@@ -471,12 +469,6 @@ export default function App() {
             } />
             <Route path="/marketplace/partners" element={
               <AdminRoute><ResponsiveLayout withBottomNav><MarketplacePartnerAccountsPage /></ResponsiveLayout></AdminRoute>
-            } />
-            <Route path="/specifications" element={
-              <ProtectedRoute><ResponsiveLayout withBottomNav><SpecificationsPage /></ResponsiveLayout></ProtectedRoute>
-            } />
-            <Route path="/firmware" element={
-              <ProtectedRoute><ResponsiveLayout withBottomNav><FirmwarePage /></ResponsiveLayout></ProtectedRoute>
             } />
             {/* CMDB-driven switch list. /switch-info reads rackId from
                 location.state; /switch-info/:rackId is the deep-link form. */}

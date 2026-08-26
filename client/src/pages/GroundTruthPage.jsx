@@ -196,7 +196,7 @@ function Stat({ k, v, sub }) {
 
 function StatsRow({ stats }) {
   if (!stats) return null;
-  const acc = stats.accuracy != null ? `${Math.round(stats.accuracy * 100)}%` : '—';
+  const acc = stats.accuracy != null ? `${Math.round(stats.accuracy * 100)}%` : '-';
   const graded = (stats.correct || 0) + (stats.wrong || 0);
   return (
     <div className={styles.stats}>
@@ -232,7 +232,7 @@ function WorklistCard({ item, onDone, onSkip }) {
       </div>
       <div className={styles.cardBody}>
         <div className={styles.cardTop}>
-          <span className={styles.pos}>{item.position || '—'}</span>
+          <span className={styles.pos}>{item.position || '-'}</span>
           <ConfidenceChip value={item.confidence} />
         </div>
         <div className={styles.guessLabel}>The model detected this as</div>
@@ -379,7 +379,7 @@ function BrowseDetail({ rackId, onBack, backLabel = '‹ All scans' }) {
               {data.devices.map((dv) => (
                 <div key={dv.device_index} className={styles.deviceRow}>
                   <div className={styles.deviceInfo}>
-                    <span className={styles.devicePos}>{dv.position || '—'}</span>
+                    <span className={styles.devicePos}>{dv.position || '-'}</span>
                     <span className={styles.deviceClass}>{dv.predicted_class}</span>
                     <ConfidenceChip value={dv.confidence} />
                   </div>

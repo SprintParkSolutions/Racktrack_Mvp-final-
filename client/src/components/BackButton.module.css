@@ -10,9 +10,13 @@
   justify-content: center;
   padding: 0;
   font: inherit;
-  color: var(--t1, #171717);
-  background: transparent;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  /* Testers reported not being able to find the way back anywhere in the app.
+     It was a transparent button with a 10%-alpha border - on a white page that
+     is nearly nothing. It is now filled, so it reads as a control at a glance
+     rather than being hunted for. */
+  color: #ffffff;
+  background: #121212;
+  border: 1px solid #121212;
   border-radius: 10px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -21,10 +25,10 @@
 
 .back svg { width: 18px; height: 18px; }
 
-.back:hover  { background: rgba(0, 0, 0, 0.045); }
+.back:hover  { background: #333740; border-color: #333740; }
 .back:active { transform: scale(0.94); }
 .back:focus-visible {
-  outline: 2px solid var(--t1, #171717);
+  outline: 2px solid #121212;
   outline-offset: 2px;
 }
 

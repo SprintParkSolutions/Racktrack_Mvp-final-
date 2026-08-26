@@ -8,6 +8,7 @@
 //
 // Props:
 //   rackId    — required, used to pull OCR-devices fallback when vendor/model unknown
+//   position  — optional rack unit ('U14'), so the OCR fallback reads THIS switch
 //   vendor    — string, OCR-derived switch vendor ('Unknown' or null when unidentified)
 //   model     — string, OCR-derived switch model  ('Unknown' or null when unidentified)
 //   sfpPorts  — optional [{iface, ...}], passed when caller knows the SFP slot list
@@ -23,7 +24,7 @@ import SfpModuleImage from './SfpModuleImage.jsx';
 // changing behavior.
 import styles from '../pages/PortsPage.module.css';
 
-export default function SfpAdvisor({ rackId, vendor: vendorProp, model: modelProp, sfpPorts = [], sfpCounts }) {
+export default function SfpAdvisor({ rackId, position, vendor: vendorProp, model: modelProp, sfpPorts = [], sfpCounts }) {
   const [advice, setAdvice] = useState(null);
   const [loading, setLoading] = useState(true);
   // "More compatible modules" section is collapsed by default — the user
@@ -49,22 +50,55 @@ export default function SfpAdvisor({ rackId, vendor: vendorProp, model: modelPro
         const ocrR = await authFetch(apiUrl(`/api/scan/${rackId}/ocr-devices`));
         if (ocrR.ok) {
           const ocrData = await ocrR.json();
-          const ocrSwitch = (ocrData.devices || []).find(d =>
-            d.class_name === 'Switch' && (d.make || d.model)
-          );
+          const devices = Array.isArray(ocrData) ? ocrData : (ocrData.devices || []);
+          // Match on rack unit first. Without it this took the first switch in
+          // the rack that OCR had read, so opening switch #3 in a three-switch
+          // rack could recommend modules for switch #1's slots — a wrong answer
+          // presented with the same confidence as a right one. Only fall back to
+          // "any switch we could read" when the caller didn't say which unit it
+          // is asking about.
+          const readable = devices.filter(d => d.class_name === 'Switch' && (d.make || d.model));
+          const ocrSwitch = (position && readable.find(d => d.position === position))
+            || (!position && readable[0])
+            || null;
           if (ocrSwitch) {
             if (v === 'Unknown' && ocrSwitch.make)  v = ocrSwitch.make;
             if (m === 'Unknown' && ocrSwitch.model) m = ocrSwitch.model;
           }
         }
       } catch (_) {}
+      if (cancelled) return;
+
+      // Nothing identified the switch — not the rack scan, not the per-device
+      // OCR pass above. Say that, and stop.
+      //
+      // This used to fall through to `generateOfflineFallback`, whose result has
+      // no `status`, so the render below treated it as real advice: the advisor
+      // drew its full card for "Unknown Unknown", the empty module list tripped
+      // the curated-catalog injection, and the user was shown a TOP PICK with a
+      // price and a buy link for a switch nobody had identified. It also blamed
+      // the server ("Server unavailable") for what was only a missing make and
+      // model. A recommendation nobody can act on is worse than no card at all.
+      const known = (x) => !!x && x !== 'Unknown';
+      if (!known(v) || !known(m)) {
+        const missing = !known(v) && !known(m) ? 'vendor and model'
+                      : !known(v)              ? 'vendor'
+                      :                          'model';
+        setAdvice({
+          status: 'need_make_model',
+          message: `The switch ${missing} could not be read from the photo. Add ${!known(v) && !known(m) ? 'them' : 'it'} above - SFP advice needs both to be certain the module fits.`,
+        });
+        setLoading(false);
+        return;
+      }
+
       const result = await fetchSfpAnalysis(v, m, ifaces);
       if (cancelled) return;
       setAdvice(result || generateOfflineFallback({ vendor: v, model: m, sfpPorts, sfpCounts }));
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [rackId, vendorProp, modelProp]);
+  }, [rackId, position, vendorProp, modelProp]);
 
   if (loading) {
     return (
@@ -126,7 +160,7 @@ export default function SfpAdvisor({ rackId, vendor: vendorProp, model: modelPro
             <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>
           </svg>
           <span><b>No SFP required.</b>{' '}
-            {advice.message || 'This switch has no SFP/fiber slots — only copper (RJ45) ports.'}
+            {advice.message || 'This switch has no SFP/fiber slots - only copper (RJ45) ports.'}
           </span>
         </div>
       </section>
@@ -325,7 +359,7 @@ export default function SfpAdvisor({ rackId, vendor: vendorProp, model: modelPro
 
       {(advice.status === 'nearest_match' || advice.fallbackModel) && (
         <div className={styles.nearestNote}>
-          No exact listings for <b>{advice.model}</b> — showing nearest-match {slotKey} modules
+          No exact listings for <b>{advice.model}</b> - showing nearest-match {slotKey} modules
           compatible with this switch's slot type.
         </div>
       )}
@@ -490,7 +524,7 @@ export default function SfpAdvisor({ rackId, vendor: vendorProp, model: modelPro
                         <span className={styles.altsRowBrand}>{m.brand || 'Unknown'}</span>
                         <span className={styles.altsRowSku}>{m.partNumber}</span>
                       </div>
-                      <div className={styles.altsRowMeta}>{specsLine(m) || '—'}</div>
+                      <div className={styles.altsRowMeta}>{specsLine(m) || '-'}</div>
                       <div className={styles.altsRowSide}>
                         {m.price && (
                           <span className={styles.altsRowPrice}>

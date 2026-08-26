@@ -48,13 +48,13 @@
   position: absolute;
   top: 80%;
   left: -100px;
-  /* Width follows the new art's own aspect ratio (794×1024) so the arm's
-     percentage-based position below lines up without letterboxing. */
+  /* Sized to the mascot SVG's own 148×168 viewBox so it fills the box with no
+     letterboxing. The float animation that used to live here is gone: the SVG
+     declares its own, and running both made it bob twice. */
   width: 116px;
-  height: 150px;
+  height: 132px;
   z-index: 2;
   filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.35));
-  animation: rt-intro-robot-float 3.2s ease-in-out infinite;
 }
 
 .mascotBody {
@@ -67,31 +67,8 @@
   -webkit-user-drag: none;
 }
 
-.mascotArm {
-  position: absolute;
-  left: 6.801%;
-  top: 47.266%;
-  width: 27.078%;
-  height: 18.164%;
-  transform-origin: 94.88% 96.77%;
-  animation: rt-intro-robot-wave 1.8s ease-in-out infinite;
-  user-select: none;
-  -webkit-user-drag: none;
-}
 
-@keyframes rt-intro-robot-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-5px); }
-}
 
-@keyframes rt-intro-robot-wave {
-  0%   { transform: rotate(0deg); }
-  15%  { transform: rotate(-18deg); }
-  35%  { transform: rotate(12deg); }
-  55%  { transform: rotate(-18deg); }
-  75%  { transform: rotate(10deg); }
-  100% { transform: rotate(0deg); }
-}
 
 /* Phones. The sidecar position above needs ~100px of empty gutter beside the
    card, and a 414px-wide screen has 17px — the robot rendered as a sliver at
@@ -107,7 +84,7 @@
     /* Slight overlap so it reads as standing ON the card, not floating above. */
     margin-bottom: -4px;
     width: 100px;
-    height: 129px;
+    height: 114px;
   }
 }
 

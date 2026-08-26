@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import styles from './ScanPage.module.css';
 import { validateMedia } from '../utils/validateMedia';
+import { IMAGE_ACCEPT, VIDEO_ACCEPT } from '../utils/mediaAccept';
 import { apiUrl, authFetch } from '../utils/api';
 import { triggerBackgroundProbe } from '../utils/portsProbe';
 import { prefetchScan } from '../utils/scanPrefetch';
@@ -72,14 +73,16 @@ function UploadZone({ onFile, mode = 'image', inputRef: externalRef = null }) {
   };
 
   const isVideo = mode === 'video';
-  const accept = isVideo
-    ? 'video/*'
-    : 'image/*,image/heic,image/heif,.heic,.heif,video/*';
+  // Images only on the image tab. It used to append `video/*` here as well, which
+  // did two unhelpful things: it duplicated the VIDEO mode sitting right beside it,
+  // and it made the accept list mixed enough that Android's picker fell back to its
+  // generic chooser — the one that offers a sound recorder. See mediaAccept.js.
+  const accept = isVideo ? VIDEO_ACCEPT : IMAGE_ACCEPT;
   const title = isVideo ? 'Drop rack video here' : 'Drop rack image here';
-  const sub = isVideo ? 'tap to browse · MP4, MOV, WEBM' : 'tap to browse · JPG, PNG, HEIC, MP4';
+  const sub = isVideo ? 'tap to browse · MP4, MOV, WEBM' : 'tap to browse · JPG, JPEG, PNG, HEIC';
   // Format pills shown only in the desktop reference layout (hidden on mobile
   // via CSS — see .fmtPills). Mobile keeps the inline `sub` string above.
-  const formats = isVideo ? ['MP4', 'MOV', 'WEBM'] : ['JPG', 'PNG', 'HEIC', 'MP4'];
+  const formats = isVideo ? ['MP4', 'MOV', 'WEBM'] : ['JPG', 'JPEG', 'PNG', 'HEIC'];
 
   return (
     <>
@@ -186,10 +189,10 @@ function MultiUploadZone({ files, onChange }) {
               <rect x="3"  y="17" width="18" height="5" rx="1"/>
             </svg>
           </div>
-          <div className={styles.multiEmptyTitle}>Tall rack — multi shot</div>
+          <div className={styles.multiEmptyTitle}>Tall rack - multi shot</div>
           <div className={styles.multiEmptySub}>
             Take 2-8 overlapping photos of the rack.<br/>
-            Any order — we'll arrange them automatically.
+            Any order - we'll arrange them automatically.
           </div>
           <button type="button" className={styles.multiAddBtn}
             onClick={() => inputRef.current?.click()}>
@@ -250,7 +253,7 @@ function MultiUploadZone({ files, onChange }) {
         </>
       )}
       <input ref={inputRef} type="file" multiple
-        accept="image/*,image/heic,image/heif,.heic,.heif"
+        accept={IMAGE_ACCEPT}
         style={{display:'none'}}
         onChange={(e) => addFiles(e.target.files)} />
     </div>
@@ -671,16 +674,16 @@ function CameraCapture({ onCapture, onCancel }) {
   const photoHint = !ready
     ? 'Starting camera…'
     : allGood
-      ? 'Looks great — tap the shutter below'
+      ? 'Looks great - tap the shutter below'
       : !quality.framed ? 'Move closer so the rack fills the frame'
       : !quality.lit    ? 'Move to better lighting'
-      : !quality.sharp  ? 'Hold steady — keep still for focus'
+      : !quality.sharp  ? 'Hold steady - keep still for focus'
       : 'Align full rack within the frame';
 
   const videoHint = !ready
     ? 'Starting camera…'
     : recording
-      ? 'Recording — tap shutter to stop'
+      ? 'Recording - tap shutter to stop'
       : 'Tap shutter to start recording the rack';
 
   const hintText = mode === 'video' ? videoHint : photoHint;
@@ -850,14 +853,19 @@ function boxIoU(a, b) {
 
 // ── Cinematic Loading Overlay ────────────────────────────────
 function AnalyzingOverlay({ progress, step }) {
-  const STEPS = ['Preprocessing image', 'Detecting rack boundaries', 'Identifying components', 'Mapping ports', 'Locating target'];
-  const active = Math.min(Math.floor((progress / 100) * STEPS.length), STEPS.length - 1);
-
   return (
     <div className={styles.overlay}>
       <div className={styles.overlayInner}>
+        {/* The 150px slot is reserved by .ovRack3D whether or not the 3D rack
+            has loaded. It is lazy (three.js is ~140 kB) and the fallback here
+            used to be null, so on the first scan of a session the top of this
+            overlay was an EMPTY box that suddenly filled and shoved the title,
+            step text and progress bar downward mid-scan. That jump is what was
+            reported as the top of the analysing screen being unstructured.
+            The placeholder holds the same space and reads as deliberate, so
+            nothing moves when the real thing arrives. */}
         <div className={styles.ovRack3D}>
-          <Suspense fallback={null}>
+          <Suspense fallback={<div className={styles.ovRackFallback} aria-hidden="true" />}>
             <MiniRack3D progress={progress} size={150} />
           </Suspense>
           <div className={styles.ovRack3DGlow} aria-hidden="true" />
@@ -1115,10 +1123,10 @@ export default function ScanPage() {
         if (netErr?.name === 'TimeoutError' || netErr?.name === 'AbortError') {
           throw new Error(
             'The scan took too long and was stopped. The photo reached the '
-            + 'server, so try again in a moment — if it keeps happening, the '
+            + 'server, so try again in a moment - if it keeps happening, the '
             + 'rack photo may be too large or the server may be busy.');
         }
-        setStep('Connection dropped — retrying…');
+        setStep('Connection dropped - retrying…');
         await new Promise((r) => setTimeout(r, 1200));
         try {
           res = await attempt();
@@ -1127,7 +1135,7 @@ export default function ScanPage() {
             throw new Error('The scan took too long and was stopped. Please try again.');
           }
           throw new Error(
-            'Upload failed — the connection dropped while sending the photo. '
+            'Upload failed - the connection dropped while sending the photo. '
             + 'Check your signal and try again.');
         }
       }
@@ -1440,7 +1448,7 @@ export default function ScanPage() {
             sees what they picked without pushing the page off-screen. */}
         {ticket && (() => {
           const raw = ticket.short_description || '';
-          const headline = raw.split(/\s+[—–-]\s+/)[0].trim() || raw;
+          const headline = raw.split(/\s+[-–-]\s+/)[0].trim() || raw;
           return (
             <h2 className={styles.ticketHeadline} style={{
               margin:'0',
@@ -1465,7 +1473,10 @@ export default function ScanPage() {
             Analyze jump straight to that device+port. */}
         {tickets.length > 0 && (
           <div className={styles.incidentBlock} style={{margin:'8px 0 4px', position:'relative'}}>
-            <label className={styles.incidentLabel} style={{
+            {/* A <span>, not a <label>: this labels a custom dropdown *button*,
+                and a <label> can only be associated with a real form control.
+                The button points back at it via aria-labelledby. */}
+            <span id="incident-link-label" className={styles.incidentLabel} style={{
               display:'block',
               fontSize:11,
               fontWeight:600,
@@ -1476,13 +1487,14 @@ export default function ScanPage() {
               textAlign:'left',
             }}>
               Incident link (Optional)
-            </label>
+            </span>
 
 
             {/* Trigger button — shows the selected ticket as a chip */}
             <button
               ref={incidentTriggerRef}
               type="button"
+              aria-labelledby="incident-link-label"
               data-tour="incident-dropdown"
               className={styles.incidentTrigger}
               onClick={() => {
@@ -1712,11 +1724,11 @@ export default function ScanPage() {
         <div className={styles.tips}>
           <div className={`${styles.eyebrow} ${styles.tipsTitle}`}>Tips for a clear scan</div>
           <ul className={styles.tipsList}>
-            <li>Full rack in frame — keep the top and bottom visible</li>
-            <li>Phone straight and level — stand directly in front</li>
-            <li>Labels clearly visible — port and device labels readable</li>
-            <li>Good lighting, no glare — turn the flash off</li>
-            <li>Step back if needed — fit the whole rack on screen</li>
+            <li>Full rack in frame - keep the top and bottom visible</li>
+            <li>Phone straight and level - stand directly in front</li>
+            <li>Labels clearly visible - port and device labels readable</li>
+            <li>Good lighting, no glare - turn the flash off</li>
+            <li>Step back if needed - fit the whole rack on screen</li>
           </ul>
         </div>
 
@@ -1779,7 +1791,7 @@ function VerifyRejectModal({ payload, onRetake, onClose }) {
           <div style={diffCol}>
             <div style={diffHeading}>Expected on the rack</div>
             {expectedUnique.length === 0
-              ? <div style={diffEmpty}>—</div>
+              ? <div style={diffEmpty}>-</div>
               : <div style={chipWrap}>
                   {expectedUnique.map(l => <code key={l} style={{...chip, background:'rgba(0,0,0,0.10)', color:'#474747'}}>{l}</code>)}
                 </div>}

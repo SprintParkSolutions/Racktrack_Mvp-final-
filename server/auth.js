@@ -1733,7 +1733,7 @@ function registerRoutes(app) {
       // client could use to forge a header line, and cap the length.
       attachments: files.map((f) => ({
         filename: String(f.originalname || 'attachment')
-          // eslint-disable-next-line no-control-regex
+           
           .replace(/[\r\n\x00-\x1f\x7f/\\]/g, '_')
           .slice(0, 120) || 'attachment',
         content: f.buffer,

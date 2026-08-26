@@ -53,7 +53,9 @@ export default function BottomNav() {
       className={({ isActive }) => `${styles.tab} ${isActive && !moreOpen ? styles.active : ''}`}
     >
       <span className={styles.icon} aria-hidden="true">{l.icon}</span>
-      <span className={styles.label}>{l.label.toUpperCase()}</span>
+      {/* barLabel lets a destination carry a shorter name in the bar than in
+          the sidebar, where there is room for the full one. */}
+      <span className={styles.label}>{(l.barLabel || l.label).toUpperCase()}</span>
       <span className={styles.dot} aria-hidden="true" />
     </NavLink>
   );

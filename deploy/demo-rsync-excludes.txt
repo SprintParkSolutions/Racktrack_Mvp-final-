@@ -46,6 +46,28 @@ client/dist
 server/data
 server/.env
 server/.env.key
+# Azure app-registration ids pasted in at the repo root during handover. The
+# ids themselves are not secret and the same values ship inside token/mailid.md
+# by design — these two are simply loose copies that have no business on an
+# internet-facing host. rsync does not read .gitignore, so ignoring them there
+# was not enough to keep them off the VPS.
+id.md
+supportid.md
+# Local-only working directory (gitignored). Never belonged on the VPS: it
+# carries internal collateral AND, under _local/archive/, copies of the MSAL
+# token caches the patterns below were written to keep off this host. Those
+# patterns are anchored with a leading `/`, so they only ever matched the repo
+# ROOT — `_local/archive/racktrack_teams_cache.json` sailed straight past them.
+# Excluding the whole directory closes that hole at the source.
+_local
+
+# Handover copies of MSAL token caches dropped at the repo root. The real ones
+# live at pipeline/racktrack_teams_cache.json and token/support_msal_cache.json
+# and DO ship — the senders need them. These duplicates carry the same live
+# refresh tokens and must not be scattered further.
+/*_teams_cache*.json
+/*_teams_cache*
+/*_outlook_cache*.json
 # The tester roster: 30 real email addresses paired with plaintext passwords.
 # rsync does not read .gitignore, so without this line it ships to the VPS on
 # every deploy — a credential file on an internet-facing host that the running

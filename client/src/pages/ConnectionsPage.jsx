@@ -144,7 +144,7 @@ export default function ConnectionsPage() {
       <p className={styles.intro}>
         Saved databases this app can pull data from. The <strong>active</strong>
         {' '}connection is what every screen uses while you're signed in.
-        Switch any time — the data refreshes from the new source.
+        Switch any time - the data refreshes from the new source.
       </p>
 
       {error && <div className={styles.errorBanner}>{error}</div>}
@@ -160,7 +160,7 @@ export default function ConnectionsPage() {
       {lastRefresh && !refreshing && (
         lastRefresh.ok ? (
           <div className={styles.successBanner}>
-            ✓ Pulled {lastRefresh.count ?? '—'} incident{lastRefresh.count === 1 ? '' : 's'}
+            ✓ Pulled {lastRefresh.count ?? '-'} incident{lastRefresh.count === 1 ? '' : 's'}
             {' '}from <strong>{lastRefresh.instance}</strong>
           </div>
         ) : (

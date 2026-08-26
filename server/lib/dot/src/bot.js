@@ -939,7 +939,12 @@ function buildSuggestionAnswer(matches, tier) {
 function trySimpleAnswer(text) {
   const t = text.toLowerCase().trim()
 
-  if (/^(hi|hello|hey|good\s*(morning|afternoon|evening)|howdy|greetings)\b/.test(t)) {
+  // Testers reported the bot ignoring "hi" and "hlo". "hi" was in fact handled;
+  // "hlo" was not, and neither were "hii", "helo" or "hai" - all common ways
+  // people actually type a greeting on a phone. The trailing \b keeps this from
+  // swallowing real words: "hi+" cannot match "history" or "hire" because no
+  // word boundary follows, and "yo" cannot match "your".
+  if (/^(hi+|hey+|hel+o+|helo+|hlo+|hai|yo|hola|howdy|greetings?|good\s*(morning|afternoon|evening|day))\b/.test(t)) {
     return "Hello! I'm the RackTrack support assistant. Ask me anything about using RackTrack - scans, racks, switches, reports, your account - and I'll answer from our verified help content."
   }
 

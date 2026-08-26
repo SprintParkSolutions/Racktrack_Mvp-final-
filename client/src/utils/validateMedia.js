@@ -16,7 +16,23 @@ export async function validateMedia(file) {
 
   if (file.type.startsWith('image/')) return validateImage(file);
   if (file.type.startsWith('video/')) return validateVideo(file);
-  return { ok: false, error: 'Unsupported file type. Upload an image or video.' };
+
+  // A sound file can never be scanned, so say so in those words rather than
+  // with the generic message below. Android's generic file chooser used to
+  // offer a sound recorder alongside the camera on this screen (the accept
+  // lists now stop that — see utils/mediaAccept.js), and a recording picked
+  // from the file manager can still reach us here.
+  if (file.type.startsWith('audio/')) {
+    return { ok: false, error: 'That is an audio file. Upload a rack photo — JPG, PNG or HEIC.' };
+  }
+
+  // No MIME type at all: an Android content:// pick often arrives with an
+  // empty `type` and no extension on the name. Don't reject a photo the
+  // gallery just handed us — the server reads the file itself and answers
+  // 400 if it really isn't an image.
+  if (!file.type) return { ok: true, metrics: { skipped: 'no-mime-deferred-to-server' } };
+
+  return { ok: false, error: 'Unsupported file type. Upload a rack photo — JPG, PNG or HEIC.' };
 }
 
 async function validateImage(file) {

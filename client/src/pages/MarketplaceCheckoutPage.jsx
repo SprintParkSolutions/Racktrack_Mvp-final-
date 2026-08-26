@@ -26,7 +26,7 @@ const CONDITION_LABEL = {
 };
 
 function formatCurrency(cents, currency = 'USD') {
-  if (cents == null) return '—';
+  if (cents == null) return '-';
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency', currency, maximumFractionDigits: 2,
@@ -158,7 +158,7 @@ export default function MarketplaceCheckoutPage() {
             {listing.quantity > 1 && (
               <div className={`mkt-fieldGroup ${styles.qty}`}>
                 <label className="mkt-label" htmlFor="mkt-checkout-qty">
-                  Quantity — {listing.quantity} available
+                  Quantity - {listing.quantity} available
                 </label>
                 <input
                   id="mkt-checkout-qty"
@@ -261,8 +261,8 @@ export default function MarketplaceCheckoutPage() {
               {submitting
                 ? 'Processing…'
                 : stripeEnabled
-                  ? `Pay with Stripe — ${formatCurrency(total, currency)}`
-                  : `Complete purchase — ${formatCurrency(total, currency)}`}
+                  ? `Pay with Stripe - ${formatCurrency(total, currency)}`
+                  : `Complete purchase - ${formatCurrency(total, currency)}`}
             </button>
 
             <p className={`mkt-meta ${styles.assurance}`}>

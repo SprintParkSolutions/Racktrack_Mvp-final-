@@ -199,7 +199,7 @@ function NetdiscoInner({ rackId, embedded }) {
           {match && match.netdisco_reachable === false && (
             <div className={styles.warn}>
               <strong>Network view is being prepared.</strong>
-              <br />This updates automatically from your scan — check back in a moment.
+              <br />This updates automatically from your scan - check back in a moment.
             </div>
           )}
 
@@ -291,7 +291,7 @@ function DeviceItem({ m, open, ports, loading, onToggle, onMacClick }) {
 
         <span className={styles.nvIdent}>
           <span className={styles.nvL1}>
-            <span className={styles.nvName}>{m.scan.cmdb_name || '—'}</span>
+            <span className={styles.nvName}>{m.scan.cmdb_name || '-'}</span>
             <span className={styles.nvType}>{m.scan.class_name}</span>
           </span>
           <span className={styles.nvL2}>
@@ -461,7 +461,7 @@ function stateLabel(up, up_admin) {
 }
 
 function fmtTime(t) {
-  if (!t) return '—';
+  if (!t) return '-';
   return String(t).slice(0, 19).replace('T', ' ');
 }
 

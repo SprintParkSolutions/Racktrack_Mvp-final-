@@ -110,8 +110,6 @@ const PAGE_TITLE = {
   '/organizations':    { title: 'Organizations',       sub: 'Members, sites & approvals' },
   '/connections':      { title: 'Connections',         sub: 'Active data sources' },
   '/results':          { title: 'Scan results',        sub: 'Devices & ports' },
-  '/specifications':   { title: 'Specifications',      sub: 'Vendor & model lookup' },
-  '/firmware':         { title: 'Firmware',            sub: 'Version check' },
   '/switch-info':      { title: 'Switch info',         sub: 'CMDB switch list' },
   '/port-history':     { title: 'Port history',        sub: 'Change log' },
   '/marketplace':      { title: 'Marketplace',         sub: 'Buy, sell & swap surplus gear' },

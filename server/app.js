@@ -1020,15 +1020,34 @@ async function runPipelineSelect(imagePath, outputDir, deviceIndex, port, portCa
   }, { imagePath, outputDir, deviceIndex, port, portCategory });
 }
 
-// The user-confirmed main-port count for a device, if they relabeled it — so
-// selecting a port lays out exactly that many and port N is the Nth position.
-function userPortCountFor(rackId, deviceIndex) {
+// The main-port count this device is PUBLISHED with — the number the port
+// dropdown, the "N detected" caption and the 1-N input bound all read. Select
+// must lay out exactly this many ports so "port N" means the same physical
+// position on both sides of the wire.
+//
+// This used to return a count ONLY for devices the user had manually
+// relabeled, which left every other device selecting against a fresh
+// re-detection instead of the published layout. Those two numbers disagree
+// whenever detection isn't perfectly repeatable against the published count —
+// most often on a device whose count came from OCR + device_db, where
+// runner.py --detect_only deliberately publishes the catalogue count
+// (e.g. 48) after the visual pass under-counted (e.g. 30). The UI then offered
+// 1-48 while the pipeline held a 30-entry list, so:
+//   * port 40 fell past the end of that list and located nothing, and
+//   * ports inside it were the Nth DETECTED port, not the Nth physical one.
+// Low port numbers happened to line up, which is why the first lookup on a
+// device looked correct and a later, higher one came back wrong or empty.
+//
+// Preference order is unchanged where it matters: a user relabel still wins,
+// because runner.py --detect_only writes it straight into port_count.
+function publishedPortCountFor(rackId, deviceIndex) {
   try {
     const map = JSON.parse(fs.readFileSync(path.join(outputsDir, rackId, 'device_unit_map.json'), 'utf8'));
     const dev = (map.devices || [])[Number(deviceIndex) - 1];
-    if (dev && dev.port_count_source === 'user_relabeled' && dev.port_count > 0) {
-      return Number(dev.port_count);
-    }
+    // port_count is the published number regardless of how it was arrived at
+    // (user relabel, OCR/device_db grounding, or the visual count). Pin the
+    // layout to it so the UI's bound and the pipeline's list agree.
+    if (dev && Number(dev.port_count) > 0) return Number(dev.port_count);
   } catch (_) {}
   return 0;
 }
@@ -1109,6 +1128,81 @@ async function ensurePortCounts(rackId) {
   // Re-analyze scopes to the rack's org so device-class active-learning
   // corrections re-apply (and aren't clobbered) on this refresh.
   await runPipelineAnalyze(imagePath, rackDir, tenant.orgForRack(rackId));
+}
+
+// ── Heal-on-open for racks with no port data ──────────────────────────────
+// A rack whose devices carry no port_count cannot be worked on: buildResponse
+// maps the missing field to null, the client reads that as zero ports, and the
+// results page opens with nothing to pick — no devices, no ports, and "We
+// couldn't read how many ports this device has" the moment Find Port is
+// pressed. Reopening a scan from Recent Scans is where testers hit this.
+//
+// ensurePortCounts() has always been able to rebuild it, but it was only wired
+// to the three INGEST routes (analyze, stitch, analyze-video). Nothing ran it
+// when an existing scan was reopened, so a rack that lost its port data stayed
+// broken for good. The loss came from the select path overwriting
+// device_unit_map.json (fixed in pipeline/runner.py), which is why this only
+// struck *some* scans — the ones a port lookup had already been run on. Racks
+// damaged before that fix still need healing, and this is what does it.
+//
+// A rack that was properly analysed has a numeric port_count on EVERY device,
+// port-bearing or not (runner.py's --detect_only branch sets 0 for the rest),
+// so an absent field is a reliable "this was never analysed, or was stripped".
+function portDataMissing(rackId) {
+  try {
+    const jsonPath = path.join(outputsDir, rackId, 'device_unit_map.json');
+    if (!fs.existsSync(jsonPath)) return false;
+    const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    if (!Array.isArray(data.devices) || data.devices.length === 0) return false;
+    // Mirrors ensurePortCounts()'s own guard, so we never start a rebuild it
+    // would immediately abandon.
+    return !data.devices.every(dev => typeof dev.port_count === 'number');
+  } catch (_) {
+    return false;
+  }
+}
+
+// Racks currently being rebuilt. Opening the same damaged scan twice (or a
+// double-mount in the client) must share one pipeline run, not launch two.
+const _portHealInFlight = new Map();
+
+async function healPortDataIfMissing(rackId) {
+  if (!portDataMissing(rackId)) return false;
+
+  const pending = _portHealInFlight.get(rackId);
+  if (pending) {
+    await pending.catch(() => {});
+    return true;
+  }
+
+  const run = (async () => {
+    logger.warn({ event: 'scan.port_data_missing', rackId },
+      `${rackId} has no per-device port data; rebuilding before serving the scan`);
+    await ensurePortCounts(rackId);
+    // scan_result.json was assembled FROM the stripped map, so it carries the
+    // same portless devices. Without this the client keeps being served the
+    // broken payload straight from cache and the heal looks like it did
+    // nothing.
+    try {
+      writeCanonicalScanResult(rackId);
+    } catch (err) {
+      logger.error({ event: 'scan.port_data_heal_result_failed', rackId, error: err.message },
+        `${rackId}: port data rebuilt but canonical result refresh failed`);
+    }
+    logger.info({ event: 'scan.port_data_healed', rackId, stillMissing: portDataMissing(rackId) },
+      `${rackId}: port data rebuild complete`);
+  })();
+
+  _portHealInFlight.set(rackId, run);
+  try {
+    await run;
+  } catch (err) {
+    logger.error({ event: 'scan.port_data_heal_failed', rackId, error: err.message },
+      `${rackId}: port data rebuild failed; serving the scan as-is`);
+  } finally {
+    _portHealInFlight.delete(rackId);
+  }
+  return true;
 }
 
 function buildResponse(rackId, cached) {
@@ -1318,20 +1412,38 @@ function readDeviceOverride(rackDir, position) {
 //   * with no join yet, fall back to switches we have actually polled. A device
 //     we have never reached has nothing to report, and an empty table for it is
 //     noise rather than information.
+// The report's drift section covers exactly ONE thing: the port the technician
+// selected, on the switch this rack's scan is joined to. Nothing else.
+//
+// It used to widen instead of narrow. When the console-session join couldn't
+// name this rack's switch — the common case, since it needs the tech to have
+// opened an SSH session — this fell through to `all.filter(d => d.last_seen)`
+// and rendered a table for EVERY switch the poller has ever reached. That is
+// the most-reported issue in the register: "showing drift for all switches
+// rather than the selected switch port", filed four times.
+//
+// Widening was the wrong instinct twice over. A switch in some other rack has
+// no bearing on this report, and presenting its history beside this rack's scan
+// invites the reader to attribute it here. An empty section that says why is
+// worth more than a full one that is about something else.
 function driftDevicesFor(monitored) {
-  const all = portHistoryDb.listDevices();
-  if (monitored) {
-    const mine = all.filter(d => d.id === monitored.id);
-    if (mine.length) return mine;
-  }
-  return all.filter(d => d.last_seen);
+  // No join yet → we cannot honestly claim any switch is in this rack, so we
+  // name none. Deliberately not a fallback: see above.
+  if (!monitored) return [];
+  return portHistoryDb.listDevices().filter(d => d.id === monitored.id);
 }
 
 function collectDriftHistory(selectedPort = null, monitored = null, eventsPerDevice = 30) {
   try {
+    // No port identified yet → there is no "selected port" to report drift for.
+    // Showing the switch's whole history here would answer a question nobody
+    // asked, and it reads as drift on ports the user never looked at.
+    if (selectedPort == null) return [];
     return driftDevicesFor(monitored).map(dev => {
       const all = portHistoryDb.eventsForDevice(dev.id, 1000);
-      const filtered = selectedPort == null ? all : all.filter(e => {
+      // Match the trailing /N of the polled interface name ("Gi1/0/2" -> 2),
+      // irrespective of whether the scan tagged the port RJ45/SFP/console.
+      const filtered = all.filter(e => {
         const m = String(e.port).match(/(\d+)$/);
         return m && Number(m[1]) === Number(selectedPort);
       });
@@ -1580,6 +1692,15 @@ function buildScanReportData(rackId) {
     selectedDevice,
     port_identifications: portIdentificationsOut,
     driftHistory: collectDriftHistory(selectedPortNumber, monitoredSwitch),
+    // Why the drift section is empty, when it is. Without this the reader can't
+    // tell "nothing has changed on your port" from "we couldn't scope this",
+    // and the section reads as broken rather than quiet.
+    driftScope: selectedPortNumber == null
+      ? { ok: false, reason: 'no_port_selected', port: null }
+      : !monitoredSwitch
+        ? { ok: false, reason: 'switch_not_joined', port: selectedPortNumber }
+        : { ok: true, reason: null, port: selectedPortNumber,
+            switchLabel: monitoredSwitch.label || monitoredSwitch.system_name || monitoredSwitch.host || null },
     // The joined switch, plus its recent events — what lets the summary name
     // a switch rather than list changes from every device we happen to poll.
     monitoredSwitch,
@@ -1782,15 +1903,9 @@ function renderHTMLReport(data, { inlineImages = true } = {}) {
   const isRackSlot = (dv) => RACK_SLOT_CLASSES.has(String(dv.class_name || '').trim().toLowerCase());
   const equipment = devs.filter(dv => !isRackSlot(dv));
 
-  // `gateway` was missing while the card is labelled "Switches & routers": a
-  // gateway is a router-class device, and the sample scans carry four of them
-  // that were being dropped from the count.
-  const isSwitch = (dv) => /switch|router|firewall|aggregation|gateway/i.test(dv.class_name || '');
   const deviceCount   = equipment.length;
-  const switchCount   = equipment.filter(isSwitch).length;
   const totalPorts     = devs.reduce((s, dv) => s + (dv.port_count || 0), 0);
   const connectedPorts = devs.reduce((s, dv) => s + (dv.connected_ports || 0), 0);
-  const identified     = equipment.filter(dv => dv.make || dv.model).length;
 
   // ── Summary ──
   // The four tiers, in reading order: verdict → what to do → the facts →
@@ -1975,7 +2090,22 @@ ${realDevices.map(dev => {
     </table>
   </div>
 </div>`;
-  }).join('\n') : `<p class="empty">No switches are currently being monitored for drift.</p>`;
+  }).join('\n') : (() => {
+    // Say which of the three empty cases this is. The old copy — "No switches
+    // are currently being monitored for drift" — was the one message for all of
+    // them, and was simply untrue whenever a switch WAS monitored but the report
+    // couldn't scope to it.
+    const s = d.driftScope || {};
+    if (s.reason === 'no_port_selected') {
+      return `<p class="empty">No port has been identified on this rack yet, so there is no port to report drift for. Find a port first and the change history for that port appears here.</p>`;
+    }
+    if (s.reason === 'switch_not_joined') {
+      return `<p class="empty">Port ${htmlEscape(String(s.port))} was identified, but this rack has not been linked to a monitored switch — that link is made when a technician opens a console session on it. Drift is deliberately not shown for other switches, as their history says nothing about this rack.</p>`;
+    }
+    return `<p class="empty">No drift recorded on port ${htmlEscape(String(s.port ?? '—'))}${
+      s.switchLabel ? ` of ${htmlEscape(s.switchLabel)}` : ''
+    } in the last ${DRIFT_WINDOW_DAYS} days.</p>`;
+  })();
 
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"/>
@@ -2354,6 +2484,20 @@ ${realDevices.map(dev => {
     if (document.readyState === 'complete') setTimeout(openPdf, 300);
     else window.addEventListener('load', function () { setTimeout(openPdf, 300); }, { once: true });
   }
+
+  // #ports — opened straight after the user found a port, so land them on the
+  // port detail rather than the top of the report. Done in script because the
+  // report renders inside an iframe, and a fragment on an iframe src is not
+  // honoured the way it is on a normal navigation.
+  if (window.location.hash === '#ports') {
+    var goPorts = function () {
+      var el = document.getElementById('ports');
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    if (document.readyState === 'complete') setTimeout(goPorts, 250);
+    else window.addEventListener('load', function () { setTimeout(goPorts, 250); }, { once: true });
+  }
 })();
 </script>
 
@@ -2371,9 +2515,7 @@ ${realDevices.map(dev => {
 
 <div class="stats">
   <div class="stat"><div class="k">Devices</div><div class="v">${deviceCount}</div></div>
-  <div class="stat"><div class="k">Switches &amp; routers</div><div class="v">${switchCount}</div></div>
   <div class="stat"><div class="k">Ports · in use</div><div class="v">${connectedPorts}<span class="statOf"> / ${totalPorts}</span></div></div>
-  <div class="stat"><div class="k">Models read</div><div class="v">${identified}<span class="statOf"> / ${deviceCount}</span></div></div>
 </div>
 
 ${summaryHtml}
@@ -2393,7 +2535,7 @@ ${summaryHtml}
   ${selectedDeviceHtml}
 </div>
 
-<div class="section">
+<div class="section" id="ports">
   <div class="sectionTitle">Port Identifications</div>
   ${d.port_identifications.length
     ? portIdsHtml
@@ -3613,16 +3755,42 @@ app.post('/api/analyze', auth.requireAuth, scanLimit, upload.single('image'), as
     // BEFORE the full pipeline, so the user isn't left watching an "analyzing"
     // spinner that returns nothing. Best-effort: if detect errors, fall through
     // to the full pipeline (whose own 0-device check still catches it).
+    // Two tiers, because "is this a rack" is not a yes/no the detector can
+    // answer confidently. Zero detections is a clear miss. But a photo of a
+    // desktop tower is NOT zero — it yields a couple of boxes the model can
+    // only call Empty or Unidentified — and the old single test (devices === 0)
+    // waved it through, which is why 2D and 3D views were being generated for
+    // things that are not racks at all.
+    //
+    // So: nothing found, or nothing found that is actual rack EQUIPMENT, and we
+    // stop and say so. Both stay `retryable`, which the scan page renders as
+    // "Retake / Proceed anyway": a real rack shot in bad light can detect
+    // nothing, and refusing outright would strand the person holding the phone
+    // in front of it. Blocking without an override is the worse failure —
+    // guessing wrong about a genuine rack costs more than analysing a desk.
     if (!skipQualityCheck) {
       try {
         const det = await pool.request('detect_only', { image_path: tmpPath, config_path: CONFIG_PATH });
-        if (det && det.ok && Array.isArray(det.devices) && det.devices.length === 0) {
-          safeUnlink(tmpPath);
-          return res.status(400).json({
-            error: "This doesn't look like a server rack. Point the camera at the front of a rack so its devices and ports are visible.",
-            retryable: true,
-            kind: 'not_a_rack',
-          });
+        if (det && det.ok && Array.isArray(det.devices)) {
+          // Empty / Closed Unit / Unidentified are rack-slot placeholders, not
+          // equipment — the same set the client hides from its overlay. A photo
+          // whose only detections are these has not shown us a rack.
+          const PLACEHOLDER = new Set(['Empty', 'Closed Unit', 'Unidentified']);
+          const equipment = det.devices.filter(d => d && !PLACEHOLDER.has(d.class_name));
+          if (det.devices.length === 0 || equipment.length === 0) {
+            safeUnlink(tmpPath);
+            logger.info({ event: 'scan.not_a_rack', detected: det.devices.length,
+                          equipment: equipment.length,
+                          classes: [...new Set(det.devices.map(d => d && d.class_name))].slice(0, 6) },
+              `rejected upload: ${det.devices.length} detection(s), ${equipment.length} of them equipment`);
+            return res.status(400).json({
+              error: det.devices.length === 0
+                ? "This doesn't look like a server rack. Point the camera at the front of a rack so its devices and ports are visible."
+                : "No rack equipment was recognised in this photo — nothing that looks like a switch, patch panel, server or PDU. Point the camera at the front of a rack.",
+              retryable: true,
+              kind: 'not_a_rack',
+            });
+          }
         }
       } catch (_) { /* detect failed — let the full pipeline decide */ }
     }
@@ -4641,7 +4809,7 @@ app.post('/api/select', auth.requireAuth, async (req, res) => {
 
   try {
     const tPipeStart = Date.now();
-    const _targetCount = portCategory === 'main' ? userPortCountFor(rackId, device_index) : 0;
+    const _targetCount = portCategory === 'main' ? publishedPortCountFor(rackId, device_index) : 0;
     await runPipelineSelect(imagePath, rackDir, device_index, rawPort, portCategory, _selAuth?.organizationId, _targetCount, appliedShift);
     timings.pipeline_ms = Date.now() - tPipeStart;
 
@@ -4650,6 +4818,40 @@ app.post('/api/select', auth.requireAuth, async (req, res) => {
       ? JSON.parse(fs.readFileSync(infoPath, 'utf8'))
       : {};
     const portInfo = fullData.port_info || {};
+
+    // 'invalid' is the pipeline's signal that the requested number fell outside
+    // this category's port list, so it never located a port at all (runner.py
+    // sets it in the `else` of `if 1 <= port_number <= cat_count`). That is a
+    // different fact from "found the port, couldn't measure it", and the
+    // coercion below used to flatten the two together — so an unlocatable port
+    // came back as a perfectly ordinary EMPTY port. The user saw a result for a
+    // port the pipeline had not found, which is the "wrong port / no port"
+    // half of the second-lookup bug. Answer honestly instead, and name the real
+    // range so the number they should have typed is on screen.
+    if (portInfo.status === 'invalid') {
+      // port_classification carries console/main/sfp only, so 'other' (USB)
+      // resolves to 0 and takes the generic wording below rather than naming a
+      // range we can't actually vouch for.
+      const realCount = Number(fullData.port_classification?.[portCategory]) || 0;
+      const catLabel = portCategory === 'main' ? '' : `${portCategory} `;
+      logger.warn({ event: 'select.port_out_of_range', rackId, device_index,
+                    userPort, rawPort, portCategory, realCount, targetCount: _targetCount },
+        `select: ${portCategory} port ${userPort} outside detected range (${realCount})`);
+      audit.log({
+        req, action: 'scan.select_port', status: 'fail',
+        targetType: 'rack', targetId: rackId,
+        error: 'port out of range',
+        payload: { device_index: Number(device_index), port: userPort, portCategory, realCount },
+      });
+      return res.status(422).json({
+        error: realCount > 0
+          ? `This device has ${realCount} ${catLabel}port${realCount === 1 ? '' : 's'} — enter a number between 1 and ${realCount}.`
+          : `We couldn't locate ${catLabel}port ${userPort} on this device. Confirm the port count below, then pick a port.`,
+        portOutOfRange: true,
+        detectedCount: realCount,
+        portCategory,
+      });
+    }
 
     // Occupancy is 'connected', 'empty', or 'unknown' — 'unknown' meaning the
     // status model couldn't measure THIS port (a coverage gap). The pipeline is
@@ -5290,7 +5492,12 @@ function readMemberTopo(rackId) {
 // that switch's exact height. Up to 2 uplink ports per switch → redundant runs.
 function _uplinkPorts(topo, max = 6) {
   if (!topo || !Array.isArray(topo.devices)) return [];
-  const switches = topo.devices.filter(d => d.class === 'switch');
+  // The detector emits "Switch", not "switch" — an exact match found none of
+  // them, so no rack ever offered an uplink endpoint and cross-rack cables had
+  // nothing real to attach to. Normalise rather than trust upstream casing.
+  const clsOf = (d) => String(d?.class ?? d?.class_name ?? '')
+    .trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const switches = topo.devices.filter(d => clsOf(d) === 'switch');
   if (!switches.length) return [];
   const inRack = switches.filter(d => d.in_rack !== false && d.u_position != null);
   // In-rack switches, top-of-rack first; fall back to any switch if none are racked.
@@ -5446,7 +5653,7 @@ app.get('/api/rack-group/:groupId/report', auth.requireAuth, async (req, res) =>
         const bm = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
         sections.push({ member: m, body: bm ? bm[1] : html });
       } catch (e) {
-        sections.push({ member: m, body: `<p style="padding:20px;color:#b00">Report unavailable for ${m.rack_id}: ${e.message}</p>` });
+        sections.push({ member: m, body: `<p style="padding:20px;color:#b00">Report unavailable for ${htmlEscape(m.rack_id)}: ${htmlEscape(e.message)}</p>` });
       }
     }
 
@@ -6581,6 +6788,11 @@ app.get('/api/scan/:rackId/report-token', auth.requireAuth, (req, res) => {
 app.get('/api/scan/:rackId/report', async (req, res) => {
   const { rackId } = req.params;
   const format = (req.query.format || 'meta').toLowerCase();
+  // The app's Download button asks for ?download=1. Without it the PDF is
+  // served inline, which makes a browser render the report rather than save
+  // it — reported by testers as "the download does nothing". The in-report
+  // "Open PDF" link deliberately omits the flag, so viewing still works.
+  const asAttachment = req.query.download === '1' || req.query.download === 'true';
   res.setHeader('Cache-Control', 'no-store');
   try {
     if (format === 'html') {
@@ -6599,10 +6811,12 @@ app.get('/api/scan/:rackId/report', async (req, res) => {
     if (format === 'pdf') {
       // Real PDF, rendered server-side by headless Chromium (puppeteer) — the
       // same path the Slack/email share uses. Reliable everywhere, unlike the
-      // in-WebView print sheet. Served inline so a browser/viewer can show it.
+      // in-WebView print sheet. Inline by default so a viewer can show it;
+      // `attachment` when the caller explicitly asked to save it.
       const { pdfPath } = await buildScanReportPDF(rackId);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="rack-report-${rackId}.pdf"`);
+      res.setHeader('Content-Disposition',
+        `${asAttachment ? 'attachment' : 'inline'}; filename="rack-report-${rackId}.pdf"`);
       res.removeHeader('X-Frame-Options');
       return res.sendFile(pdfPath);
     }
@@ -6794,7 +7008,7 @@ app.get('/api/topology/:rackId', auth.requireAuth, (req, res) => {
 // per-port arrays, units_detected, originalExt, etc. The All Components and
 // Topology pages call this on mount so port counts stay in sync with the
 // underlying device_unit_map.json after re-detection runs.
-app.get('/api/scan/:rackId', auth.requireAuth, (req, res) => {
+app.get('/api/scan/:rackId', auth.requireAuth, async (req, res) => {
   const { rackId } = req.params;
   res.setHeader('Cache-Control', 'no-store');
   const rackDir = path.join(outputsDir, rackId);
@@ -6803,13 +7017,16 @@ app.get('/api/scan/:rackId', auth.requireAuth, (req, res) => {
     return res.status(404).json({ error: `Rack ${rackId} not found` });
   }
   try {
+    // Reopening a scan whose port data went missing must rebuild it before
+    // answering, or the page opens with no devices and no pickable ports.
+    await healPortDataIfMissing(rackId);
     res.json(buildResponse(rackId, true));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/scan/:rackId/result', auth.requireAuth, (req, res) => {
+app.get('/api/scan/:rackId/result', auth.requireAuth, async (req, res) => {
   const { rackId } = req.params;
   res.setHeader('Cache-Control', 'no-store');
   const rackDir = path.join(outputsDir, rackId);
@@ -6818,6 +7035,11 @@ app.get('/api/scan/:rackId/result', auth.requireAuth, (req, res) => {
   }
   const resultPath = path.join(rackDir, 'scan_result.json');
   try {
+    // Same as above — and it must run BEFORE the cached scan_result.json is
+    // read, because that cache is what carries the portless devices onward.
+    // A successful heal rewrites scan_result.json itself, so the read below
+    // picks up the repaired payload.
+    await healPortDataIfMissing(rackId);
     if (!fs.existsSync(resultPath)) {
       const result = writeCanonicalScanResult(rackId);
       // Internal filename kept out of the response — it goes in the log instead.

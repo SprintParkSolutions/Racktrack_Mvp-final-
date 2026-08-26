@@ -537,7 +537,7 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
   } else if (firmware?.releaseNotesGated || firmware?.portalUrl) {
     fwHeadline = 'Check vendor portal';
   } else if (firmware?.releaseNotesUrl) {
-    fwHeadline = "Couldn't read latest — check vendor";
+    fwHeadline = "Couldn't read latest - check vendor";
   } else {
     fwHeadline = 'Latest version unknown';
   }
@@ -681,7 +681,7 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
           {[
             ['Firmware',     displayVersion
                               ? (versionIsUserSupplied ? `${displayVersion} · entered` : displayVersion)
-                              : '—'],
+                              : '-'],
             // Counted by the detector, so it is on screen with the first
             // render — no waiting on the label pass or a vendor lookup.
             sw.port_count    && ['Ports',  String(sw.port_count)],
@@ -734,10 +734,15 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
                   <button
                     type="button"
                     onClick={startEditIdent}
+                    // Testers could not tell this was a control: transparent,
+                    // borderless, no padding and .7rem, it read as ordinary
+                    // label text sitting next to the value. It is a filled pill
+                    // now, so "Type it in" looks like the thing you press.
                     style={{
-                      marginLeft: 'auto', background: 'transparent', border: 0,
-                      color: linkColor, fontSize: '.7rem', fontWeight: 600, cursor: 'pointer',
-                      padding: 0,
+                      marginLeft: 'auto', background: linkColor, border: 0,
+                      borderRadius: 999, color: '#ffffff',
+                      fontSize: '.72rem', fontWeight: 700, cursor: 'pointer',
+                      padding: '6px 12px', minHeight: 30, whiteSpace: 'nowrap',
                     }}
                   >{
                     identMissing && !makeIsUserSupplied && !modelIsUserSupplied
@@ -818,7 +823,7 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
                   )}
                   {identMissing && !makeIsUserSupplied && !modelIsUserSupplied && (
                     <p style={{ margin: '6px 0 0', fontSize: '.72rem', color: statusColor }}>
-                      Photograph the model number on the device's faceplate — up close
+                      Photograph the model number on the device's faceplate - up close
                       it reads far better than it does in the rack photo. You can take
                       it now or upload one you already have.
                     </p>
@@ -984,7 +989,7 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
                       </span>
                     </a>
                   ) : (
-                    <MiniField label="Latest" value={firmware.latestVersion || '—'} accent={accent} fieldBg={fieldBg} fieldBorder={fieldBorder} valueColor={valueColor} />
+                    <MiniField label="Latest" value={firmware.latestVersion || '-'} accent={accent} fieldBg={fieldBg} fieldBorder={fieldBorder} valueColor={valueColor} />
                   )}
                   {firmware.recommendedMinVersion && firmware.recommendedMinVersion !== firmware.latestVersion && (
                     <MiniField label="Min safe" value={firmware.recommendedMinVersion} accent={'#474747'} fieldBg={fieldBg} fieldBorder={fieldBorder} valueColor={valueColor} />
@@ -1066,6 +1071,7 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
           {swTab === 'optics' && (
             <SfpAdvisor
               rackId={rackId}
+              position={sw.position}
               vendor={effectiveMake || 'Unknown'}
               model={effectiveModel || 'Unknown'}
             />
@@ -1233,12 +1239,12 @@ function IdentEditor({
         }}>
           <p style={{ margin: 0, fontSize: '.75rem', fontWeight: 700, color: valueColor }}>
             {readSomething
-              ? 'Read from your photo — check it before saving.'
+              ? 'Read from your photo - check it before saving.'
               : "We couldn't read that photo either."}
           </p>
           {readSomething && read.version && (
             <p style={{ margin: '4px 0 0', fontSize: '.72rem', color: statusColor }}>
-              Firmware {read.version} was on the same label — it'll be saved too.
+              Firmware {read.version} was on the same label - it'll be saved too.
             </p>
           )}
           {!readSomething && (
@@ -1377,7 +1383,7 @@ function MiniField({ label, value, accent, fieldBg, fieldBorder, valueColor }) {
         {label}
       </span>
       <span style={{ display: 'block', fontSize: '.8rem', fontWeight: 600, color: valueColor, wordBreak: 'break-word' }}>
-        {value || '—'}
+        {value || '-'}
       </span>
     </div>
   );
@@ -1390,7 +1396,7 @@ function Field({ label, value }) {
         {label}
       </span>
       <span style={{ display: 'block', fontSize: '.82rem', color: '#e9e9e9', wordBreak: 'break-word' }}>
-        {value || '—'}
+        {value || '-'}
       </span>
     </div>
   );
@@ -1630,7 +1636,7 @@ function LabelProgressNote({ ocrStatus, onRetry }) {
       {working && <span aria-hidden="true" className={desk.pulseDot} />}
       <span style={{ fontSize: '.76rem', color: '#717171', lineHeight: 1.5 }}>
         {working
-          ? 'Reading make and model off the device labels — they fill in here as they land.'
+          ? 'Reading make and model off the device labels - they fill in here as they land.'
           : 'Couldn’t read the device labels. Positions and port counts are from the scan; add make and model yourself on any card.'}
       </span>
       {!working && onRetry && (
@@ -1666,7 +1672,7 @@ function SwitchInfoBody({ rackId, status, ocrStatus, switches, recheck }) {
   if (switches.length === 0) {
     return <RestingPanel
       title="No switches detected"
-      detail="The scan of this rack didn't identify any device as a switch. If there is one here, re-run the rack scan — make and model read best when the faceplate is square-on and well lit."
+      detail="The scan of this rack didn't identify any device as a switch. If there is one here, re-run the rack scan - make and model read best when the faceplate is square-on and well lit."
       onRetry={recheck} />;
   }
 

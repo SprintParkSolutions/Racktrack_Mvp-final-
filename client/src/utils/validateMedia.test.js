@@ -138,7 +138,29 @@ describe('dispatch', () => {
   test('anything that is neither image nor video is rejected', async () => {
     const r = await validateMedia(file('rack.pdf', 'application/pdf'));
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/image or video/i);
+    expect(r.error).toMatch(/rack photo/i);
+  });
+
+  test('an audio file is rejected in those words', async () => {
+    // Android's generic file chooser used to sit behind these upload buttons
+    // and offered a sound recorder next to the camera. The accept lists no
+    // longer let it appear, but a recording can still be picked out of the
+    // file manager — and "unsupported file type" does not tell that user what
+    // they actually did.
+    for (const f of [file('memo.m4a', 'audio/mp4'), file('rack.mp3', 'audio/mpeg')]) {
+      const r = await validateMedia(f);
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/audio file/i);
+    }
+  });
+
+  test('a file with no MIME type at all is deferred to the server', async () => {
+    // An Android content:// pick frequently arrives with an empty `type` and a
+    // name carrying no extension. That is a photograph the gallery just handed
+    // us, not a bad file — the server reads the bytes and answers 400 if it
+    // really isn't an image.
+    const r = await validateMedia(file('image', ''));
+    expect(r.ok).toBe(true);
   });
 
   test('HEIC/HEIF is passed straight to the server, by name or by MIME type', async () => {

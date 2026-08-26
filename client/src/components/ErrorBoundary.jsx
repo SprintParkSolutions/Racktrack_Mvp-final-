@@ -26,7 +26,7 @@ export default class ErrorBoundary extends Component {
     // Keep it in the console for anyone with a debugger attached, and make a
     // best effort to tell the server. Never let the reporting itself throw —
     // an error handler that crashes is worse than no error handler.
-    // eslint-disable-next-line no-console
+     
     console.error('[RackTrack] render error:', error, info?.componentStack);
     try {
       const body = JSON.stringify({
@@ -77,7 +77,7 @@ export default class ErrorBoundary extends Component {
 
           <h1 className={styles.title}>This screen stopped working</h1>
           <p className={styles.body}>
-            Something went wrong drawing this page. Your scans and data are safe —
+            Something went wrong drawing this page. Your scans and data are safe -
             this is a display problem, not a lost-work problem.
           </p>
 

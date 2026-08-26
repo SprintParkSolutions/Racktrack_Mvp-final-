@@ -33,8 +33,8 @@ export default function HomeImmersive() {
       <div className={styles.body}>
         <h1 className={styles.h1}>See every port.<br />Know every rack.</h1>
         <p className={styles.lede}>
-          Point your phone at any rack. RackTrack maps every switch, patch panel,
-          and cable into live, queryable inventory — in seconds.
+          Point your phone at any rack. RackTrack maps every switch, patch panel
+          and cable into a live inventory you can search - in seconds.
         </p>
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.primary}`} onClick={start}>

@@ -125,7 +125,7 @@ export const TYPE_INFO = {
       { key: 'user',     label: 'Username',     placeholder: 'admin',     required: true },
       { key: 'password', label: 'Password',     type: 'password',         required: true },
     ],
-    hint: 'Use just the instance ID — the part before .service-now.com',
+    hint: 'Use just the instance ID - the part before .service-now.com',
   },
   netbox: {
     label: 'NetBox',

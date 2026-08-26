@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiUrl, authFetch } from '../utils/api';
+import { IMAGE_ACCEPT } from '../utils/mediaAccept';
 
 // Close-up capture for one device's model label.
 //
@@ -247,7 +248,7 @@ export default function DeviceLabelCapture({ deviceLabel, onIdentified, onManual
               Fill the box with the model label
             </p>
             <p style={{ margin: '4px 0 0', fontSize: '.72rem', opacity: 0.75 }}>
-              The printed model number on the faceplate — not the whole device.
+              The printed model number on the faceplate - not the whole device.
             </p>
             {ready && !steady && (
               <p style={{
@@ -375,7 +376,7 @@ export default function DeviceLabelCapture({ deviceLabel, onIdentified, onManual
           the upload path. The HEIC hints matter on iOS, where a library photo
           arrives in that format; the server re-encodes it before OCR. */}
       <input ref={fileRef} type="file"
-        accept="image/*,image/heic,image/heif,.heic,.heif"
+        accept={IMAGE_ACCEPT}
         onChange={onPickFile} style={{ display: 'none' }} />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       <canvas ref={sampleRef} style={{ display: 'none' }} />

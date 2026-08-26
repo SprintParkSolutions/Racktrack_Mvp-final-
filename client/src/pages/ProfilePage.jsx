@@ -18,13 +18,13 @@ function formatJoined(d) {
   } catch { return null; }
 }
 function formatJoinedLong(d) {
-  if (!d) return '—';
+  if (!d) return '-';
   try {
     return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
-  } catch { return '—'; }
+  } catch { return '-'; }
 }
 function formatRelative(d) {
-  if (!d) return '—';
+  if (!d) return '-';
   const ms = Date.now() - new Date(d).getTime();
   if (isNaN(ms) || ms < 0) return 'now';
   const m = Math.floor(ms / 60000);
@@ -37,7 +37,7 @@ function formatRelative(d) {
   if (days < 30) return `${Math.floor(days/7)}w ago`;
   return `${Math.floor(days/30)}mo ago`;
 }
-const titleCase = (s) => (s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—');
+const titleCase = (s) => (s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-');
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -339,7 +339,7 @@ export default function ProfilePage() {
                 </div>
                 <div className={styles.detail}>
                   <dt className={styles.dt}>Email</dt>
-                  <dd className={styles.dd}>{user?.email || '—'}</dd>
+                  <dd className={styles.dd}>{user?.email || '-'}</dd>
                 </div>
                 <div className={styles.detail}>
                   <dt className={styles.dt}>Member since</dt>
@@ -428,7 +428,7 @@ export default function ProfilePage() {
           >
             <div style={{ width: 38, height: 4, borderRadius: 2, background: 'rgba(128,128,128,.35)', margin: '0 auto 16px' }} />
             <h3 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 750, textAlign: 'center' }}>Choose your picture</h3>
-            <p style={{ margin: '0 0 18px', fontSize: 13.5, opacity: .6, textAlign: 'center' }}>Pick a look — tap to save.</p>
+            <p style={{ margin: '0 0 18px', fontSize: 13.5, opacity: .6, textAlign: 'center' }}>Pick a look - tap to save.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, justifyItems: 'center' }}>
               {AVATARS.map((_, idx) => (
                 <Avatar

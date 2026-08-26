@@ -84,8 +84,8 @@ export default function HomeDesktop() {
           </h1>
           <p className={styles.heroSub}>
             RackTrack uses on-device computer vision to identify every switch,
-            patch panel, server, and cable in your datacenter racks — and turn
-            it into live, queryable inventory the moment you take the photo.
+            patch panel, server, and cable in your datacenter racks — and turns
+            it into a live inventory you can search the moment you take the photo.
           </p>
           <div className={styles.heroCtaRow}>
             <button type="button" className={styles.heroCta} onClick={() => navigate('/scan')}>

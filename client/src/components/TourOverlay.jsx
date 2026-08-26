@@ -2,8 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import { useTour } from '../TourContext.jsx';
 import styles from './TourOverlay.module.css';
-import robotBody from '../assets/tour-robot-body.png';
-import robotArm from '../assets/tour-robot-arm.png';
+// Same mascot as the tour intro - see the note there. "bust" framing because
+// this box is only 62px: the full-body camera renders the head too small to
+// read at that size, so the model is framed on the head and shoulders.
+import GuideBot from './GuideBot.jsx';
 
 function findAnchor(target) {
   return document.querySelector(`[data-tour="${target}"]`);
@@ -32,8 +34,7 @@ const FALLBACK_MEASURE_MS = 500;
 function TourMascot() {
   return (
     <div className={styles.robotStage} aria-hidden="true">
-      <img className={styles.robotBody} src={robotBody} alt="" draggable="false" />
-      <img className={styles.robotArm} src={robotArm} alt="" draggable="false" />
+      <GuideBot framing="bust" className={styles.robotBody} />
     </div>
   );
 }

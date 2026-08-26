@@ -2,8 +2,12 @@ import { useState } from 'react';
 import { useTour } from '../TourContext.jsx';
 import useModalA11y from '../hooks/useModalA11y.js';
 import styles from './TourIntroModal.module.css';
-import robotBody from '../assets/tour-robot-body.png';
-import robotArm from '../assets/tour-robot-arm.png';
+import GuideBot from './GuideBot.jsx';
+// The RackTrack mascot, replacing the two-PNG robot testers found off-putting
+// ("bot design must be change its not giving good vibe", "the guide bot
+// scary"). GuideBot renders the 3D model where the device supports it and the
+// flat SVG where it does not — both honour prefers-reduced-motion, which the
+// PNG pair never did.
 
 // First-run prompt: "New to RackTrack?" Yes/No, then (on Yes) a short
 // welcome + "Get Started" that kicks off the step-by-step walkthrough.
@@ -26,8 +30,7 @@ export default function TourIntroModal() {
         {/* Anchored to the card's bottom-left corner, entirely below it —
             not layered on top of the card's own content. */}
         <div className={styles.mascot} aria-hidden="true">
-          <img className={styles.mascotBody} src={robotBody} alt="" draggable="false" />
-          <img className={styles.mascotArm} src={robotArm} alt="" draggable="false" />
+          <GuideBot framing="full" className={styles.mascotBody} />
         </div>
         {stage === 'ask' ? (
             <>
@@ -50,7 +53,7 @@ export default function TourIntroModal() {
               <p className={styles.eyebrow}>Quick tour</p>
               <h2 id="rt-tour-intro-heading" className={styles.heading}>Let's scan your first rack</h2>
               <p className={styles.body}>
-                We'll highlight what to tap, one step at a time — upload a photo,
+                We'll highlight what to tap, one step at a time - upload a photo,
                 analyze it, then find a port. Tap the highlighted control on each
                 screen to move to the next step.
               </p>

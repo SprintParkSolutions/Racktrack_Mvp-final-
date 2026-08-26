@@ -27,8 +27,8 @@ const STATUS_META = {
 const VIEW_MODES = [
   { id: 'map',   label: 'Floor map',  desc: 'Racks placed on a floor plan, the way they physically sit',  icon: IcMap },
   { id: 'tree',  label: 'Hierarchy',  desc: 'Same racks shown as a family tree (Company → Site → Rack)', icon: IcTree },
-  { id: 'table', label: 'List',       desc: 'Same racks as a sortable spreadsheet — click a column to sort', icon: IcTable },
-  { id: 'rack',  label: '3D rack',    desc: 'Pick a rack from the tree — see it in 3D',                     icon: IcRack },
+  { id: 'table', label: 'List',       desc: 'Same racks as a sortable spreadsheet - click a column to sort', icon: IcTable },
+  { id: 'rack',  label: '3D rack',    desc: 'Pick a rack from the tree - see it in 3D',                     icon: IcRack },
 ];
 
 export default function TenantMatPage() {
@@ -64,7 +64,7 @@ export default function TenantMatPage() {
         }
         return j;
       })
-      .then(j => { if (j.error) setErr(`${j.error}${j.hint ? ' — ' + j.hint : ''}`); else setData(j); })
+      .then(j => { if (j.error) setErr(`${j.error}${j.hint ? ' - ' + j.hint : ''}`); else setData(j); })
       .catch(e => setErr(String(e)));
   }, [source]);
 
@@ -85,7 +85,7 @@ export default function TenantMatPage() {
       {cmdbPending && (
         <div className={styles.banner}>
           <span>⏳</span>
-          <span>CMDB not populated yet — showing Local data. The bootstrap script is still running; try CMDB again in a few minutes.</span>
+          <span>CMDB not populated yet - showing Local data. The bootstrap script is still running; try CMDB again in a few minutes.</span>
           <button className={styles.bannerClose} onClick={() => setCmdbPending(false)} aria-label="Dismiss CMDB notice">×</button>
         </div>
       )}
@@ -311,7 +311,7 @@ function FloorPlan({ building, floor, racks, onPickRack }) {
             onClick={() => onPickRack(r.id)}
             onKeyDown={activateOnKey(() => onPickRack(r.id))}
             role="button" tabIndex={0}
-            aria-label={`Open rack ${r.name} — ${STATUS_META[r.status]?.label || r.status}`}
+            aria-label={`Open rack ${r.name} - ${STATUS_META[r.status]?.label || r.status}`}
           >
             <rect width={RACK_W} height={RACK_D}
               fill={STATUS_META[r.status]?.color || '#888888'}
@@ -474,8 +474,8 @@ function TableView({ racks, onPickRack }) {
                 {STATUS_META[r.status]?.label}
               </td>
               <td>{r.device_count}</td>
-              <td>{r.power_kw != null ? `${r.power_kw} kW` : '—'}</td>
-              <td>{r.last_seen ? new Date(r.last_seen).toLocaleDateString() : '—'}</td>
+              <td>{r.power_kw != null ? `${r.power_kw} kW` : '-'}</td>
+              <td>{r.last_seen ? new Date(r.last_seen).toLocaleDateString() : '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -637,7 +637,7 @@ function DetailPanel({ rackId, source, data, onClose }) {
       <div className={styles.kv}><span>Serial</span><b>{rack.serial}</b></div>
       <div className={styles.kv}><span>U size</span><b>{rack.u_size}U</b></div>
       <div className={styles.kv}><span>Devices</span><b>{rack.device_count}</b></div>
-      <div className={styles.kv}><span>Power</span><b>{rack.power_kw != null ? `${rack.power_kw} kW` : '—'}</b></div>
+      <div className={styles.kv}><span>Power</span><b>{rack.power_kw != null ? `${rack.power_kw} kW` : '-'}</b></div>
       <div className={styles.kv}><span>Last seen</span><b>{rack.last_seen ? new Date(rack.last_seen).toLocaleString() : 'Never'}</b></div>
       {rack.drift_notes?.length > 0 && (
         <div className={styles.notes}>

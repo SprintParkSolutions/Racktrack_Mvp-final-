@@ -83,7 +83,7 @@ export default function OrgConnectionsPanel() {
       </div>
       <p style={{ margin: '0 0 14px', fontSize: 13, color: '#6b6b6b', lineHeight: 1.5, maxWidth: 640 }}>
         Credentials for your CMDB/ITSM database, live network sources, etc. Set them once here for the
-        whole organization. They're stored <strong>encrypted</strong> and are <strong>never shown again</strong> —
+        whole organization. They're stored <strong>encrypted</strong> and are <strong>never shown again</strong> -
         not even to you. To change one, just re-enter it.
       </p>
 

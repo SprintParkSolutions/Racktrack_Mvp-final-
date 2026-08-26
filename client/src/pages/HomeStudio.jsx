@@ -72,7 +72,7 @@ export default function HomeStudio() {
           </h1>
           <p className={styles.sub}>
             Point your phone at any rack. RackTrack maps every switch, patch
-            panel, and cable into live, queryable inventory — in seconds.
+            panel and cable into a live inventory you can search - in seconds.
           </p>
           <div className={styles.actions}>
             <button type="button" className={styles.primary} onClick={start}>

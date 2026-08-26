@@ -17,6 +17,7 @@ import AssetImg from '../components/AssetImg';
 import { useSmartBack } from '../hooks/useSmartBack';
 import { useTour } from '../TourContext.jsx';
 import { useAuth } from '../AuthContext';
+import { Browser } from '@capacitor/browser';
 
 // ── Naming convention ─────────────────────────────────────────
 const CLASS_CODE = {
@@ -274,7 +275,7 @@ function buildPortReport({ host, vendor, iface, portNum, entries = [], neighbor,
   // One-line end-device verdict
   let verdict;
   if (link?.status === 'LinkDown') {
-    verdict = 'Link is DOWN — no device connected (or cable unplugged at the far end).';
+    verdict = 'Link is DOWN - no device connected (or cable unplugged at the far end).';
   } else if (mergedLldp?.system_name || mergedLldp?.chassis_id) {
     const name = mergedLldp.system_name || mergedLldp.chassis_id;
     const mgmt = mergedLldp.mgmt_addr ? ` @ ${mergedLldp.mgmt_addr}` : '';
@@ -282,9 +283,9 @@ function buildPortReport({ host, vendor, iface, portNum, entries = [], neighbor,
   } else if (macs.length === 1) {
     verdict = `One endpoint: ${macs[0].mac} (VLAN ${macs[0].vlan})`;
   } else if (macs.length > 1) {
-    verdict = `${macs.length} MACs learned — likely a downstream switch/hub/AP`;
+    verdict = `${macs.length} MACs learned - likely a downstream switch/hub/AP`;
   } else {
-    verdict = 'Link is UP but no MAC learned yet and no LLDP neighbor — device is silent.';
+    verdict = 'Link is UP but no MAC learned yet and no LLDP neighbor - device is silent.';
   }
 
   return {
@@ -411,7 +412,7 @@ function SwitchInfoModal({
               <div className={styles.siTitle}>Switch Info</div>
               <div className={styles.siSub}>
                 <span className={styles.siLiveDot} />
-                live · {host || '—'} · {vendor || '—'}
+                live · {host || '-'} · {vendor || '-'}
               </div>
             </div>
           </div>
@@ -449,10 +450,10 @@ function SwitchInfoModal({
                   <h4>Hardware &amp; Firmware</h4>
                 </div>
                 <div className={styles.siTable}>
-                  <div className={styles.siRow}><span>Model</span><span>{info.model || '—'}</span></div>
-                  <div className={styles.siRow}><span>Firmware</span><span>{info.firmware || '—'}</span></div>
-                  <div className={styles.siRow}><span>Serial</span><span>{info.serial || '—'}</span></div>
-                  <div className={styles.siRow}><span>Uptime</span><span>{info.uptime || '—'}</span></div>
+                  <div className={styles.siRow}><span>Model</span><span>{info.model || '-'}</span></div>
+                  <div className={styles.siRow}><span>Firmware</span><span>{info.firmware || '-'}</span></div>
+                  <div className={styles.siRow}><span>Serial</span><span>{info.serial || '-'}</span></div>
+                  <div className={styles.siRow}><span>Uptime</span><span>{info.uptime || '-'}</span></div>
                   {info.hostname && <div className={styles.siRow}><span>Hostname</span><span>{info.hostname}</span></div>}
                   {info.mac && <div className={styles.siRow}><span>MAC Address</span><span>{info.mac}</span></div>}
                 </div>
@@ -490,11 +491,11 @@ function SwitchInfoModal({
                       <div className={styles.siTable} style={{ marginTop: 10 }}>
                         <div className={styles.siRow}>
                           <span>Current version</span>
-                          <span>{firmware.currentVersion || '—'}</span>
+                          <span>{firmware.currentVersion || '-'}</span>
                         </div>
                         <div className={styles.siRow}>
                           <span>Latest version</span>
-                          <span>{firmware.latestVersion || '—'}</span>
+                          <span>{firmware.latestVersion || '-'}</span>
                         </div>
                       </div>
                       {firmware.releaseNotesUrl && (
@@ -508,7 +509,16 @@ function SwitchInfoModal({
                   );
                 })()}
                 {firmwareStatus === 'skipped' && (
-                  <p className={styles.prEmpty}>Need both model and firmware version to check for updates.</p>
+                  // Model and version come from the live SSH snapshot, so with
+                  // no switch reachable this card used to state a requirement
+                  // and stop — the user was told what was missing with no way
+                  // to supply it, which is why "Firmware is disabled" was
+                  // reported. The Switches tab is where a make, model and version are
+                  // entered by hand, so name that instead of dead-ending.
+                  <p className={styles.prEmpty}>
+                    Need both model and firmware version to check for updates —
+                    set them on the Switches tab.
+                  </p>
                 )}
               </div>
 
@@ -542,7 +552,10 @@ function SwitchInfoModal({
                   </div>
                 )}
                 {specsStatus === 'skipped' && (
-                  <p className={styles.prEmpty}>Need a model to look up specs.</p>
+                  // Same dead end as the firmware card above — see the note there.
+                  <p className={styles.prEmpty}>
+                    Need a model to look up specs — set one on the Switches tab.
+                  </p>
                 )}
               </div>
 
@@ -601,7 +614,7 @@ function PortReportModal({ report, onClose }) {
                 <div><span>Duplex</span><b>{link.duplex}</b></div>
                 <div><span>Flow Ctrl</span><b>{link.flow}</b></div>
                 <div><span>Medium</span><b>{link.medium}</b></div>
-                <div><span>Description</span><b>{link.description || '—'}</b></div>
+                <div><span>Description</span><b>{link.description || '-'}</b></div>
               </div>
             ) : <p className={styles.prEmpty}>Link status not captured.</p>}
           </section>
@@ -609,7 +622,7 @@ function PortReportModal({ report, onClose }) {
           <section className={styles.prSection}>
             <h4>End device(s) on this port</h4>
             {macs.length === 0 ? (
-              <p className={styles.prEmpty}>No MACs learned — port idle or never carried traffic.</p>
+              <p className={styles.prEmpty}>No MACs learned - port idle or never carried traffic.</p>
             ) : (
               <ul className={styles.prMacList}>
                 {macs.map((m, i) => (
@@ -623,7 +636,7 @@ function PortReportModal({ report, onClose }) {
             )}
             {macs.length > 1 && (
               <p className={styles.prHint}>
-                Multiple MACs on this port — likely a downstream switch, hub, or access point.
+                Multiple MACs on this port - likely a downstream switch, hub, or access point.
               </p>
             )}
           </section>
@@ -642,7 +655,7 @@ function PortReportModal({ report, onClose }) {
                 {lldp._via && <div><span>Resolved via</span><b>{lldp._via}</b></div>}
                 {lldp.system_desc && <div className={styles.prWide}><span>System desc</span><b>{lldp.system_desc}</b></div>}
               </div>
-            ) : <p className={styles.prEmpty}>No LLDP neighbor advertised — endpoint does not speak LLDP, or it is disabled.</p>}
+            ) : <p className={styles.prEmpty}>No LLDP neighbor advertised - endpoint does not speak LLDP, or it is disabled.</p>}
           </section>
 
           <section className={styles.prSection}>
@@ -669,7 +682,7 @@ function PortReportModal({ report, onClose }) {
             <div className={styles.prTranscript}>
               {transcript.map((e, i) => (
                 <details key={i} className={styles.prCmd}>
-                  <summary>{e.name || 'manual'} — <code>{e.cmd}</code></summary>
+                  <summary>{e.name || 'manual'} - <code>{e.cmd}</code></summary>
                   {e.error
                     ? <pre className={styles.prCmdErr}>{e.error}</pre>
                     : <pre>{e.output || '(no output)'}</pre>}
@@ -875,7 +888,7 @@ function ConfirmRackButton({ scanId }) {
   }
   return (
     <button className={styles.confirmBtn} onClick={confirm} disabled={state === 'saving'}
-      title="Mark this rack as correct — a re-scan will show this instead of re-detecting">
+      title="Mark this rack as correct - a re-scan will show this instead of re-detecting">
       {state === 'saving' ? 'Saving…' : state === 'error' ? 'Retry' : 'Confirm rack'}
     </button>
   );
@@ -1014,7 +1027,7 @@ export function AllDevicesView({ devices, labels, rackId, scanId, originalExt, o
           <div className={styles.allCards}>
             {visible.map(({ dev, label, idx }, i) => {
               const c = getColor(dev.class_name);
-              const units = formatUnitsRange(dev.units)?.toUpperCase() || '—';
+              const units = formatUnitsRange(dev.units)?.toUpperCase() || '-';
               const active = selectedCard === idx;
               return (
                 <div key={i} className={styles.allCard}
@@ -1038,7 +1051,7 @@ export function AllDevicesView({ devices, labels, rackId, scanId, originalExt, o
                         {dev.console_ports?.length > 0 && <span className={styles.portPillC}>{dev.console_ports.length}c</span>}
                         {dev.sfp_ports?.length > 0 && <span className={styles.portPillS}>{dev.sfp_ports.length}s</span>}
                         {!dev.port_count && !dev.console_ports?.length && !dev.sfp_ports?.length && (
-                          <span className={styles.noPorts}>—</span>
+                          <span className={styles.noPorts}>-</span>
                         )}
                       </span>
                     </div>
@@ -1303,8 +1316,9 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   const [reportOpen, setReportOpen] = useState(false);
   // When true, the in-app report iframe loads with the #download hash, which
   // makes the report auto-trigger window.print() (Save-as-PDF) INSIDE the
-  // WebView. Opening the report in an external browser instead would expose the
-  // raw ngrok URL + its browser-warning interstitial to the user.
+  // WebView. (The reason given here used to be ngrok's browser-warning
+  // interstitial; the backend is on the Hostinger VPS now, so that no longer
+  // applies — keeping it in-WebView is simply the shorter path for a preview.)
   const [reportDownload, setReportDownload] = useState(false);
   // The report <iframe src> can't send an Authorization header, which is why
   // /api/scan/:rackId/report used to be public — and therefore served any
@@ -1646,30 +1660,42 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   }, [scanId]);
 
   const fmtMs = (ms) => {
-    if (ms == null || isNaN(ms)) return '—';
+    if (ms == null || isNaN(ms)) return '-';
     return `${(ms / 1000).toFixed(2)} s`;
   };
   const fmtPct = (v) => {
-    if (v == null || isNaN(v)) return '—';
+    if (v == null || isNaN(v)) return '-';
     return `${Math.round(Number(v) * 100)}%`;
   };
-  // Overview hero:
-  //   • No device selected → the clean raw photo. The SVG overlay below draws
-  //     just the device boxes + labels on top, so the default view is a tidy
-  //     "device detection" — no port boxes cluttering every device.
-  //   • A device IS selected → switch to the pipeline's devices+ports overlay
-  //     (coloured port boxes baked in) so the selected device's ports show.
+  // Overview hero: ALWAYS the clean raw photo. The SVG overlay below draws the
+  // device boxes and labels on top, and highlights the selected one.
+  //
+  // Selecting a device used to swap this to result.overlayImageUrl —
+  // 7_rack_all_ports.png — described in the old comment here as showing "the
+  // selected device's ports". It does not: runner.py builds that image by
+  // looping over EVERY port-bearing device in the rack and baking in all of
+  // their port boxes. So picking one device lit up the ports on all of them,
+  // which is what testers reported. There is no pipeline render for "full rack,
+  // just this device's ports", and the canonical scan_result.json carries port
+  // COUNTS rather than boxes, so the client can't draw them itself on a
+  // reopened scan either.
+  //
+  // It doesn't need to. The per-device view already exists below: the port
+  // result panel's 'device' mode shows 5_selected_device_with_port.png — that
+  // device's ports with the chosen one highlighted — and its 'rack' mode shows
+  // the selected port on the full rack. Those are separate elements from this
+  // hero, so leaving the hero clean loses nothing.
+  //
+  // The old fallback chain was also unsound: with overlayImageUrl absent it
+  // dropped to resultImg, a DEVICE CROP, while the SVG overlay above it keeps
+  // drawing in full-image coordinates — a crop under a full-rack overlay.
   const originalPath = `/outputs/${scanId}/original_image.${originalExt || 'png'}`;
   const originalSrc = apiUrl(originalPath);
   // Keep the server-relative path alongside the resolved URL: AssetImg needs the
   // path so it can rebuild the URL with a fresh capability token when the old
   // one has expired, rather than retrying the same dead query string.
-  const heroImgPath = selectedIdx
-    ? (result?.overlayImageUrl || (resultImg ? null : originalPath))
-    : originalPath;
-  const heroImgSrc = selectedIdx
-    ? ((result?.overlayImageUrl && apiUrl(result.overlayImageUrl)) || resultImg || originalSrc)
-    : originalSrc;
+  const heroImgPath = originalPath;
+  const heroImgSrc = originalSrc;
 
   // Apply brand-token reclassifications from the OCR labels endpoint, so a
   // Planar AV controller YOLO labelled as UPS gets bumped to "Controller" for
@@ -1839,13 +1865,26 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   //    so they run unconditionally on every render (Rules of Hooks). They
   //    compute the selected device inline from effectiveDevices (defined
   //    above) rather than the `selectedDevice` const declared after the gate.
+  // Pick the port category to land on when the selected device changes.
+  //
+  // This only used to act when the CURRENT category had zero ports on the new
+  // device, which made the category sticky in a way that misreads as a broken
+  // port lookup. Select an all-fibre firewall (0 RJ45, 18 SFP) and it correctly
+  // moved to SFP; select an ordinary 24-port switch next and, because that
+  // switch also has 2 SFP cages, the count wasn't zero so it STAYED on SFP.
+  // You were then on the SFP tab of an RJ45 switch: "2" found SFP port 2 rather
+  // than RJ45 port 2, and "24" was rejected with "This device has 2 ports".
+  //
+  // RJ45 is what people mean by "port" on a switch or patch panel, so prefer it
+  // whenever the device has any, and only fall back to another category for
+  // devices that genuinely have no RJ45.
   useEffect(() => {
     const dev = selectedIdx ? effectiveDevices[selectedIdx - 1] : null;
     if (!dev) return;
-    if (portCatCount(dev, portCategory) === 0) {
-      const first = PORT_CATEGORIES.find(c => portCatCount(dev, c.k) > 0);
-      if (first && first.k !== portCategory) setPortCategory(first.k);
-    }
+    const preferred = portCatCount(dev, 'main') > 0
+      ? 'main'
+      : (PORT_CATEGORIES.find(c => portCatCount(dev, c.k) > 0)?.k || null);
+    if (preferred && preferred !== portCategory) setPortCategory(preferred);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx]);
 
@@ -1867,7 +1906,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
     setPortCountFbStatus('idle');
     setActualPortCount('');
     setPortCountFbError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [selectedIdx]);
 
   // NOTE: the previous version of this file early-returned here when
@@ -1943,14 +1982,20 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   const portMaxLimit = selPortMax > 0
     ? selPortMax
     : (selectedDevice?.port_count > 0 ? selectedDevice.port_count : 0);
-  // Keep typed port numbers valid: whole digits only (no ".", "e", signs, or
-  // leading zeros) and never above the device's port count — so a 24-port
-  // device can't be asked for port 1000 or port 1.23.
-  const sanitizePortInput = (val) => {
-    let d = String(val).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
-    if (portMaxLimit > 0 && d && Number(d) > portMaxLimit) d = String(portMaxLimit);
-    return d;
-  };
+  // Keep typed port numbers well-formed: whole digits only (no ".", "e", signs,
+  // or leading zeros), capped at 4 digits so nothing absurd reaches the API.
+  //
+  // This deliberately does NOT clamp to portMaxLimit any more. It used to
+  // silently rewrite an over-range number down to the max — type 48 on a device
+  // we believe has 24 ports and the box became 24, so the user was shown port
+  // 24 having asked for 48, with nothing on screen saying so. That is the
+  // "gave me a different port than I entered" report, and it was worst exactly
+  // where portMaxLimit itself was wrong. Over-range numbers now survive to
+  // findPort/findAnotherPort, which reject them with the real range in the
+  // message instead of quietly answering a question nobody asked.
+  const sanitizePortInput = (val) => (
+    String(val).replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 4)
+  );
 
   // Focus-mode transform: scale up so the selected device's bbox fills
   // most of the viewport, and use transform-origin at the box center
@@ -1983,7 +2028,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       return;
     }
     if (portMaxLimit > 0 && p > portMaxLimit) {
-      setError(`This device has ${portMaxLimit} ports — enter a number between 1 and ${portMaxLimit}.`);
+      setError(`This device has ${portMaxLimit} ports - enter a number between 1 and ${portMaxLimit}.`);
       return;
     }
     // Port count unknown → we have no upper bound, so we cannot honestly locate
@@ -2058,7 +2103,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       return;
     }
     if (portMaxLimit > 0 && p > portMaxLimit) {
-      setError(`This device has ${portMaxLimit} ports — enter a number between 1 and ${portMaxLimit}.`);
+      setError(`This device has ${portMaxLimit} ports - enter a number between 1 and ${portMaxLimit}.`);
       return;
     }
     if (portMaxLimit === 0) {
@@ -2587,17 +2632,15 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
         </svg>
       ),
     },
-    {
-      key: 'slack', label: 'Slack',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path d="M5 15a2 2 0 114 0v1H7a2 2 0 01-2-2z" fill="#c6c6c6"/>
-          <path d="M9 5a2 2 0 114 0v5a2 2 0 11-4 0z" fill="#474747"/>
-          <path d="M19 9a2 2 0 11-4 0V8h2a2 2 0 012 2z" fill="#c6c6c6"/>
-          <path d="M15 19a2 2 0 11-4 0v-5a2 2 0 114 0z" fill="#1c1c1c"/>
-        </svg>
-      ),
-    },
+    // Slack was removed from the share menu on the owner's instruction ("remove
+    // slack keep teams and outlook"). Only this list drives what the menu
+    // offers, so dropping the entry is enough to take it out of the UI.
+    //
+    // The server route, the Python sender and the per-channel note/recipient
+    // maps are deliberately left in place: they are inert with nothing able to
+    // select the channel, and keeping them means turning Slack back on is a
+    // one-entry change rather than a re-implementation. Nothing here reads the
+    // list to enumerate what the backend supports.
   ];
 
   // Per-channel last recipient is cached in localStorage so the dialog pre-fills
@@ -2669,8 +2712,17 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
     }
   };
 
-  const reportUrl = (format) =>
+  // Which part of the report to land on. The tour sends the user here right
+  // after Find Port, and testers reported arriving at the top with no idea the
+  // port detail was further down. When a port has been located, go to it.
+  const reportHash = reportDownload ? '#download' : (portInfo ? '#ports' : '');
+
+  // `download` asks the server for Content-Disposition: attachment. Without it
+  // the PDF is served inline, so a browser renders it instead of saving it -
+  // half of why the Download button appeared to do nothing on mobile.
+  const reportUrl = (format, download = false) =>
     apiUrl(`/api/scan/${scanId}/report?format=${format}`) +
+    (download ? '&download=1' : '') +
     (reportToken ? `&t=${encodeURIComponent(reportToken)}` : '');
   // Tokens are short-lived, so mint one per open rather than caching.
   const fetchReportToken = async () => {
@@ -2690,7 +2742,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   const openReportForDownload = () => { setReportDownload(true); setReportOpen(true); fetchReportToken(); };
   const downloadReport = async (format) => {
     try {
-      const url = reportUrl(format);
+      const url = reportUrl(format, true);
 
       // Inside the packaged app the WebView ignores both blob: URLs and the
       // <a download> attribute, so the tap did nothing at all and there was no
@@ -2700,7 +2752,13 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       const isNative = typeof window !== 'undefined'
         && (window.Capacitor?.isNativePlatform?.() || !!window.Capacitor?.isNative);
       if (isNative) {
-        window.open(url, '_system');
+        // `window.open(url, '_system')` is a Cordova convention. Capacitor has
+        // no handler for that target, so the tap did nothing at all in the
+        // packaged app — testers reported the Download button as dead. The
+        // Capacitor equivalent is Browser.open, which this app already uses for
+        // OAuth in SocialSignIn.jsx; it hands the URL to a Custom Tab / Safari
+        // view that honours the attachment header and saves the file.
+        await Browser.open({ url });
         return;
       }
 
@@ -3241,7 +3299,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                     <circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>
                   </svg>
                   <div style={{display:'flex',flexDirection:'column'}}>
-                    <div style={{fontSize:13,fontWeight:600,color:'#1c1c1c'}}>Cable attached — port is now active</div>
+                    <div style={{fontSize:13,fontWeight:600,color:'#1c1c1c'}}>Cable attached - port is now active</div>
                     <div style={{fontSize:11,color:'var(--muted, #474747)'}}>
                       Detected at {new Date(liveResolvedAt).toLocaleTimeString()} · incident {ticket.incident_number} likely resolved
                     </div>
@@ -3499,7 +3557,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                             disabled={agentPosting}
                             title={agent.work_note_preview.would_post
                               ? `Post work note to ${ticket.incident_number} in ServiceNow`
-                              : `Agent confidence below auto-post floor — click anyway to post`}
+                              : `Agent confidence below auto-post floor - click anyway to post`}
                             style={{
                               background: agentPosting
                                 ? 'rgba(0,0,0,0.10)'
@@ -3568,9 +3626,9 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                           }}>
                             {agentPostResult.status === 'posted'         && 'Posted to ServiceNow'}
                             {agentPostResult.status === 'skipped_low_confidence'
-                              && (<>Skipped — low confidence. <button onClick={() => postWorkNoteToSn({force:true})} style={{background:'none',border:'none',color:'inherit',textDecoration:'underline',cursor:'pointer',padding:0,fontSize:10}}>Force post</button></>)}
-                            {agentPostResult.status === 'skipped_no_change'   && 'Already posted — no change'}
-                            {agentPostResult.status === 'skipped_rate_limit'  && 'Rate-limited — already posted within 24h'}
+                              && (<>Skipped - low confidence. <button onClick={() => postWorkNoteToSn({force:true})} style={{background:'none',border:'none',color:'inherit',textDecoration:'underline',cursor:'pointer',padding:0,fontSize:10}}>Force post</button></>)}
+                            {agentPostResult.status === 'skipped_no_change'   && 'Already posted - no change'}
+                            {agentPostResult.status === 'skipped_rate_limit'  && 'Rate-limited - already posted within 24h'}
                             {agentPostResult.status === 'error'               && `Error: ${agentPostResult.message?.slice(0, 80)}`}
                             {!['posted','skipped_low_confidence','skipped_no_change','skipped_rate_limit','error'].includes(agentPostResult.status)
                               && (agentPostResult.message || agentPostResult.status)}
@@ -3669,7 +3727,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                   <div className={styles.prMetric}>
                     <span className={styles.prMetricLabel}>Device</span>
                     <span className={styles.prMetricVal}>
-                      {selectedDevice?.class_name || '—'}
+                      {selectedDevice?.class_name || '-'}
                       {selectedDevice?.class_name_source === 'user_corrected'
                         ? <UserTag />
                         : (selectedDevice?.confidence != null && (
@@ -3711,13 +3769,13 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
             <StandardFeedback
               key={`${scanId}:${selectedIdx}:${portNum}:type`}
               accent={rc}
-              prompt={`Port type: ${prettyPortType(portInfo.port_type)} — right?`}
+              prompt={`Port type: ${prettyPortType(portInfo.port_type)} - right?`}
               options={PORT_TYPE_OPTIONS.map(t => ({ value: t, label: prettyPortType(t) }))}
               otherInput={null}
               submitLabel="Save"
-              thanks="Saved — thanks, this trains the model."
+              thanks="Saved - thanks, this trains the model."
               answered={answeredKeys.has(`${scanId}:p:${selectedIdx}:${portNum}:type`) || !!portInfo._port_type_user}
-              answeredText={`Port type: ${prettyPortType(portInfo.port_type)} — you set this`}
+              answeredText={`Port type: ${prettyPortType(portInfo.port_type)} - you set this`}
               onYes={async () => { markAnswered(`${scanId}:p:${selectedIdx}:${portNum}:type`); }}
               onSubmit={(v) => submitPortTypeFeedback(v)}
             />
@@ -3734,7 +3792,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                 <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
               <span>
-                Not fully sure about this cable ({fmtPct(portInfo.cable_confidence)} confidence) — the photo
+                Not fully sure about this cable ({fmtPct(portInfo.cable_confidence)} confidence) - the photo
                 resolution may be too low to read it clearly. Please check the cable and its colour, and
                 correct them below if they're wrong.
               </span>
@@ -3841,7 +3899,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
             {neighborStatus === 'empty' && (
               <>
                 <span className={styles.prEndDim}>
-                  No end device responded — the endpoint doesn’t advertise LLDP, or LLDP is disabled on the switch.
+                  No end device responded - the endpoint doesn’t advertise LLDP, or LLDP is disabled on the switch.
                 </span>
                 <button className={styles.prEndAction} onClick={() => findNeighbor()}>Retry</button>
               </>
@@ -3868,11 +3926,11 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
             <StandardFeedback
               key={`${scanId}:${selectedIdx}:${portNum}:loc`}
               accent={rc}
-              prompt={`Port ${portNum}${selectedDevice?.class_name ? ` on ${selectedDevice.class_name}` : ''} — right?`}
+              prompt={`Port ${portNum}${selectedDevice?.class_name ? ` on ${selectedDevice.class_name}` : ''} - right?`}
               options={Array.from({ length: Math.max(0, selectedDevice?.port_count || 0) }, (_, i) => ({ value: i + 1, label: `Port ${i + 1}` }))}
               otherInput="number"
               answered={answeredKeys.has(`${scanId}:p:${selectedIdx}:${portNum}:loc`) || !!portInfo?._port_shift}
-              answeredText="Port number corrected — you set this"
+              answeredText="Port number corrected - you set this"
               onYes={() => submitFeedback(true)}
               onSubmit={(v) => submitFeedback(false, { actualPort: parseInt(v, 10) })}
             />
@@ -3883,11 +3941,11 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
             <StandardFeedback
               key={`${scanId}:${selectedIdx}:${portNum}:cable`}
               accent={rc}
-              prompt={`Cable colour is ${portInfo.cable_color} — right?`}
+              prompt={`Cable colour is ${portInfo.cable_color} - right?`}
               options={CABLE_COLOR_OPTIONS.map(c => ({ value: c, label: c }))}
               otherInput="text"
               answered={answeredKeys.has(`${scanId}:p:${selectedIdx}:${portNum}:cable`)}
-              answeredText={`Cable colour: ${portInfo.cable_color} — you set this`}
+              answeredText={`Cable colour: ${portInfo.cable_color} - you set this`}
               onYes={() => submitCableFeedback(true)}
               onSubmit={(v) => submitCableFeedback(false, v)}
             />
@@ -3921,7 +3979,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                 type="text" inputMode="numeric" pattern="[0-9]*"
                 style={{ '--focus-color': rc }}
                 placeholder={portMaxLimit > 0
-                  ? `Another ${portCategory === 'sfp' ? 'SFP' : portCategory === 'console' ? 'console' : portCategory === 'main' ? 'RJ45' : ''} port · 1–${portMaxLimit}`.replace('  ', ' ')
+                  ? `Another ${portCategory === 'sfp' ? 'SFP' : portCategory === 'console' ? 'console' : portCategory === 'main' ? 'RJ45' : ''} port · 1-${portMaxLimit}`.replace('  ', ' ')
                   : 'Another port #'}
                 value={nextPort}
                 onChange={e => { setNextPort(sanitizePortInput(e.target.value)); setError(null); }}
@@ -3965,9 +4023,18 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
               background: shareStatus === 'error' ? '#c0392b' : '#1e874b',
               boxShadow: '0 10px 34px rgba(0,0,0,.28)',
             }}>
-              <span style={{ fontSize: '1.1rem', lineHeight: 1, flexShrink: 0 }} aria-hidden="true">
-                {shareStatus === 'error' ? '✕' : '✓'}
-              </span>
+              {/* Success keeps its tick. The error state deliberately shows NO
+                  leading glyph: it used to render a decorative ✕ here, which sat
+                  a few pixels from the real dismiss × on the right and read as a
+                  second, broken close button ("remove cross mark here when there
+                  is error to send report in teams"). The red background already
+                  says this failed, so one cross on the toast — the one that
+                  actually closes it — is enough. */}
+              {shareStatus !== 'error' && (
+                <span style={{ fontSize: '1.1rem', lineHeight: 1, flexShrink: 0 }} aria-hidden="true">
+                  ✓
+                </span>
+              )}
               <span style={{ flex: 1, minWidth: 0 }}>{shareMsg}</span>
               {/* A real dismiss control. The ✕ on the left is a status glyph
                   with no handler — testers reasonably read it as a close
@@ -4159,6 +4226,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                 <span className={styles.reportModalTitle}>Scan Report · {scanId}</span>
                 <button className={styles.reportModalClose} onClick={() => setReportOpen(false)} aria-label="Close">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  Close
                 </button>
               </div>
               {reportTokenErr ? (
@@ -4166,7 +4234,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
               ) : !reportToken ? (
                 <div className={styles.portLoadingRow} style={{ padding: 20 }}>Preparing report…</div>
               ) : (
-                <iframe className={styles.reportModalFrame} src={reportUrl('html') + (reportDownload ? '#download' : '')} title="Scan report" />
+                <iframe className={styles.reportModalFrame} src={reportUrl('html') + reportHash} title="Scan report" />
               )}
             </div>
           </div>
@@ -4249,7 +4317,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
               <div className={styles.consoleTerminal} ref={consoleTermRef}>
                 {consoleEntries.length === 0 && consoleStatus !== 'running-manual' && (
                   <div className={styles.consoleEmpty}>
-                    Pick an option above to query the switch — it runs as soon as
+                    Pick an option above to query the switch - it runs as soon as
                     you choose. Or type a command below.
                   </div>
                 )}
@@ -4380,8 +4448,8 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                 <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.06em',color:'var(--muted, #474747)',textTransform:'uppercase',marginBottom:4}}>Suggestions</div>
                 <div style={{fontSize:13,lineHeight:1.5}}>
                   {(() => {
-                    if (liveResolvedAt) return <span style={{color:'#1c1c1c'}}>✓ Port is active now — cable was attached at {new Date(liveResolvedAt).toLocaleTimeString()}. Incident likely resolved; verify with monitoring, then close the ticket.</span>;
-                    if (liveSnapshot?.link_active) return <span style={{color:'#1c1c1c'}}>Port is currently active. Issue may be intermittent — watch for re-flaps over the next few minutes.</span>;
+                    if (liveResolvedAt) return <span style={{color:'#1c1c1c'}}>✓ Port is active now - cable was attached at {new Date(liveResolvedAt).toLocaleTimeString()}. Incident likely resolved; verify with monitoring, then close the ticket.</span>;
+                    if (liveSnapshot?.link_active) return <span style={{color:'#1c1c1c'}}>Port is currently active. Issue may be intermittent - watch for re-flaps over the next few minutes.</span>;
                     if (liveSnapshot?.ok && !liveSnapshot.link_active) return <span>No traffic on this port right now. Verify the cable is plugged in on both ends, check the far-end device power/NIC status, then re-monitor.</span>;
                     if (liveSnapshot && !liveSnapshot.ok) return <span>Cannot reach the switch over SSH to verify. Check mgmt connectivity to {ticket.cmdb?.mgmt_ip || 'the switch'}.</span>;
                     return <span style={{color:'var(--muted, #474747)'}}>Waiting for first live sample.</span>;
@@ -4480,10 +4548,10 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
             </div>
             <h3 className={styles.qualityModalTitle}>Image quality warning</h3>
             <p className={styles.qualityModalMsg}>
-              {qualityWarningMsg || 'Image may not be ideal — results may be less accurate.'}
+              {qualityWarningMsg || 'Image may not be ideal - results may be less accurate.'}
             </p>
             <ul className={styles.qualityModalTips}>
-              <li>Stand directly in front of the rack — not at an angle.</li>
+              <li>Stand directly in front of the rack - not at an angle.</li>
               <li>Keep the camera level with the middle of the rack.</li>
               <li>Make sure the full rack fits inside the frame.</li>
             </ul>
@@ -4507,7 +4575,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       )}
 
       {/* ── Hero image ── */}
-      <div className={styles.heroWrap}>
+      <div className={styles.heroWrap} data-tour="rack-image">
         <div className={styles.zoomViewport}
           style={{ touchAction: zoom > 1 ? 'none' : 'pan-y' }}
           onWheel={handleWheel}
@@ -4774,9 +4842,10 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
           }
           return (
             <div className={styles.devicePicker} data-tour="device-picker">
-              <label className={styles.devicePickerLabel}>Device</label>
+              <label className={styles.devicePickerLabel} htmlFor="device-picker-select">Device</label>
               <div className={styles.devicePickerSelectWrap}>
                 <select
+                  id="device-picker-select"
                   className={styles.devicePickerSelect}
                   value={selectedIdx || ''}
                   onChange={(e) => {
@@ -4796,7 +4865,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                     setActualPortCount('');
                     setPortCountFbError(null);
                   }}>
-                  <option value="">— Pick a device (or tap one in the image) —</option>
+                  <option value="">- Pick a device (or tap one in the image) -</option>
                   {pickables.map(({ dev, idx, label }) => (
                     <option key={idx} value={idx}>
                       {label} · {dev.class_name}
@@ -4852,6 +4921,23 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                 </span>
               )}
             </div>
+            {/* What to do next, once a device is chosen and no port has been
+                located yet.
+                The guided tour covers this step, but it runs once for a
+                first-time user and never again — so outside it the app went
+                silent at exactly the point testers reported being stuck:
+                "after pick a device the bot is not giving any of the
+                information so here user get confused what to do next".
+                A standing line costs nothing and answers it every time, for
+                every user, whether or not they ever saw the tour. It clears
+                itself the moment a port is found. */}
+            {!portInfo && !loading && (
+              <p className={styles.prNextStep}>
+                {portMaxLimit > 0
+                  ? `Now type a port number between 1 and ${portMaxLimit}, then tap Find Port to locate it on the photo.`
+                  : 'Now confirm how many ports this device has, then pick a port to locate it on the photo.'}
+              </p>
+            )}
             {/* Port type — RJ45 / SFP / Console / USB. Only the categories this
                 device actually has are shown (with their counts). Sent as
                 port_category so the pipeline highlights the right port set. */}
@@ -4876,7 +4962,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                 className={`input ${styles.portInput}`}
                 type="text" inputMode="numeric" pattern="[0-9]*"
                 style={{ '--focus-color': selColor }}
-                placeholder={portMaxLimit > 0 ? `1–${portMaxLimit}` : 'Port #'}
+                placeholder={portMaxLimit > 0 ? `1-${portMaxLimit}` : 'Port #'}
                 value={portNum}
                 onChange={e => { setPortNum(sanitizePortInput(e.target.value)); setPortInfo(null); setError(null); }}
                 onKeyDown={e => e.key === 'Enter' && portNum && findPort()}
@@ -4910,11 +4996,11 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
           <StandardFeedback
             key={`${scanId}:${selectedIdx}:class`}
             accent={selColor}
-            prompt={`Detected as ${selectedDevice.class_name} — right?`}
+            prompt={`Detected as ${selectedDevice.class_name} - right?`}
             options={DEVICE_CLASS_OPTIONS.map(c => ({ value: c, label: c }))}
             otherInput="text"
             answered={answeredKeys.has(`${scanId}:d:${selectedIdx}:class`) || selectedDevice.class_name_source === 'user_corrected'}
-            answeredText={`Device: ${selectedDevice.class_name} — you set this`}
+            answeredText={`Device: ${selectedDevice.class_name} - you set this`}
             onYes={() => submitDeviceFeedback(true)}
             onSubmit={(v) => submitDeviceFeedback(false, v)}
           />
@@ -4938,14 +5024,14 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
               const total = totalPortCount(selectedDevice);
               const breakdown = portBreakdown(selectedDevice);
               if (total > rj && breakdown) {
-                return `Detected ${total} total port${total === 1 ? '' : 's'} (${breakdown.replace(/ · /g, ', ')}) — right?`;
+                return `Detected ${total} total port${total === 1 ? '' : 's'} (${breakdown.replace(/ · /g, ', ')}) - right?`;
               }
-              return `Detected ${rj} RJ45 port${rj === 1 ? '' : 's'} — right?`;
+              return `Detected ${rj} RJ45 port${rj === 1 ? '' : 's'} - right?`;
             })()}
             options={[8, 12, 16, 24, 48].map(n => ({ value: n, label: `${n} ports` }))}
             otherInput="number"
             answered={answeredKeys.has(`${scanId}:d:${selectedIdx}:count`)}
-            answeredText="Port count corrected — you set this"
+            answeredText="Port count corrected - you set this"
             onYes={() => submitPortCountFeedback(true)}
             onSubmit={(v) => submitPortCountFeedback(false, parseInt(v, 10))}
           />
@@ -5033,6 +5119,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
               <span className={styles.reportModalTitle}>Scan Report · {scanId}</span>
               <button className={styles.reportModalClose} onClick={() => setReportOpen(false)} aria-label="Close">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Close
               </button>
             </div>
             {reportTokenErr ? (
@@ -5040,7 +5127,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
               ) : !reportToken ? (
                 <div className={styles.portLoadingRow} style={{ padding: 20 }}>Preparing report…</div>
               ) : (
-                <iframe className={styles.reportModalFrame} src={reportUrl('html') + (reportDownload ? '#download' : '')} title="Scan report" />
+                <iframe className={styles.reportModalFrame} src={reportUrl('html') + reportHash} title="Scan report" />
               )}
           </div>
         </div>

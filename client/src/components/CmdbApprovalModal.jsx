@@ -46,7 +46,7 @@ export default function CmdbApprovalModal({ rackId, ticket, onClose, onTicketUpd
       onTicketUpdate?.(data?.ticket);
       setStep('pending');
     } catch (e) {
-      setError('Network error — please try again.');
+      setError('Network error - please try again.');
     } finally {
       setBusy(false);
     }
@@ -81,7 +81,7 @@ export default function CmdbApprovalModal({ rackId, ticket, onClose, onTicketUpd
       setDetails(data?.details || null);
       setStep('applied');
     } catch (e) {
-      setError('Network error — please try again.');
+      setError('Network error - please try again.');
       setStep('pending');
     } finally {
       setBusy(false);
@@ -131,7 +131,7 @@ export default function CmdbApprovalModal({ rackId, ticket, onClose, onTicketUpd
             <h3 id={titleId} className={styles.title}>Ticket submitted</h3>
             <div className={styles.reqCard}>
               <span className={styles.reqLabel}>Reference</span>
-              <span className={styles.reqNum}>{ticket?.number || '—'}</span>
+              <span className={styles.reqNum}>{ticket?.number || '-'}</span>
             </div>
             <p className={styles.body}>
               Submitted for approval. Approve below to register the
@@ -185,7 +185,7 @@ function ApplyDetails({ details }) {
     { label: 'Devices', value: details.counters?.devices ?? details.device_count ?? 0 },
     { label: 'Ports',   value: details.counters?.ports   ?? details.port_count   ?? 0 },
     { label: 'Cables',  value: details.counters?.cables  ?? details.cable_count  ?? 0 },
-    { label: 'Rack U',  value: details.u_size ?? '—' },
+    { label: 'Rack U',  value: details.u_size ?? '-' },
   ];
 
   return (
@@ -259,9 +259,9 @@ function friendlyError(s) {
   if (!s) return null;
   const txt = String(s);
   // Strip developer-y bits
-  if (/timeout|timed out/i.test(txt))    return 'Request to ServiceNow timed out — try again.';
-  if (/spawn|enoent|cmdb_apply/i.test(txt)) return 'CMDB apply step failed — please try again.';
-  if (/sn_request|sc_request|404|not found/i.test(txt)) return 'Could not reach ServiceNow — check the connection.';
+  if (/timeout|timed out/i.test(txt))    return 'Request to ServiceNow timed out - try again.';
+  if (/spawn|enoent|cmdb_apply/i.test(txt)) return 'CMDB apply step failed - please try again.';
+  if (/sn_request|sc_request|404|not found/i.test(txt)) return 'Could not reach ServiceNow - check the connection.';
   // Fall through with a soft message
-  return 'Something went wrong — please try again.';
+  return 'Something went wrong - please try again.';
 }

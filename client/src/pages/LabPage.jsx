@@ -64,19 +64,19 @@ function explainSshError(raw) {
   if (m.includes('handshake') || m.includes('timed out') || m.includes('etimedout')) {
     return {
       plain: 'The switch isn’t answering on SSH at all.',
-      hint: 'The EVE-NG node is most likely stopped, or it rebooted and came back without its config — IOL running-config (its IP and SSH host key) is volatile and is lost on stop. Start the node in the EVE-NG topology and re-apply its config; polling then recovers on its own.',
+      hint: 'The EVE-NG node is most likely stopped, or it rebooted and came back without its config - IOL running-config (its IP and SSH host key) is volatile and is lost on stop. Start the node in the EVE-NG topology and re-apply its config; polling then recovers on its own.',
     };
   }
   if (m.includes('econnrefused') || m.includes('refused')) {
     return {
       plain: 'The switch is up, but nothing is listening on SSH.',
-      hint: 'The node is running yet its SSH server isn’t — no crypto key / `ip ssh` in the running-config. Re-apply the switch config (crypto key generate rsa, ip ssh version 2, transport input ssh) from the EVE-NG console.',
+      hint: 'The node is running yet its SSH server isn’t - no crypto key / `ip ssh` in the running-config. Re-apply the switch config (crypto key generate rsa, ip ssh version 2, transport input ssh) from the EVE-NG console.',
     };
   }
   if (m.includes('ehostunreach') || m.includes('enetunreach') || m.includes('no route')) {
     return {
       plain: 'No network route to the switch.',
-      hint: 'The node has no management IP — its config didn’t persist, or the pnet bridge isn’t attached to it. Check the node’s interface config in EVE-NG.',
+      hint: 'The node has no management IP - its config didn’t persist, or the pnet bridge isn’t attached to it. Check the node’s interface config in EVE-NG.',
     };
   }
   if (m.includes('authentication') || m.includes('all configured auth') || m.includes('password')) {
@@ -132,7 +132,7 @@ function linkClass(l) {
   return styles.unknown;
 }
 
-const dash = (v) => (v === null || v === undefined || v === '' ? '—' : v);
+const dash = (v) => (v === null || v === undefined || v === '' ? '-' : v);
 
 function Pill({ meta }) {
   return (
@@ -314,7 +314,7 @@ export default function LabPage() {
 
       <main className={styles.main}>
 
-        {loadErr && <p className={styles.errLine}>Device list stale — {loadErr}</p>}
+        {loadErr && <p className={styles.errLine}>Device list stale - {loadErr}</p>}
 
         {/* Device cards. */}
         <div role="tablist" aria-label="Lab devices" className={styles.deviceGrid}>
@@ -399,7 +399,7 @@ export default function LabPage() {
             {selected.last_error && (
               <div className={`${styles.banner} ${styles.bannerWarn}`}>
                 <span className={styles.bannerStrong}>
-                  Offline — the switch isn’t answering
+                  Offline - the switch isn’t answering
                   {selected.consecutive_failures
                     ? ` (${selected.consecutive_failures} failed attempt${selected.consecutive_failures === 1 ? '' : 's'})`
                     : ''}.
@@ -414,7 +414,7 @@ export default function LabPage() {
             {entry?.error && (audit || !selected.last_error) && (
               <p className={`${styles.banner} ${styles.bannerWarn}`}>
                 <span className={styles.bannerStrong}>Last audit failed.</span> {entry.error}
-                {audit && ' — showing the previous result below.'}
+                {audit && ' - showing the previous result below.'}
               </p>
             )}
 
@@ -449,7 +449,7 @@ export default function LabPage() {
                           const l = linkOf(ifstatus[p]);
                           return (
                             <div key={p} className={`${styles.portCell} ${l === 'up' ? styles.up : l === 'down' ? styles.down : ''}`}
-                                 title={`${p} — ${dash(l)}`}>
+                                 title={`${p} - ${dash(l)}`}>
                               <span className={styles.portName}>{p}</span>
                             </div>
                           );
@@ -473,7 +473,7 @@ export default function LabPage() {
                                   <tr key={p}>
                                     <td className={styles.mono}>{p}</td>
                                     <td><span className={linkClass(l)}>{dash(l)}</span></td>
-                                    <td>{c.enabled === undefined ? '—' : (c.enabled ? 'enabled' : 'disabled')}</td>
+                                    <td>{c.enabled === undefined ? '-' : (c.enabled ? 'enabled' : 'disabled')}</td>
                                     <td>{dash(s.speed)}</td>
                                     <td>{dash(s.duplex)}</td>
                                     <td>{dash(s.medium)}</td>
@@ -516,7 +516,7 @@ export default function LabPage() {
                                 <td className={styles.mono}>{v.id}</td>
                                 <td>{dash(v.name)}</td>
                                 <td>{dash(v.status)}</td>
-                                <td>{(v.ports || []).map((p) => (typeof p === 'string' ? p : `${p.port}${p.tagged ? ' (T)' : ''}`)).join(', ') || '—'}</td>
+                                <td>{(v.ports || []).map((p) => (typeof p === 'string' ? p : `${p.port}${p.tagged ? ' (T)' : ''}`)).join(', ') || '-'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -524,7 +524,7 @@ export default function LabPage() {
                       </div>
                     ) : (
                       <p className={styles.sectionNote}>
-                        None. Expected on CoreSW — it runs the L3 IOL image, where interfaces are routed
+                        None. Expected on CoreSW - it runs the L3 IOL image, where interfaces are routed
                         and there are no switchports to put in a VLAN.
                       </p>
                     )
@@ -555,7 +555,7 @@ export default function LabPage() {
                     ) : (
                       <p className={styles.sectionNote}>
                         None. IOS needs <code>lldp run</code> globally, and the IOL l2-ipbase image may
-                        not support LLDP at all — Cisco defaults to CDP.
+                        not support LLDP at all - Cisco defaults to CDP.
                       </p>
                     )
                   )}
@@ -569,7 +569,7 @@ export default function LabPage() {
               busy ? (
                 <div className={styles.section}>
                   <p className={styles.sectionNote}>
-                    Auditing {selected.host} over SSH — identity, ports, PoE, VLANs, LLDP and the MAC table…
+                    Auditing {selected.host} over SSH - identity, ports, PoE, VLANs, LLDP and the MAC table…
                   </p>
                 </div>
               ) : selected.enabled && !selected.last_error && !entry?.error ? (

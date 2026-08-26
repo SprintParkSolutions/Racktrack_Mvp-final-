@@ -1,18 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 import styles from '../pages/AuthPages.module.css';
 
 /**
  * The frame every auth page sits in.
  *
- * On a laptop the screen is split 57 / 43: a photograph of a real datacenter
- * aisle on the left, the form on plain white to the right of a hard edge. On
- * a phone the photograph drops away — it would only sit behind the keyboard —
- * and the form is the screen.
+ * On a laptop the screen is split 57 / 43: footage of a real datacenter hall
+ * on the left, the form on plain white to the right of a hard edge. On a phone
+ * the footage drops away — it would only sit behind the keyboard — and the
+ * form is the screen.
  *
  * Pages pass their form as children and never think about the chrome: the
- * mark, the one line of product copy, the back arrow, the contextual
- * top-right link and the footer line all live here, so the five auth screens
- * cannot drift apart from each other.
+ * mark, the one line of product copy, the back arrow and the contextual
+ * top-right link all live here, so the five auth screens cannot drift apart
+ * from each other.
  *
  * Note the class names in AuthPages.module.css deliberately avoid `panel`,
  * `card`, `tile` and `surface` — index.css matches those substrings and hands
@@ -52,10 +53,45 @@ export default function AuthLayout({ children, onBack, backLabel = 'Back', aside
     return () => root?.classList.remove('rt-auth-wide');
   }, []);
 
+  // The footage is only ON SCREEN at ≥1024px — below that the form is the whole
+  // page and .media is display:none. A hidden <video> still downloads, so this
+  // decides in JS rather than CSS: a phone signing in over cell data must not
+  // pull megabytes for something it will never show. useIsDesktop is the same
+  // 1024px line the module CSS breaks on, so the two cannot drift.
+  const wide = useIsDesktop();
+  // And when it IS shown, "reduce motion" gets the poster frame instead of a
+  // loop. CSS can't pause playback, so the ref does it.
+  const film = useRef(null);
+  useEffect(() => {
+    const el = film.current;
+    if (!el) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => { if (mq.matches) el.pause(); else el.play?.().catch(() => {}); };
+    apply();
+    mq.addEventListener?.('change', apply);
+    return () => mq.removeEventListener?.('change', apply);
+  }, [wide]);
+
   return (
     <div className={styles.authPage}>
       <div className={styles.media} aria-hidden="true">
-        <img src="/hero-rack.jpg" alt="" className={styles.mediaImg} />
+        {/* Footage of a real hall, not a still. Decorative, so it is muted and
+            silent by definition; muted + playsInline is also what lets it
+            autoplay at all. The poster is the photograph it replaced, so a slow
+            connection still gets the right frame — and so does anyone who asks
+            for reduced motion, since the effect above pauses to it. The parent
+            is aria-hidden, so none of this reaches the accessibility tree. */}
+        {wide && (
+          <video
+            ref={film}
+            className={styles.mediaImg}
+            src="/racktrack-greenrow.mp4"
+            poster="/hero-rack.jpg"
+            autoPlay muted loop playsInline
+            preload="auto"
+            tabIndex={-1}
+          />
+        )}
         <div className={styles.mediaWash} />
 
         <div className={styles.mediaBrand}>
@@ -69,7 +105,7 @@ export default function AuthLayout({ children, onBack, backLabel = 'Back', aside
           <p className={styles.mediaTitle}>Know what's actually in the rack.</p>
           <p className={styles.mediaSub}>
             A photo returns the unit map, switch model, port layout and live
-            port state — reconciled against the CMDB record.
+            port state - reconciled against the CMDB record.
           </p>
         </div>
       </div>
@@ -97,10 +133,6 @@ export default function AuthLayout({ children, onBack, backLabel = 'Back', aside
             {children}
           </main>
         </div>
-
-        <footer className={styles.footNote}>
-          Encrypted in transit and at rest.
-        </footer>
       </section>
     </div>
   );

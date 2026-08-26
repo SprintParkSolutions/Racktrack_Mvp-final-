@@ -204,6 +204,21 @@ export default function HelpPage() {
           <h1 className={styles.title}>DOT</h1>
         </div>
 
+        {/* A permanent way through to a human.
+            Contact used to be reachable only from the phone's More menu, which
+            testers reported as not knowing it was there — and the one link to
+            it from this page appeared solely when DOT failed to answer, so a
+            user who simply preferred a person had no route. The bottom bar is
+            full at five slots, and Ask DOT now has a button on the home screen,
+            so putting it here makes Contact two taps from home, always. */}
+        <button
+          type="button"
+          className={styles.headContact}
+          onClick={() => navigate('/contact')}
+        >
+          Contact support
+        </button>
+
       </header>
 
       <div className={styles.log} ref={logRef}>
@@ -213,8 +228,8 @@ export default function HelpPage() {
               <div className={styles.introRule} aria-hidden="true" />
               <h2>Hello! I&apos;m the RackTrack support assistant.</h2>
               <p>
-                Ask me anything about using RackTrack — scans, racks, switches,
-                reports, your account — and I&apos;ll answer from our verified
+                Ask me anything about using RackTrack - scans, racks, switches,
+                reports, your account - and I&apos;ll answer from our verified
                 help content.
               </p>
               <div className={styles.startersLabel}>Common questions</div>

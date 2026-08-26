@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styles from './MarketplaceNewPage.module.css';
 import { apiUrl, authFetch } from '../utils/api';
+import { IMAGE_ACCEPT } from '../utils/mediaAccept';
 import { useAuth } from '../AuthContext.jsx';
 import MarketplaceShell from '../components/marketplace/MarketplaceShell.jsx';
 
@@ -35,7 +36,7 @@ const CATEGORIES = [
 const CONDITIONS = [
   ['new',       'New (sealed)'],
   ['refurb',    'Refurbished'],
-  ['used',      'Used — working'],
+  ['used',      'Used - working'],
   ['for-parts', 'For parts / not working'],
 ];
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR'];
@@ -365,14 +366,14 @@ export default function MarketplaceNewPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,image/heic,image/heif,.heic,.heif"
+            accept={IMAGE_ACCEPT}
             className={styles.fileInput}
             onChange={(e) => handleFilePick(e.target.files && e.target.files[0])}
           />
 
           {imagePreview ? (
             <div className={`mkt-card ${styles.photoCard}`}>
-              <img src={imagePreview} alt="Listing photo preview" className={styles.photoPreview} />
+              <img src={imagePreview} alt="Listing preview" className={styles.photoPreview} />
               <div className={styles.photoMeta}>
                 <span className={styles.photoStatus}>
                   {imageUploading && <span className={`mkt-spinner ${styles.photoSpinner}`} />}
@@ -416,7 +417,7 @@ export default function MarketplaceNewPage() {
               <input
                 id="mkt-new-location"
                 className="mkt-field"
-                placeholder="City, country — helps with shipping estimates"
+                placeholder="City, country - helps with shipping estimates"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 maxLength={100}
@@ -462,7 +463,7 @@ export default function MarketplaceNewPage() {
               ))}
             </div>
             <p className="mkt-meta">
-              We don’t take a cut — partner links are a convenience and open in a new tab.
+              We don’t take a cut - partner links are a convenience and open in a new tab.
             </p>
           </section>
         )}

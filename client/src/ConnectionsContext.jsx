@@ -103,7 +103,7 @@ export function ConnectionsProvider({ children }) {
           }
         } catch (_) { /* transient network blip — try again next tick */ }
         if (Date.now() - start > MAX_WAIT_MS) {
-          setLastRefresh({ ok: false, error: 'Stopped waiting after 6 minutes — check the server log for poll progress.' });
+          setLastRefresh({ ok: false, error: 'Stopped waiting after 6 minutes - check the server log for poll progress.' });
           setRefreshing(false);
           dispatch(false, 'wait-timeout');
           return resolve();

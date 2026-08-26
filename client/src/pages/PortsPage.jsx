@@ -471,7 +471,7 @@ function LogicalView({ probe, scan, scanDurationMs }) {
   }, [probe.status, probe.host]);
 
   if (probe.status === 'running' || probe.status === 'idle') {
-    return <OrbitalLoader startedAt={probe.startedAt} />;
+    return <ProbeWaiting probe={probe} onRetry={() => triggerBackgroundProbe({ force: true })} />;
   }
   // Unreachable AND nothing on record — the message is all there is to say.
   // With history, fall through and render it below under a muted "as of" line.
@@ -603,7 +603,7 @@ function ReachabilityTool({ host }) {
     const t = (override != null ? override : target).trim();
     if (override != null) setTarget(override);
     if (!t) { setResult({ error: 'Enter an IP address or hostname first.' }); return; }
-    if (!host) { setResult({ error: 'The switch isn’t reachable yet — wait for it to load.' }); return; }
+    if (!host) { setResult({ error: 'The switch isn’t reachable yet - wait for it to load.' }); return; }
     setRunning(kind); setResult(null);
     try {
       const r = await authFetch(apiUrl('/api/switch/trace'), {
@@ -630,7 +630,7 @@ function ReachabilityTool({ host }) {
           requires a privilege above the read-only "User" role, and we run the
           switch with a read-only account. `ping` works at that level. */}
       <p className={styles.rchHintLine}>
-        Type where you want to test <b>to</b> — an IP or hostname — and RackTrack pings it
+        Type where you want to test <b>to</b> - an IP or hostname - and RackTrack pings it
         <b> from the switch</b>, so you can confirm the switch itself can reach it.
       </p>
       <div className={styles.rchRow}>
@@ -639,7 +639,7 @@ function ReachabilityTool({ host }) {
           value={target}
           onChange={e => setTarget(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !running) run('ping'); }}
-          placeholder="IP or hostname — e.g. 192.168.1.1"
+          placeholder="IP or hostname - e.g. 192.168.1.1"
           spellCheck="false"
           autoCapitalize="off"
         />
@@ -916,7 +916,7 @@ function PortCard({ port, variant }) {
         ) : linkUp ? (
           <span className={styles.ptNone}>Connected device<span className={styles.ptMed}> · {medium}</span></span>
         ) : (
-          <span className={styles.ptNone}>—<span className={styles.ptMed}> · {medium}</span></span>
+          <span className={styles.ptNone}>-<span className={styles.ptMed}> · {medium}</span></span>
         )}
       </div>
 
@@ -992,7 +992,7 @@ function CablesView({ ports, sfpPortIfaces, switchName }) {
   if (cables.length === 0) {
     return (
       <div className={styles.invEmpty}>
-        No cables identified yet — reading the switch. Live ports with an
+        No cables identified yet - reading the switch. Live ports with an
         LLDP neighbour or a known MAC appear here.
       </div>
     );
@@ -1038,7 +1038,7 @@ function CablesView({ ports, sfpPortIfaces, switchName }) {
         })}
       </div>
       <p className={styles.cblFoot}>
-        Logical layer only — read live from the switch (LLDP + MAC table).
+        Logical layer only - read live from the switch (LLDP + MAC table).
         Passive patch panels and wall cabling between the ends have no chip, so
         they aren't visible to the switch.
       </p>
@@ -1135,7 +1135,7 @@ function DownstreamMacs({ macs }) {
           <div className={styles.traceT}>
             Downstream network · {devices.length} device{devices.length === 1 ? '' : 's'}
           </div>
-          <div className={styles.dsSub}>Reachable through this port — one row per device</div>
+          <div className={styles.dsSub}>Reachable through this port - one row per device</div>
         </div>
         <button type="button" className={styles.dsCopy} onClick={copyAll}>
           {copied ? 'Copied' : 'Copy MACs'}
@@ -1214,14 +1214,51 @@ function CableTrace({ cable, switchName }) {
       </div>
 
       <p className={styles.traceNote}>
-        Any patch panel or wall outlet along this run is passive — invisible to the
-        switch — so it can't appear here. Add those from the port label if you keep a cable schedule.
+        Any patch panel or wall outlet along this run is passive - invisible to the
+        switch - so it can't appear here. Add those from the port label if you keep a cable schedule.
       </p>
     </div>
   );
 }
 
 // ── Orbital loader ───────────────────────────────────────────
+// The probe sits in `idle` forever when no switch is configured for this
+// deployment at all — which is the normal state on the demo, where there is no
+// switch on the network to read. OrbitalLoader only counts up when `startedAt`
+// is set, so with no probe actually running it span with no text and no end,
+// and testers reported the Ports page as simply blank.
+//
+// Wait a short while (a real probe against a slow switch does take a few
+// seconds), then stop spinning and say what is going on. A page that explains
+// why it is empty is not a broken page.
+function ProbeWaiting({ probe, onRetry }) {
+  const [waited, setWaited] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setWaited(w => w + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (waited < 12) return <OrbitalLoader startedAt={probe.startedAt} />;
+
+  return (
+    <div className={styles.errorBox}>
+      <div className={styles.errorMsg}>
+        <strong className={styles.errorMsgHead}>No live switch connected</strong>
+        <div className={styles.errorMsgBody}>
+          This page reads live port status straight off a real switch - which
+          ports are up, what is plugged into each one, and which are free. That
+          needs a switch on the network for RackTrack to reach.
+          {' '}
+          There is no switch connected to this deployment, so there is nothing
+          to show here. Your rack scans, devices and reports are unaffected -
+          only live port status depends on a switch being reachable.
+        </div>
+      </div>
+      <button className={styles.retryBtn} onClick={onRetry}>Try again</button>
+    </div>
+  );
+}
+
 function OrbitalLoader({ startedAt }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {

@@ -60,9 +60,10 @@ export const MoreIcon = () => (
 );
 
 /* ── the destinations ──────────────────────────────────────────────────
-   `inBar` marks the three that get a permanent slot in the phone's bottom
-   bar. Everything else lives behind More on a phone and in the sidebar on
-   a tablet or desktop — same list, same order, same role gating. */
+   `inBar` marks the four that get a permanent slot in the phone's bottom
+   bar; an item may also set `barLabel` for a shorter name there than the
+   sidebar uses. Everything else lives behind More on a phone and in the
+   sidebar on a tablet or desktop — same list, same order, same role gating. */
 export function usePrimaryNav() {
   const { user } = useAuth();
   const isOwner = user?.role === 'owner';
@@ -71,7 +72,14 @@ export function usePrimaryNav() {
   return [
     { to: '/',               label: 'Home',         icon: <HomeIcon />,        end: true,  inBar: true },
     { to: '/scan',           label: 'Scan',         icon: <ScanIcon />,        end: false, inBar: true },
+    // In the phone's bottom bar as well as the sidebar. It used to be behind
+    // "More", and testers reported not knowing the mode existed at all —
+    // the scan page deliberately has no two-rack card (one home for the entry),
+    // so a hidden menu item was the ONLY way in. `barLabel` keeps the bar
+    // legible: "TWO RACKS" is too wide for a fifth 10px slot on a 320px phone,
+    // where "2 RACKS" fits.
     { to: '/multi-rack/new', label: 'Two racks',    icon: <TwoRackIcon />,     end: false,
+      inBar: true, barLabel: '2 Racks',
       hint: 'Scan two racks together' },
     // Organization Console — manage organizations, members and sites. Owner
     // and org-admin only. This used to be reachable ONLY from the Profile

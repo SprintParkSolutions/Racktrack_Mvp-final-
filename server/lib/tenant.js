@@ -40,7 +40,7 @@ db.pragma('journal_mode = WAL');
 // Prepared statements (better-sqlite3 caches by SQL text but explicit
 // is faster + clearer). Created lazily so this module can be required
 // before auth.js has finished its CREATE TABLE.
-let _stmtClaim, _stmtOwns, _stmtList, _stmtRackIds, _stmtUserRackIds;
+let _stmtClaim, _stmtOwns, _stmtList, _stmtRackIds, _stmtUserRackIds, _stmtClaimUser;
 function _prep() {
   if (_stmtClaim) return;
   _stmtClaim = db.prepare(
@@ -53,8 +53,51 @@ function _prep() {
      WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?`);
   _stmtRackIds = db.prepare(
     `SELECT rack_id FROM rack_owners WHERE tenant_id = ?`);
+  // Per-USER claims.
+  //
+  // rack_owners answers "has this TENANT scanned this rack", and its primary
+  // key is (tenant_id, rack_id) — one row per rack, whoever got there first.
+  // created_by therefore records only the FIRST person in the tenant to scan
+  // it, and claimRack's INSERT OR IGNORE silently discards everyone after.
+  //
+  // A rack id is SHA-256 of the image bytes, so two members photographing the
+  // same rack land on the same id by design. The second member's scan then
+  // vanished from their own history: /api/scans filters members by
+  // created_by = them, and that row belongs to their colleague. Owners and
+  // org_admins never saw it because neither is filtered that way — exactly
+  // matching the report that only plain user accounts lose history, and only
+  // sometimes.
+  //
+  // A separate table rather than widening the rack_owners key: that key is a
+  // real constraint elsewhere ("one owner row per tenant+rack"), and changing
+  // a primary key in SQLite means rebuilding a populated production table.
+  // This is additive, and the union below keeps every historical row working.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS rack_user_claims (
+      tenant_id  INTEGER NOT NULL,
+      rack_id    TEXT    NOT NULL,
+      user_id    INTEGER NOT NULL,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (tenant_id, rack_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_rack_user_claims_user
+      ON rack_user_claims(tenant_id, user_id);
+  `);
+  // Backfill once, so history recorded before this table existed still shows.
+  db.exec(`
+    INSERT OR IGNORE INTO rack_user_claims (tenant_id, rack_id, user_id, created_at)
+    SELECT tenant_id, rack_id, created_by, created_at
+      FROM rack_owners WHERE created_by IS NOT NULL
+  `);
+  _stmtClaimUser = db.prepare(
+    `INSERT OR IGNORE INTO rack_user_claims (tenant_id, rack_id, user_id)
+     VALUES (?, ?, ?)`);
+  // Union of the new per-user claims and the legacy created_by column, so a
+  // member keeps everything they could see before plus what they were losing.
   _stmtUserRackIds = db.prepare(
-    `SELECT rack_id FROM rack_owners WHERE tenant_id = ? AND created_by = ?`);
+    `SELECT rack_id FROM rack_user_claims WHERE tenant_id = ? AND user_id = ?
+     UNION
+     SELECT rack_id FROM rack_owners      WHERE tenant_id = ? AND created_by = ?`);
 }
 
 /** Record that this tenant has scanned this rack. Idempotent. */
@@ -62,6 +105,10 @@ function claimRack(tenantId, rackId, userId = null) {
   if (!tenantId || !rackId) return false;
   _prep();
   const r = _stmtClaim.run(Number(tenantId), String(rackId), userId);
+  // Always record the per-user claim, even when the tenant-level row already
+  // exists. This is the half that was missing: without it the second member to
+  // scan a shared rack id had no claim of their own and lost it from history.
+  if (userId) _stmtClaimUser.run(Number(tenantId), String(rackId), Number(userId));
   if (r.changes > 0) {
     logger.info({
       event: 'tenant.rack_claimed',
@@ -93,7 +140,9 @@ function tenantRackIds(tenantId) {
 function tenantUserRackIds(tenantId, userId) {
   if (!tenantId || !userId) return new Set();
   _prep();
-  return new Set(_stmtUserRackIds.all(Number(tenantId), Number(userId)).map(r => r.rack_id));
+  return new Set(_stmtUserRackIds
+    .all(Number(tenantId), Number(userId), Number(tenantId), Number(userId))
+    .map(r => r.rack_id));
 }
 
 /** Recent racks for this tenant (for the rack list endpoint). */

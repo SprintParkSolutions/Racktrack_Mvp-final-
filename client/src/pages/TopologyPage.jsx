@@ -22,11 +22,22 @@ const CLASS_LABEL = {
   server: 'Server',
 };
 
+// The detector emits free-form class names - "Switch", "Patch Panel",
+// "Server": Title Case, with spaces. Every comparison on this page tested
+// `dev.class === 'switch'` / `'patch_panel'`, which matches none of them, so
+// the rack banner counted zero of everything, every device fell through to no
+// tier, and they all drew the default glyph. Normalise both sides rather than
+// trusting the exact casing of upstream data. `class_name` is accepted too,
+// since that is the field name the scan pipeline uses.
+const clsOf = (dev) => String(dev?.class ?? dev?.class_name ?? '')
+  .trim().toLowerCase().replace(/[\s-]+/g, '_');
+
 function tierOf(dev) {
-  if (!dev.in_rack && dev.class === 'switch') return 'core';
-  if (dev.class === 'switch') return 'distribution';
-  if (dev.class === 'patch_panel') return 'access';
-  if (dev.class === 'server') return 'endpoint';
+  const c = clsOf(dev);
+  if (!dev.in_rack && c === 'switch') return 'core';
+  if (c === 'switch') return 'distribution';
+  if (c === 'patch_panel') return 'access';
+  if (c === 'server') return 'endpoint';
   return null;
 }
 
@@ -310,7 +321,7 @@ function TopologyInner({ rackId, embedded }) {
       <>
         <div className={styles.error}>Topology is being prepared</div>
         <div className={styles.errorHint}>
-          The topology snapshot for this rack isn't ready yet — it generates in the background after a scan. It should appear on its own; tap Retry if it doesn't, or rescan to regenerate it.
+          The topology snapshot for this rack isn't ready yet - it generates in the background after a scan. It should appear on its own; tap Retry if it doesn't, or rescan to regenerate it.
         </div>
         <button
           type="button"
@@ -405,9 +416,9 @@ function TopologyInner({ rackId, embedded }) {
 }
 
 function RackBanner({ topo, view, setView }) {
-  const switches = topo.devices.filter(d => d.in_rack && d.class === 'switch').length;
-  const panels   = topo.devices.filter(d => d.in_rack && d.class === 'patch_panel').length;
-  const servers  = topo.devices.filter(d => d.in_rack && d.class === 'server').length;
+  const switches = topo.devices.filter(d => d.in_rack && clsOf(d) === 'switch').length;
+  const panels   = topo.devices.filter(d => d.in_rack && clsOf(d) === 'patch_panel').length;
+  const servers  = topo.devices.filter(d => d.in_rack && clsOf(d) === 'server').length;
   const showToggle = !!(view && setView);
   return (
     <div className={styles.rackBanner}>
@@ -984,9 +995,10 @@ function NodeShape({ dev, pos, color, dimmed, selected, onClick }) {
   const opacity = dimmed ? 0.28 : 1;
   const cy = h / 2 + 3;
 
-  const glyph = dev.class === 'switch'      ? <SwitchGlyph color={color} /> :
-                dev.class === 'patch_panel' ? <PatchGlyph color={color} /> :
-                dev.class === 'server'      ? <ServerGlyph color={color} /> :
+  const devCls = clsOf(dev);
+  const glyph = devCls === 'switch'      ? <SwitchGlyph color={color} /> :
+                devCls === 'patch_panel' ? <PatchGlyph color={color} /> :
+                devCls === 'server'      ? <ServerGlyph color={color} /> :
                 null;
 
   return (
@@ -1247,13 +1259,13 @@ function PortsTable({ dev, topo }) {
                   <td>
                     {primary
                       ? <code className={styles.cableId}>{primary.edge.cable_id}</code>
-                      : <span className={styles.tdDim}>—</span>}
+                      : <span className={styles.tdDim}>-</span>}
                   </td>
-                  <td>{connector || <span className={styles.tdDim}>—</span>}</td>
+                  <td>{connector || <span className={styles.tdDim}>-</span>}</td>
                   <td>
                     {primary
                       ? <span className={styles.tdMono}>{primary.edge.cable_type} · {primary.edge.length}</span>
-                      : <span className={styles.tdDim}>—</span>}
+                      : <span className={styles.tdDim}>-</span>}
                   </td>
                   <td>
                     {primary ? (
@@ -1262,7 +1274,7 @@ function PortsTable({ dev, topo }) {
                         <span className={styles.tdDim}>{primary.peer.device}</span>
                         {extras > 0 && <span className={styles.peerCount}>+{extras}</span>}
                       </div>
-                    ) : <span className={styles.tdDim}>—</span>}
+                    ) : <span className={styles.tdDim}>-</span>}
                   </td>
                 </tr>
               );

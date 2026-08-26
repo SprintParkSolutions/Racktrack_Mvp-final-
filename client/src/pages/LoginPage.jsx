@@ -142,10 +142,10 @@ export default function LoginPage() {
           existing team is invite/credentials-only — spell out both paths. */}
       <div className={styles.note}>
         <div className={styles.noteLine}>
-          <b>Setting up your own team</b> — create an organization above.
+          <b>Setting up your own team</b> - create an organization above.
         </div>
         <div className={styles.noteLine}>
-          <b>Joining an existing team</b> — ask your organization admin for an
+          <b>Joining an existing team</b> - ask your organization admin for an
           invite link, or a username and password. New sign-ups can’t join an
           existing organization on their own.
         </div>

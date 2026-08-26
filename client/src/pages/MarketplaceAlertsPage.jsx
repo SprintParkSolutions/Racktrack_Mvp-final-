@@ -270,7 +270,7 @@ export default function MarketplaceAlertsPage() {
                 </svg>
                 <p className="mkt-empty__title">No matches yet</p>
                 <p className="mkt-empty__text">
-                  Save a search below and every new listing that fits it lands here —
+                  Save a search below and every new listing that fits it lands here -
                   usually within a few minutes of being posted.
                 </p>
               </div>
@@ -314,7 +314,7 @@ export default function MarketplaceAlertsPage() {
                 </svg>
                 <p className="mkt-empty__title">Nothing saved yet</p>
                 <p className="mkt-empty__text">
-                  A saved search is a standing order — describe the gear you want once
+                  A saved search is a standing order - describe the gear you want once
                   and we watch every new listing for you.
                 </p>
                 <button className="mkt-btn mkt-btn--primary" onClick={() => setShowNew(true)}>

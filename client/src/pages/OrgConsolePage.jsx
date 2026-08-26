@@ -130,7 +130,7 @@ export default function OrgConsolePage() {
 
   const removeMember = async (m) => {
     setMenuFor(null);
-    if (!window.confirm(`Remove ${m.username}? The account is deleted; their past scans stay (shown as “—”).`)) return;
+    if (!window.confirm(`Remove ${m.username}? The account is deleted; their past scans stay (shown as “-”).`)) return;
     try {
       await delJSON(`/api/orgs/${activeOrg.id}/members/${m.id}`);
       flash(`${m.username} removed`);
@@ -671,7 +671,7 @@ function RecentScans({ scans, showOrg = false }) {
             <div>
               <div className={`${styles.rowName} ${styles.mono}`}>{s.rack_id}</div>
               <div className={styles.rowSub}>
-                {showOrg && s.org ? `${s.org} · ` : ''}{s.site || '—'}
+                {showOrg && s.org ? `${s.org} · ` : ''}{s.site || '-'}
                 {s.by_user ? ` · by ${s.by_user}` : ''}
               </div>
             </div>
@@ -713,7 +713,7 @@ function ScanGrid({ scans, filterLabel, onClear }) {
               </span>
               <span className={styles.scanInfo}>
                 <span className={`${styles.scanId} ${styles.mono}`}>{s.rack_id}</span>
-                <span className={styles.scanSub}>{s.by_user ? `by ${s.by_user}` : '—'}{s.site ? ` · ${s.site}` : ''}</span>
+                <span className={styles.scanSub}>{s.by_user ? `by ${s.by_user}` : '-'}{s.site ? ` · ${s.site}` : ''}</span>
                 <span className={styles.scanDate}>{fmtDate(s.created_at)}</span>
               </span>
             </button>
@@ -864,7 +864,7 @@ function EditMemberModal({ orgId, member, sites, onClose, onDone }) {
           <label className={styles.field}>
             <span>Site</span>
             <select className={styles.input} value={f.siteId} onChange={set('siteId')}>
-              <option value="">— No site —</option>
+              <option value="">- No site -</option>
               {sites.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
             </select>
           </label>

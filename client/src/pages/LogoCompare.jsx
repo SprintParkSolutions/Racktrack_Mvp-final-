@@ -86,7 +86,7 @@ export default function LogoCompare() {
       <div style={{ textAlign: 'center', color: '#ffffff' }}>
         <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800 }}>Logo Comparison</h2>
         <p style={{ margin: '6px 0 0', color: 'rgba(255,255,255,0.6)', fontSize: '.85rem' }}>
-          Pick the one you like — both shown how they appear in the app.
+          Pick the one you like - both shown how they appear in the app.
         </p>
       </div>
 

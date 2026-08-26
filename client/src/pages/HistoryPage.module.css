@@ -195,7 +195,8 @@
   border: 1px solid rgba(18, 18, 18, 0.10);
   background: #ffffff;
   font-family: var(--font);
-  font-size: 14.5px;
+  /* 16px floor: anything smaller makes iOS Safari zoom the page on focus. */
+  font-size: 16px;
   font-weight: 500;
   color: #121212;
   outline: none;
@@ -298,7 +299,8 @@
   background-position: right 11px center;
   background-size: 14px;
   font-family: var(--font);
-  font-size: 13px;
+  /* 16px floor: anything smaller makes iOS Safari zoom the page on focus. */
+  font-size: 16px;
   font-weight: 620;
   color: #121212;
   cursor: pointer;

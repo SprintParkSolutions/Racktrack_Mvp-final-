@@ -72,7 +72,13 @@ async function run() {
   const consoleErrors = [];
   const failed = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 160)); });
-  page.on('requestfailed', (r) => failed.push(`${r.failure()?.errorText} ${r.url().slice(-60)}`));
+  page.on('requestfailed', (r) => {
+    // ERR_ABORTED is the browser cancelling its own request — a video stream
+    // dropped when the sweep navigates away mid-load — not a served failure.
+    const err = r.failure()?.errorText || '';
+    if (err.includes('ERR_ABORTED')) return;
+    failed.push(`${err} ${r.url().slice(-60)}`);
+  });
   page.on('response', (r) => { if (r.status() >= 500) failed.push(`HTTP ${r.status()} ${r.url().slice(-60)}`); });
 
   await page.addInitScript(() => {

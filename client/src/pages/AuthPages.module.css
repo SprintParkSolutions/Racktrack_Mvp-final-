@@ -1,5 +1,5 @@
 /* ══ Auth pages ═══════════════════════════════════════════════════════
-   A photograph of a real aisle on the left, the form on plain white to the
+   Footage of a real hall on the left, the form on plain white to the
    right of a hard edge. Nothing here is decoration: the only shapes on the
    right side are lines of type, hairline field borders and one filled
    button.
@@ -41,9 +41,11 @@
   letter-spacing: -0.006em;
 }
 
-/* ══ The photograph ════════════════════════════════════════════════════
-   Hidden below 1024px, where the form already fills the screen and a
-   photograph would only sit behind the keyboard. */
+/* ══ The footage ═══════════════════════════════════════════════════════
+   Hidden below 1024px, where the form already fills the screen and a moving
+   picture would only sit behind the keyboard. AuthLayout checks the same
+   1024px line in JS and doesn't render the <video> at all below it, so a
+   phone never downloads a frame of it. */
 .media { display: none; }
 
 /* ══ The form side ═════════════════════════════════════════════════════ */
@@ -114,19 +116,9 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* On the same left edge as the form — a footnote, not a centred badge. */
-.footNote {
-  flex-shrink: 0;
-  width: 100%; max-width: var(--measure);
-  margin: 0 auto;
-  padding: 16px 22px calc(16px + env(safe-area-inset-bottom, 0px));
-  font-size: .75rem;
-  color: var(--dim);
-}
-
 /* ══ The measure ═══════════════════════════════════════════════════════
-   One number, used by the top bar, the form and the footnote alike, so the
-   three share a left and a right edge at every width. */
+   One number, used by the top bar and the form alike, so the two share a left
+   and a right edge at every width. */
 .authShell {
   position: relative;
   flex: 1;
@@ -200,7 +192,8 @@
   height: 44px;
   color: var(--ink);
   font-family: inherit;
-  font-size: .9375rem;
+  /* 16px floor: anything smaller makes iOS Safari zoom the page on focus. */
+  font-size: 1rem;
   font-weight: 450;
   letter-spacing: -0.006em;
   padding: 0 14px;
@@ -477,7 +470,6 @@
   .topBar     { padding: 24px 32px 0; }
   .formScroll { justify-content: safe center; }
   .authShell  { flex: 0 0 auto; margin: auto; padding: 36px 32px; }
-  .footNote   { padding: 20px 32px calc(20px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ══ Laptop and up — 60 / 40 ═══════════════════════════════════════════ */
@@ -502,21 +494,25 @@
     overflow: hidden;
     background: #16181c;
   }
+  /* A <video> now, not an <img> — the class name is kept because it is the
+     same slot doing the same job, and renaming it would touch nothing else.
+     `height: 100%` here beats the global `video { height: auto }` in index.css
+     on specificity, so the frame fills the column instead of collapsing to its
+     intrinsic aspect ratio. */
   .mediaImg {
     position: absolute; inset: 0;
     width: 100%; height: 100%;
+    display: block;
     object-fit: cover;
-    /* The aisle recedes to the left of frame; holding the crop right of
-       centre keeps the cabinet faces and the vanishing point both in shot. */
-    object-position: 62% 50%;
+    object-position: 50% 50%;
     /* Pulled toward charcoal and stopped down. The room stays a room — the
        point is that it is a real one — but it sits behind the type rather
        than competing with it. */
     filter: saturate(.32) brightness(.8) contrast(1.02);
   }
   /* A legibility floor for the mark at the top and the copy at the bottom.
-     The photograph has a bright wall on the left; without this the lower
-     copy would fall on it. */
+     The footage has a bright far wall; without this the lower copy would
+     fall on it as the loop comes round. */
   .mediaWash {
     position: absolute; inset: 0;
     background: linear-gradient(180deg,
@@ -560,10 +556,10 @@
 
   /* The right column: plain white, one measure, no card.
 
-     The top bar, the form and the footnote are each the SAME 372px box,
-     centred in the same column — so all three share one left edge and one
-     right edge. Giving the top bar its own padding instead is what had the
-     back arrow sitting at a margin the form never used. */
+     The top bar and the form are the SAME 372px box, centred in the same
+     column — so both share one left edge and one right edge. Giving the top
+     bar its own padding instead is what had the back arrow sitting at a
+     margin the form never used. */
   :global(#root.rt-auth-wide) .formSide {
     grid-column: 2;
     height: 100%;
@@ -574,8 +570,7 @@
     padding: 0 clamp(28px, 4.4vw, 92px);
   }
   :global(#root.rt-auth-wide) .topBar,
-  :global(#root.rt-auth-wide) .authShell,
-  :global(#root.rt-auth-wide) .footNote {
+  :global(#root.rt-auth-wide) .authShell {
     width: 100%; max-width: var(--measure);
     margin-left: auto; margin-right: auto;
     padding-left: 0; padding-right: 0;
@@ -585,8 +580,7 @@
   .socialBlock { margin-bottom: 22px; }
 
   :global(#root.rt-auth-wide) .topBar    { padding-top: 32px; }
-  :global(#root.rt-auth-wide) .authShell { padding-top: 20px; padding-bottom: 20px; }
-  :global(#root.rt-auth-wide) .footNote  { padding-top: 14px; padding-bottom: 30px; }
+  :global(#root.rt-auth-wide) .authShell { padding-top: 20px; padding-bottom: 30px; }
 
   /* The photograph carries the mark; a second one above the heading would
      just be the logo twice on one screen. */

@@ -215,6 +215,25 @@ docker compose -f docker-compose.demo.yml up -d --build
 plain `restart` serves the previous bundle and the change appears not to have
 landed.
 
+**If the container then crash-loops on `attempt to write a readonly database`,**
+the bind-mounted directories are still owned by root from an older image that ran
+as root. This image runs as UID 10001 (see the `USER app` line at the end of the
+Dockerfile), so the host directories it writes to must be owned by that UID —
+otherwise `auth.db` is read-only and the server dies in `migrateTenants` before it
+can serve a single request. One-time fix on the box:
+
+```bash
+ssh root@82.29.164.213 'cd /opt/racktrack-demo \
+  && chown -R 10001:10001 server/data outputs active_learning_Cache/data \
+  && docker compose -f docker-compose.demo.yml restart racktrack'
+```
+
+Run it through `ssh`, not by pasting the inner command into a local shell — on a
+Mac the `chown` fails with `Operation not permitted` on every file (only root can
+give a file away) and the `docker compose` line hits a daemon that isn't there.
+
+`Models` is mounted read-only and does not need this.
+
 `server/data`, `outputs` and `Models` are bind-mounted from the host, so
 accounts, scans and weights survive a rebuild.
 

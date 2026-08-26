@@ -35,7 +35,7 @@ const TIMELINE_BARS = [
     colorOf: (v) => v === 'enabled'  ? '#1c1c1c'
                   : v === 'disabled' ? '#1c1c1c'
                   : '#1c1c1c',
-    formatValue: (v) => v ? v.charAt(0).toUpperCase() + v.slice(1) : '—',
+    formatValue: (v) => v ? v.charAt(0).toUpperCase() + v.slice(1) : '-',
   },
   {
     label: 'Flow Control',         field: 'flowctrl',
@@ -50,7 +50,7 @@ const TIMELINE_BARS = [
                   : v === 'down' ? '#ef4444'
                   : '#d5d5d5',
     // Render label as Up / Down — the colour itself signals state
-    formatValue: (v) => v ? v.toUpperCase() : '—',
+    formatValue: (v) => v ? v.toUpperCase() : '-',
   },
   {
     label: 'Speed',                field: 'speed_mbps',
@@ -78,13 +78,13 @@ function hashColor(s) {
 }
 
 function fmtTs(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
 function fmtAgo(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const ms = Date.now() - new Date(iso).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return '—';
+  if (!Number.isFinite(ms) || ms < 0) return '-';
   const s = Math.floor(ms / 1000);
   if (s < 60)     return `${s}s ago`;
   if (s < 3600)   return `${Math.floor(s/60)}m ago`;
@@ -92,7 +92,7 @@ function fmtAgo(iso) {
   return `${Math.floor(s/86400)}d ago`;
 }
 function fmtSpeed(mbps) {
-  if (mbps == null) return '—';
+  if (mbps == null) return '-';
   if (mbps >= 1000) return `${(mbps / 1000).toFixed(0)} Gbps`;
   return `${mbps} Mbps`;
 }
@@ -391,7 +391,7 @@ function PortHistoryInner({ embedded }) {
             <div className={styles.muted}>Loading…</div>
           ) : overview.ports.length === 0 ? (
             <div className={styles.muted}>
-              No port data yet. The poller runs once per minute — first
+              No port data yet. The poller runs once per minute - first
               snapshot lands shortly after the switch becomes reachable.
             </div>
           ) : (
@@ -552,16 +552,16 @@ function InterfaceDetail({ deviceId, device, port, onClose }) {
       {/* ── Specs tab: merged Interface details ─────────────────── */}
       {detailTab === 'specs' && (
         <div className={styles.kvGrid}>
-          <KV label="Operational"   value={current?.oper || '—'} cls={operClass(current?.oper)} />
-          <KV label="Admin State"   value={current?.admin || '—'} />
+          <KV label="Operational"   value={current?.oper || '-'} cls={operClass(current?.oper)} />
+          <KV label="Admin State"   value={current?.admin || '-'} />
           <KV label="Speed"         value={fmtSpeed(current?.speed_mbps)} />
-          <KV label="Duplex"        value={current?.duplex || '—'} />
-          <KV label="Flow Control"  value={current?.flowctrl || '—'} />
-          <KV label="Active Medium" value={current?.medium || '—'} />
-          <KV label="MAC"           value={device?.mac || '—'} mono />
+          <KV label="Duplex"        value={current?.duplex || '-'} />
+          <KV label="Flow Control"  value={current?.flowctrl || '-'} />
+          <KV label="Active Medium" value={current?.medium || '-'} />
+          <KV label="MAC"           value={device?.mac || '-'} mono />
           <KV label="Description"   value={current?.descr || '(none)'} />
-          <KV label="Last change"   value={current?.ts ? fmtAgo(current.ts) : '—'} />
-          <KV label="Last poll"     value={device?.last_seen ? fmtAgo(device.last_seen) : '—'} />
+          <KV label="Last change"   value={current?.ts ? fmtAgo(current.ts) : '-'} />
+          <KV label="Last poll"     value={device?.last_seen ? fmtAgo(device.last_seen) : '-'} />
         </div>
       )}
 
@@ -599,8 +599,8 @@ function InterfaceDetail({ deviceId, device, port, onClose }) {
                     {offsetRows.map(({ sig, snap: s, label }) => (
                       <tr key={sig}>
                         <td>{label}</td>
-                        <td className={operClass(s.oper)}>{s.oper ?? '—'}</td>
-                        <td>{s.admin ?? '—'}</td>
+                        <td className={operClass(s.oper)}>{s.oper ?? '-'}</td>
+                        <td>{s.admin ?? '-'}</td>
                         <td>{fmtSpeed(s.speed_mbps)}</td>
                         <td className={styles.tsCell}>{fmtTs(s.ts)}</td>
                       </tr>
@@ -683,7 +683,7 @@ function StackedTimeline({ timeline, windowSec }) {
 
       {noData ? (
         <div className={styles.timelineEmpty}>
-          No snapshots in this window yet — let the poller run for a few
+          No snapshots in this window yet - let the poller run for a few
           cycles and the bars below will fill in.
         </div>
       ) : (

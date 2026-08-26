@@ -1,255 +1,292 @@
-/* Home hero — left-aligned editorial, two columns.
-   Claim on the left over a hairline stat row; the rack on the right with its
-   scan readings floating over it as small white instruments.
+/* Home hero — one full-bleed frame: cold-aisle footage behind the claim.
+
+   The room is the page. Footage fills the viewport, a scrim carries it down to
+   near-black on the left so type can sit on it, and only two things are drawn
+   over the top: the mark on a hairline, and the claim with its two actions.
 
    Notes on the treatment:
 
-   · SQUARE corners, not pills. 3px on the buttons, 10px on the image. Pill
-     buttons read as consumer app chrome; a near-square button reads as a tool.
-   · NO colour anywhere. The accent was blue (#1D3FD1) on the primary button
-     and the meter; the app is pure white with subtle black, so the accent is
-     now ink and the button is a black fill on white.
+   · SQUARE corners, not pills. 3px on the buttons. A pill reads as consumer app
+     chrome; a near-square control reads as a tool.
+   · NO colour anywhere, on dark as on light. The hierarchy is carried by white
+     at four opacities and nothing else — a coloured "live" dot would be the
+     only hue in an app that has none.
    · WEIGHT. Geist ships 400/500/600/700 only (fonts.css) — no 650, no 800.
      Asking for a weight it doesn't have makes the browser synthesise or round,
      which smears the stems at hero size.
-   · The stat row is mono because those are measurements, not prose.
+   · Mono is for labels, the sans is for prose.
 
-   The local tokens below now READ THE APP'S tokens with a hex fallback, which
-   is the convention DashboardPage.module.css sets. The hero used to hardcode
-   its own greys, so it quietly drifted out of step with index.css. */
+   On class names: index.css's surface-enforcement layer matches substrings —
+   card, panel, tile, surface, chip, badge, bg, header, banner — and repaints
+   anything wearing one into the light depth system. Nothing here uses those.
+   `.hero` itself is matched by the flat-accessory rule (box-shadow / filter
+   none), which is why the footage carries its own grade on `.film` and the
+   darkening lives on `.scrim` rather than on the section. */
 
 .hero {
   position: fixed; inset: 0; z-index: 40;
   display: flex; flex-direction: column;
-  overflow-y: auto; overflow-x: hidden;
-  background: var(--ground, #FFFFFF);
-  color: var(--md-on-surface, #121212);
-  color-scheme: light;
+  overflow: hidden;
+  background-color: #05070a;
+  color: #ffffff;
+  color-scheme: dark;
   font-family: var(--font, 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
-  --accent: var(--md-primary, #121212);
-  --ink: var(--md-on-surface, #121212);
-  --muted: #606060;
-  /* Was #a0a0a0, which measures 2.6:1 on white — under the 4.5:1 AA floor,
-     and these are the only characters on the page below 12px. They're read
-     off a phone in a lit aisle, so they have to survive glare. 5.3:1 here,
-     still a step lighter than --muted so the hierarchy holds. */
-  --faint: var(--md-on-surface-variant, #6b6b6b);
-  --hair: var(--md-outline-variant, #e8e8e8);
+  --ink: #ffffff;
+  --soft: rgba(255, 255, 255, .68);
+  --faint: rgba(255, 255, 255, .46);
+  --hair: rgba(255, 255, 255, .13);
+  --gutter: clamp(20px, 4vw, 64px);
   /* Literal, not var(--mono, …) — a custom property that references itself is
      a cycle and resolves to nothing. index.css declares the same stack. */
   --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* ── Nav ──────────────────────────────────────────────── */
+/* ── The room ─────────────────────────────────────────────
+   `height: 100%` beats the global `video { height: auto }` in index.css on
+   specificity, so the frame fills the viewport instead of collapsing to its
+   intrinsic aspect. Graded down to a cold charcoal: the footage stays a real
+   room, but it sits behind the type rather than competing with it. */
+.film {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+  filter: saturate(.42) brightness(.62) contrast(1.06);
+  pointer-events: none;
+}
+
+/* Legibility floor. Two passes: dark from the left so the claim always has a
+   ground whatever the footage is doing, and a vertical pass that lifts the top
+   for the mark and settles the foot of the frame. */
+.scrim {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(90deg, rgba(5, 7, 10, .93) 0%, rgba(5, 7, 10, .78) 34%,
+                           rgba(5, 7, 10, .34) 62%, rgba(5, 7, 10, .12) 100%),
+    linear-gradient(180deg, rgba(5, 7, 10, .72) 0%, rgba(5, 7, 10, 0) 22%,
+                            rgba(5, 7, 10, 0) 58%, rgba(5, 7, 10, .55) 100%);
+  pointer-events: none;
+}
+
+/* ── Nav ──────────────────────────────────────────────────
+   A hairline runs under it, gutter to gutter, so the top of the page reads as
+   a ruled edge rather than a floating row. */
 .nav {
+  position: relative; z-index: 2;
   flex: 0 0 auto;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 18px clamp(20px, 4vw, 64px);
-  padding-top: max(18px, env(safe-area-inset-top, 0px));
+  padding: clamp(14px, 2.2vh, 22px) 0;
+  padding-top: max(clamp(14px, 2.2vh, 22px), env(safe-area-inset-top, 0px));
+  margin: 0 var(--gutter);
+  border-bottom: 1px solid var(--hair);
 }
-.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16.5px; letter-spacing: -.014em; }
-.logoMark { width: 30px; height: 30px; border-radius: 7px; object-fit: cover; display: block; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* The mark is white on black already, so `screen` drops its own square out and
+   leaves the glyph floating on the footage. */
+.mark { width: 28px; height: 28px; object-fit: cover; display: block; mix-blend-mode: screen; }
+.brandName { font-weight: 700; font-size: 16.5px; letter-spacing: -.014em; color: var(--ink); }
+.rule { width: 1px; height: 15px; background: var(--hair); margin: 0 3px; flex: 0 0 auto; }
+.tag {
+  font-family: var(--mono);
+  font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 /* 44px floor: this is the one control in the nav and it is tapped with a
    gloved thumb. index.css:388 sets the same floor on the global .btn. */
 .navBtn {
+  flex: 0 0 auto;
   display: inline-flex; align-items: center; justify-content: center;
-  min-height: 44px; padding: 9px 20px;
-  border: 1px solid var(--hair); border-radius: 3px;
-  font-size: 14px; font-weight: 600; background: #fff; color: var(--ink);
+  min-height: 40px; padding: 8px 20px;
+  border: 1px solid rgba(255, 255, 255, .26); border-radius: 3px;
+  font-size: 14px; font-weight: 600;
+  background: rgba(255, 255, 255, .06); color: var(--ink);
   cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: border-color .16s, background-color .16s;
+  transition: background-color .16s, border-color .16s, color .16s;
 }
-.navBtn:hover { border-color: var(--ink); }
+.navBtn:hover { background: #ffffff; border-color: #ffffff; color: #0a0c10; }
 /* tap-highlight is off, so without this a touch produces no feedback at all. */
-.navBtn:active { background: var(--accent-soft, rgba(18, 18, 18, .06)); }
+.navBtn:active { background: #ffffff; border-color: #ffffff; color: #0a0c10; }
 
-/* ── Two columns ──────────────────────────────────────── */
-.body {
+/* ── The claim ────────────────────────────────────────────
+   Held to a measure on the left of the frame, vertically centred in the band
+   under the nav. */
+.stage {
+  position: relative; z-index: 2;
   flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr);
-  align-items: center;
-  gap: clamp(28px, 4.5vw, 88px);
-  padding: 0 clamp(20px, 4vw, 64px) clamp(20px, 3.5vh, 52px);
+  display: flex; flex-direction: column; justify-content: center;
+  padding: clamp(20px, 4vh, 56px) var(--gutter);
+  min-height: 0;
 }
-
-/* ── Left ─────────────────────────────────────────────── */
-.copy { display: flex; flex-direction: column; align-items: flex-start; }
+.copy { display: flex; flex-direction: column; align-items: flex-start; max-width: min(720px, 60vw); }
 
 .eyebrow {
+  display: inline-flex; align-items: center; gap: 9px;
+  margin: 0;
   font-family: var(--mono);
   font-size: clamp(10px, 1.25vh, 11.5px);
   letter-spacing: .19em; text-transform: uppercase;
-  color: var(--faint);
-  border: 1px solid var(--hair);
-  padding: 5px 11px;
-  margin: 0;
+  color: var(--soft);
+}
+/* The one live element on the page. White, not green — the app has no colour,
+   and the ring alone reads as "running". Reduced motion kills the animation
+   globally in index.css, leaving a plain dot. */
+.dot {
+  position: relative;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #ffffff; flex: 0 0 auto;
+}
+.dot::after {
+  content: ''; position: absolute; inset: -4px;
+  border-radius: 50%; border: 1px solid rgba(255, 255, 255, .5);
+  animation: pulse 2.6s ease-out infinite;
+}
+@keyframes pulse {
+  0%   { transform: scale(.6); opacity: .9; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
 
+/* Sized off the WIDTH as well as the height, because the longest line —
+   "Precisely documented." — has to fit the measure above on one line. 4.6vw
+   lands it near 720px at 1440 and inside .copy at every width above it. */
 .h1 {
-  margin: clamp(14px, 2.4vh, 30px) 0 0;
-  font-size: clamp(34px, min(5.4vw, 8.6vh), 84px);
+  margin: clamp(16px, 2.8vh, 34px) 0 0;
+  font-size: clamp(32px, min(4.6vw, 8.4vh), 74px);
   font-weight: 700;
-  line-height: 1.0;
+  line-height: 1.03;
   letter-spacing: -.042em;
-  max-width: 13ch;
+  color: var(--ink);
 }
+/* The third line steps back a tone, so the claim reads in two beats instead of
+   one wall of white. */
+.dim { color: rgba(255, 255, 255, .48); }
 
 .lede {
   margin: clamp(14px, 2.4vh, 30px) 0 0;
   font-size: clamp(14.5px, min(1.05vw, 1.95vh), 18px);
   line-height: 1.62;
-  color: var(--muted);
-  max-width: 52ch;
+  color: var(--soft);
+  max-width: 54ch;
 }
+.lede strong { color: var(--ink); font-weight: 600; }
 
-.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: clamp(16px, 2.8vh, 36px); }
-.btn {
+.actions {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: clamp(14px, 2vw, 28px);
+  margin-top: clamp(18px, 3.2vh, 42px);
+}
+/* The filled control is white on the footage — the inverse of the light app,
+   and the only solid shape on the page. */
+.cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 11px;
   min-height: 44px;
   border-radius: 3px;
   padding: clamp(12px, 1.8vh, 17px) clamp(20px, 1.9vw, 30px);
   font-size: clamp(14.5px, 1.7vh, 15.5px); font-weight: 600; letter-spacing: -.006em;
-  border: 1px solid transparent; cursor: pointer;
+  background: #ffffff; color: #0a0c10;
+  border: 1px solid #ffffff; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background-color .16s, border-color .16s;
 }
-.primary { background: var(--accent); color: #fff; }
-/* Was #1834B4 — a leftover from the blue accent this page was built on, and
-   the one patch of colour left in an app that has none. Hovering the main CTA
-   turned it blue. It now deepens to true black, which is the same move the
-   rest of the app makes (--accent → --accent-strong). */
-.primary:hover { background: var(--accent-strong, #000000); }
-.primary:active { background: var(--accent-strong, #000000); }
-.primary svg { transition: transform .18s; }
-.primary:hover svg { transform: translateX(3px); }
-.ghost { background: #fff; color: var(--ink); border-color: var(--hair); }
-.ghost:hover { border-color: var(--ink); }
-.ghost:active { background: var(--accent-soft, rgba(18, 18, 18, .06)); border-color: var(--ink); }
+.cta:hover, .cta:active { background: rgba(255, 255, 255, .88); border-color: rgba(255, 255, 255, .88); }
+.cta svg { transition: transform .18s; }
+.cta:hover svg { transform: translateX(3px); }
 
-/* Hairline plus measurements. Vertical rules BETWEEN cells rather than around
-   them, so the row reads as one instrument panel instead of three boxes.
+/* The second action is a rule-underlined link, not a second box: two boxes
+   side by side make the user choose; a link is plainly the quieter path. */
+.link {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 44px; padding: 0 2px;
+  background: none; border: 0;
+  font-family: inherit;
+  font-size: clamp(14px, 1.7vh, 15px); font-weight: 500; letter-spacing: -.004em;
+  color: var(--soft);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .3);
+  transition: color .16s, box-shadow .16s;
+}
+.link:hover { color: var(--ink); box-shadow: inset 0 -1px 0 #ffffff; }
 
-   GRID, not flex-wrap. Wrapping broke the instrument-panel idea on a phone:
-   the third measurement dropped to a second line and took its `border-left`
-   with it, leaving a vertical rule hanging in front of nothing. Three fixed
-   columns can't wrap, so the rules always fall between cells. */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, max-content));
-  justify-content: start;
-  margin-top: clamp(18px, 3.4vh, 48px);
-  padding-top: clamp(14px, 2.2vh, 26px);
-  border-top: 1px solid var(--hair);
-  width: 100%;
-}
-.stat { padding-right: clamp(20px, 2.4vw, 40px); min-width: 0; }
-.stat + .stat {
-  padding-left: clamp(20px, 2.4vw, 40px);
-  border-left: 1px solid var(--hair);
-}
-.statVal {
-  display: block;
-  font-family: var(--mono);
-  font-size: clamp(15px, 2vh, 21px); font-weight: 500;
-  letter-spacing: -.01em; color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.statKey {
-  display: block; margin-top: 5px;
-  font-family: var(--mono);
-  font-size: clamp(9.5px, 1.2vh, 11px);
-  letter-spacing: .15em; text-transform: uppercase; color: var(--faint);
-}
-
-/* ── Right: the rack ──────────────────────────────────── */
-.shot {
-  position: relative; margin: 0;
-  justify-self: stretch;
-  height: min(76dvh, 840px);
-  overflow: visible;             /* the instruments overhang the frame */
-}
-.shotImg {
-  position: absolute; inset: 0;
-  border-radius: 10px; overflow: hidden;
-  background: #111111;
-  box-shadow: 0 1px 2px rgba(23, 23, 23,.08), 0 18px 40px -26px rgba(23, 23, 23,.35);
-}
-.shotImg img { width: 100%; height: 100%; object-fit: cover; display: block; object-position: 46% center; }
-
-/* Small white instruments over the photograph. They overhang the frame so the
-   image reads as something being measured rather than a picture in a box.
-
-   No box-shadow: index.css's surface-enforcement block matches [class*="chip"]
-   and sets `box-shadow: none !important`, so the drop shadow that used to be
-   declared here never rendered. Rather than rename around the rule, the chips
-   do what that rule intends — accessories stay flat — and lean on the hairline,
-   which is enough separation when the backdrop is a dark photograph. */
-.chip {
-  position: absolute; z-index: 2;
-  background: #fff;
-  border: 1px solid var(--md-outline, rgba(18, 18, 18, .14));
-  border-radius: 4px;
-  padding: 11px 14px 12px;
-  min-width: clamp(140px, 13vw, 186px);
-}
-.chipTop    { top: clamp(16px, 3vh, 40px); left: clamp(-14px, -1vw, 0px); }
-.chipBottom { bottom: clamp(16px, 3vh, 40px); right: clamp(-14px, -1vw, 0px); }
-.chipKey {
-  display: block;
-  font-family: var(--mono);
-  font-size: clamp(9px, 1.15vh, 10.5px);
-  letter-spacing: .15em; text-transform: uppercase; color: var(--faint);
-}
-.chipVal {
-  display: block; margin-top: 5px;
-  font-family: var(--mono);
-  font-size: clamp(17px, 2.5vh, 26px); font-weight: 500;
-  letter-spacing: -.02em; color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.chipVal small { font-size: .52em; color: var(--muted); margin-left: 4px; letter-spacing: .04em; }
-.meter { display: block; margin-top: 9px; height: 3px; background: #efefef; border-radius: 2px; overflow: hidden; }
-.meterFill { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
-
-/* ── Narrow ───────────────────────────────────────────── */
+/* ── Narrow ───────────────────────────────────────────────
+   The page still fills the device edge to edge; what changes is that the claim
+   takes the full width and the footage is darkened from the top down instead of
+   from the left, because there is no longer a clear side to hold type on. */
 @media (max-width: 900px) {
-  .body {
-    grid-template-columns: minmax(0, 1fr);
-    gap: clamp(20px, 3vh, 34px);
-    /* `safe` matters: plain `center` centres the overflow too, so on a small
-       phone the eyebrow and the top of the headline are pushed above .hero's
-       scroll origin and can never be scrolled back to. `safe` reverts to
-       start-alignment the moment the column is taller than the viewport.
-       Browsers without the keyword drop the declaration and get the default,
-       which errs the same way. */
-    align-content: safe center;
-    padding-bottom: calc(clamp(16px, 2.5vh, 34px) + env(safe-area-inset-bottom, 0px));
-  }
-  .h1 { max-width: 15ch; }
+  .copy { max-width: none; }
+  .h1 { font-size: clamp(32px, 9vw, 56px); }
   .lede { max-width: none; }
-  .shot { height: clamp(190px, 32dvh, 380px); order: 2; }
-  .chip { min-width: 132px; padding: 9px 12px 10px; }
-  .chipTop { left: 10px; top: 12px; }
-  .chipBottom { right: 10px; bottom: 12px; }
+  .scrim {
+    background:
+      linear-gradient(180deg, rgba(5, 7, 10, .78) 0%, rgba(5, 7, 10, .5) 30%,
+                              rgba(5, 7, 10, .74) 62%, rgba(5, 7, 10, .93) 100%);
+  }
+  /* `safe`: plain flex-end pushes the top of the claim above the scroll origin
+     once the column is taller than the band, where it can never be reached.
+     `safe` reverts to start-alignment in exactly that case; browsers without
+     the keyword drop the declaration and get the same default. */
+  .stage { justify-content: safe flex-end; padding-bottom: clamp(24px, 5vh, 48px); overflow-y: auto; }
+  .tag { display: none; }
+  .rule { display: none; }
 }
 @media (max-width: 480px) {
-  .btn { flex: 1 1 0; justify-content: center; padding-left: 14px; padding-right: 14px; }
-  /* Equal columns rather than max-content: "SCAN TO INVENTORY" is wider than a
-     third of a 390px screen, so max-content would push the row into overflow. */
-  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .stat { padding-right: 14px; }
-  .stat + .stat { padding-left: 14px; }
-  .statKey { letter-spacing: .1em; }
+  .actions { gap: 16px; }
+  .cta { flex: 1 1 auto; }
 }
-/* Short screens: the measurement row restates what the page already shows. */
 @media (max-height: 700px) and (max-width: 900px) {
-  .stats { display: none; }
-  .shot { height: clamp(140px, 24dvh, 220px); }
-  .body { gap: 16px; }
   .lede { font-size: 13.5px; line-height: 1.5; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn, .primary svg, .navBtn { transition: none; }
+  .cta, .cta svg, .navBtn, .link { transition: none; }
+  .dot::after { animation: none; opacity: 0; }
+  .askDot { transition: none; }
+}
+
+/* ── Ask DOT corner button ──────────────────────────────────────────────
+   Sits above the footage (.hero children run at z-index 2) in the bottom
+   right, clear of the iOS home indicator. It shows its label on a wide
+   screen where there is room, and collapses to a circular icon on a phone
+   so it never crowds the claim. */
+.askDot {
+  position: absolute;
+  z-index: 3;
+  right: max(clamp(16px, 2.4vw, 30px), env(safe-area-inset-right, 0px));
+  bottom: calc(clamp(16px, 2.4vh, 28px) + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; gap: 9px;
+  min-height: 48px; padding: 0 18px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14.5px; font-weight: 600; letter-spacing: -.005em;
+  color: var(--ink);
+  /* Testers could not see the bot button on the home screen. It was a 62%
+     translucent pill with a faint white hairline, sitting over a photograph -
+     on a bright or busy image it simply disappeared. Solid fill, a full-opacity
+     ring and a drop shadow so it separates from whatever is behind it. */
+  background: #121212;
+  border: 2px solid rgba(255, 255, 255, .92);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .38);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .16s, border-color .16s, transform .16s;
+}
+.askDot:hover,
+.askDot:focus-visible {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #0a0c10;
+}
+.askDot:active { transform: scale(.97); }
+
+.askDotLabel { white-space: nowrap; }
+
+/* On a phone the claim needs the width more than the button needs its word, so
+   it becomes a circle. Slightly larger than before: with no label to identify
+   it, the mark itself has to carry the meaning. */
+@media (max-width: 640px) {
+  .askDot {
+    width: 58px; height: 58px; min-height: 58px;
+    padding: 0; justify-content: center; gap: 0;
+  }
+  .askDotLabel { display: none; }
 }

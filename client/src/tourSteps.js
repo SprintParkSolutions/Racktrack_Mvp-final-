@@ -25,7 +25,7 @@ export const TOUR_STEPS = [
     id: 'incident-link',
     target: 'incident-dropdown',
     title: 'Link an incident (optional)',
-    body: 'If this scan is for a specific ticket, tap here to link it — otherwise you can skip this.',
+    body: 'If this scan is for a specific ticket, tap here to link it - otherwise you can skip this.',
     optional: true,
   },
   {
@@ -48,6 +48,18 @@ export const TOUR_STEPS = [
     title: 'Pick a device',
     body: 'Choose the device you’re working on, or tap it directly in the rack photo.',
     event: 'change',
+  },
+  {
+    // Testers picked a device from the dropdown and then stalled: the tour went
+    // straight on to Find Port, so nothing ever told them to tap that device
+    // where it actually sits in the rack. The dropdown copy mentions it, but a
+    // parenthetical in a <select> is not guidance. Advancing on a click
+    // anywhere on the rack image keeps it forgiving - the point is that they
+    // look at the photo, not that they hit the box precisely.
+    id: 'tap-device-in-rack',
+    target: 'rack-image',
+    title: 'Now find it in the photo',
+    body: 'Tap the device you just picked where it sits in the rack, so you can see which one it is.',
   },
   {
     id: 'find-port',

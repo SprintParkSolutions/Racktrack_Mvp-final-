@@ -2236,21 +2236,28 @@
   font-size: .85rem; font-weight: 600; color: #ffffff;
   font-family: var(--mono);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* Lets the title shrink instead of squeezing the Close control. */
+  min-width: 0;
 }
+/* Testers could not find the way out of the report. It was a dark chip
+   (rgba(0,0,0,.6)) on a near-black header with a 12%-alpha border — nearly
+   invisible — and its hover state flipped to light, which read as a different
+   control. It is now the one light element on a dark bar, carries the word
+   "Close" rather than an X alone, and is a 40px target. */
 .reportModalClose {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 8px;
-  background: rgba(0,0,0,0.6);
-  color: #ffffff; cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  flex: 0 0 auto;
+  height: 40px; padding: 0 14px;
+  border: 0; border-radius: 999px;
+  background: #ffffff;
+  color: #121212;
+  font-size: .8rem; font-weight: 700; letter-spacing: .01em;
+  cursor: pointer;
+  transition: background .15s ease, transform .1s ease;
 }
-.reportModalClose:hover {
-  background: rgba(0,0,0,0.14);
-  border-color: rgba(0,0,0,0.4);
-  color: #474747;
-}
+.reportModalClose:hover { background: #e6e6e6; }
+.reportModalClose:active { transform: scale(.97); }
+.reportModalClose:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 .reportModalFrame {
   /* White (was #000000) so there's no black flash before the light report
      paints — the report itself is a white document. */
@@ -5955,3 +5962,17 @@
   color: #8a5a12; font-size: 12.5px; line-height: 1.45; font-weight: 500;
 }
 .prLowConf svg { flex: 0 0 auto; margin-top: 1px; color: #b07213; }
+
+/* The "what now" line shown once a device is picked and no port located yet.
+   Deliberately quieter than a warning and louder than helper text: it is the
+   only instruction on screen at the step users reported getting stuck on. */
+.prNextStep {
+  margin: 10px 0 2px;
+  padding: 9px 12px;
+  font-size: .82rem;
+  line-height: 1.45;
+  color: rgba(0,0,0,0.78);
+  background: var(--accent-soft, rgba(18,18,18,0.06));
+  border-left: 3px solid var(--accent, #121212);
+  border-radius: 0 8px 8px 0;
+}

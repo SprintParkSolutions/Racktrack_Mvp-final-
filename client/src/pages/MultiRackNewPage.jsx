@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiUrl, authFetch } from '../utils/api';
+import { validateMedia } from '../utils/validateMedia';
+import { IMAGE_ACCEPT, VIDEO_ACCEPT } from '../utils/mediaAccept';
 import styles from './MultiRackNewPage.module.css';
 
 // Analyze one image → returns its rackId (throws on failure).
@@ -27,7 +29,6 @@ function ImageSlot({ index, file, onPick, disabled }) {
   // who already have the photos.
   const inputRef = useRef(null);
   const url = file ? URL.createObjectURL(file) : null;
-  const ACCEPT = 'image/*,image/heic,image/heif,.heic,.heif';
   const take = (e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = ''; };
   // One tap on the container. No `capture` attribute → the phone shows its
   // native chooser (Take Photo / Photo Library); desktop opens the file picker.
@@ -66,7 +67,7 @@ function ImageSlot({ index, file, onPick, disabled }) {
         )}
       </button>
 
-      <input ref={inputRef} type="file" accept={ACCEPT} hidden onChange={take} />
+      <input ref={inputRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={take} />
     </div>
   );
 }
@@ -81,8 +82,27 @@ export default function MultiRackNewPage() {
   const [error,  setError]  = useState(null);
   const videoInputRef = useRef(null);
 
-  const setImage = useCallback((i, f) => {
+  // Two-rack uploads ran no quality check at all. A single-rack upload goes
+  // through validateMedia() in ScanPage before analysis — blur, size, and the
+  // unsupported-type guard — so a photo too soft to read was caught there and
+  // waved straight through here. Same check, same wording, on both paths now.
+  //
+  // It runs when the photo is PICKED rather than at build time, because two
+  // images are chosen before anything is submitted: telling someone the first
+  // photo was blurry while they are choosing the second is far more useful than
+  // failing the whole pair at the end. A retryable verdict is reported the same
+  // way as a hard one here — this page has one error line and no override
+  // affordance, and inventing a "use it anyway" path for two-rack that
+  // single-rack gates differently is not something to slip in silently.
+  const setImage = useCallback(async (i, f) => {
     setError(null);
+    if (f) {
+      const check = await validateMedia(f);
+      if (!check.ok) {
+        setError(`Rack ${i === 0 ? 'A' : 'B'}: ${check.error}`);
+        return;
+      }
+    }
     setImages(prev => { const next = prev.slice(); next[i] = f; return next; });
   }, []);
 
@@ -217,7 +237,7 @@ export default function MultiRackNewPage() {
             <input
               ref={videoInputRef}
               type="file"
-              accept="video/*,.mp4,.mov,.webm"
+              accept={VIDEO_ACCEPT}
               hidden
               onChange={(e) => { const f = e.target.files?.[0]; if (f) { setVideo(f); setError(null); } e.target.value = ''; }}
             />

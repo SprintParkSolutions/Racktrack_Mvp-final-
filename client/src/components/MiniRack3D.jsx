@@ -341,7 +341,7 @@ function CableBundle() {
       ];
       return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 36, 0.025, 8, false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [curves]);
 
   useFrame(({ clock }) => {

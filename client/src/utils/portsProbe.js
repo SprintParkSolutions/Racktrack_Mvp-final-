@@ -97,15 +97,15 @@ export { parseInterfaceStatusTable };
 function friendlyProbeError(msg) {
   const m = (msg || '').toLowerCase();
   if (/closed by the switch|session closed/.test(m))
-    return 'The switch accepted the login but closed the session — the saved switch account may not have CLI access. Check the switch credentials.';
+    return 'The switch accepted the login but closed the session - the saved switch account may not have CLI access. Check the switch credentials.';
   if (/not connected|econnreset|epipe|unable to open shell|channel open failure/.test(m))
-    return 'Lost the SSH session to the switch — it may limit simultaneous connections. Try again in a moment.';
+    return 'Lost the SSH session to the switch - it may limit simultaneous connections. Try again in a moment.';
   if (/timed out|etimedout|ehostunreach|enetunreach/.test(m))
     return 'The switch didn’t respond. Check you’re on the same network as the switch, then try again.';
   if (/auth|denied|permission|all configured authentication/.test(m))
     return 'The switch rejected the saved credentials.';
   if (/econnrefused/.test(m))
-    return 'The switch refused the connection — is SSH enabled on it?';
+    return 'The switch refused the connection - is SSH enabled on it?';
   return msg;
 }
 export { friendlyProbeError };

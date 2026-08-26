@@ -210,7 +210,7 @@ export default function ContactPage() {
             <div>
               <h2 className={styles.doneH}>Message sent</h2>
               <p className={styles.doneP}>
-                Thanks — our team has received your message and will get back to you
+                Thanks - our team has received your message and will get back to you
                 shortly at <strong>{email}</strong>.
               </p>
               <button className={styles.secondary} onClick={() => navigate(-1)}>
@@ -266,11 +266,12 @@ export default function ContactPage() {
             </div>
 
             <div className={styles.field}>
-              <label className={styles.label}>
+              <label className={styles.label} htmlFor="contact-attachments">
                 Attachments <span className={styles.optional}>Optional</span>
               </label>
 
               <input
+                id="contact-attachments"
                 ref={fileInput}
                 type="file"
                 className={styles.fileInput}

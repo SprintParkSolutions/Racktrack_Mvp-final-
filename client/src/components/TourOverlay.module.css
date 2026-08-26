@@ -96,11 +96,12 @@
   }
 }
 
+/* No float animation here any more: the mascot SVG declares its own, and
+   running both made it bob twice. */
 .robotStage {
   position: relative;
   width: 100%;
   height: 100%;
-  animation: rt-tour-robot-float 3.2s ease-in-out infinite;
 }
 
 .robotBody {
@@ -113,33 +114,8 @@
   -webkit-user-drag: none;
 }
 
-/* Same percentages as TourIntroModal.module.css's .mascotArm, calibrated
-   to this same robot image, so the wave lines up identically on both. */
-.robotArm {
-  position: absolute;
-  left: 6.801%;
-  top: 47.266%;
-  width: 27.078%;
-  height: 18.164%;
-  transform-origin: 94.88% 96.77%;
-  animation: rt-tour-robot-wave 1.8s ease-in-out infinite;
-  user-select: none;
-  -webkit-user-drag: none;
-}
 
-@keyframes rt-tour-robot-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-4px); }
-}
 
-@keyframes rt-tour-robot-wave {
-  0%   { transform: rotate(0deg); }
-  15%  { transform: rotate(-18deg); }
-  35%  { transform: rotate(12deg); }
-  55%  { transform: rotate(-18deg); }
-  75%  { transform: rotate(10deg); }
-  100% { transform: rotate(0deg); }
-}
 
 /* Speech-bubble tail — a small diamond in the bubble's own colors, poking
    out toward the mascot so the bubble reads as "the mascot is saying this",

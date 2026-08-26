@@ -80,7 +80,7 @@ function init() {
     prune(); // clear anything stale left from a previous run
   } catch (err) {
     // Never let log persistence failure break the server — degrade to no-op.
-    // eslint-disable-next-line no-console
+     
     console.error('[log-store] init failed, log dashboard disabled:', err.message);
     db = null;
   }

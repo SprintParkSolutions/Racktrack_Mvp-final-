@@ -91,7 +91,7 @@ export default function RackTopologyRoute() {
                     <code className={styles.id}>{m.rack_id}</code>
                   </header>
                   {!topo ? <div className={styles.center}>Loading topology…</div>
-                    : topo.__err ? <div className={styles.err}>{topo.__err === 'HTTP 404' ? 'Topology still generating — refresh shortly.' : topo.__err}</div>
+                    : topo.__err ? <div className={styles.err}>{topo.__err === 'HTTP 404' ? 'Topology still generating - refresh shortly.' : topo.__err}</div>
                     : <Rack2D topo={topo} />}
                 </section>
               );

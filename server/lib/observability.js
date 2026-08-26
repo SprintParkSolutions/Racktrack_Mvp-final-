@@ -90,7 +90,7 @@ try {
   // so the dashboard table isn't drowned in dev noise.
   streams.push({ level: 'info', stream: logStore.stream });
 } catch (err) {
-  // eslint-disable-next-line no-console
+   
   console.error('[o11y] log-store unavailable, dashboard persistence off:', err.message);
 }
 

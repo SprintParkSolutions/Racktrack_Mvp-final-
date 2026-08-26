@@ -80,11 +80,18 @@ const CLASS_LABEL = {
   server:      'Server',
 };
 
+// Class names arrive from the detector as "Switch" / "Patch Panel" / "Server"
+// - Title Case, with spaces - so `clsOf(dev) === 'switch'` matched nothing and
+// every device in this scene fell through to the default tier, mesh and glyph.
+// Normalise both sides instead of trusting upstream casing.
+const clsOf = (dev) => String(dev?.class ?? dev?.class_name ?? '')
+  .trim().toLowerCase().replace(/[\s-]+/g, '_');
+
 function tierOf(dev) {
-  if (!dev.in_rack && dev.class === 'switch') return 'core';
-  if (dev.class === 'switch')                 return 'distribution';
-  if (dev.class === 'patch_panel')            return 'access';
-  if (dev.class === 'server')                 return 'endpoint';
+  if (!dev.in_rack && clsOf(dev) === 'switch') return 'core';
+  if (clsOf(dev) === 'switch')                 return 'distribution';
+  if (clsOf(dev) === 'patch_panel')            return 'access';
+  if (clsOf(dev) === 'server')                 return 'endpoint';
   return null;
 }
 
@@ -506,7 +513,7 @@ export function computePortPositions(dev, h) {
   const n = ports.length;
   if (n === 0) return map;
 
-  if (dev.class === 'switch') {
+  if (clsOf(dev) === 'switch') {
     const cols = Math.ceil(n / 2);
     const rowsY = [h * 0.20, -h * 0.20];
     const xMin  = -DEV_WIDTH * 0.34;
@@ -518,14 +525,14 @@ export function computePortPositions(dev, h) {
       const t = denom === 0 ? 0.5 : col / denom;
       map.set(p.name, [xMin + t * (xMax - xMin), rowsY[row]]);
     });
-  } else if (dev.class === 'patch_panel') {
+  } else if (clsOf(dev) === 'patch_panel') {
     const xMin = -DEV_WIDTH * 0.40;
     const xMax =  DEV_WIDTH * 0.40;
     ports.forEach((p, i) => {
       const t = n === 1 ? 0.5 : i / (n - 1);
       map.set(p.name, [xMin + t * (xMax - xMin), 0]);
     });
-  } else if (dev.class === 'server') {
+  } else if (clsOf(dev) === 'server') {
     // Two-column NIC stack on the right portion of the faceplate
     const xCols = [DEV_WIDTH * 0.18, DEV_WIDTH * 0.30];
     ports.forEach((p, i) => {
@@ -546,9 +553,9 @@ export function computePortPositions(dev, h) {
 function PortGrid({ dev, h, dimmed, portMap, highlightedPorts }) {
   const ports = dev.ports || [];
   if (!ports.length) return null;
-  const isSwitch = dev.class === 'switch';
-  const isPanel  = dev.class === 'patch_panel';
-  const isServer = dev.class === 'server';
+  const isSwitch = clsOf(dev) === 'switch';
+  const isPanel  = clsOf(dev) === 'patch_panel';
+  const isServer = clsOf(dev) === 'server';
 
   const COL_EMPTY   = '#000000';
   const COL_CONNECT = '#252525';
@@ -678,8 +685,8 @@ function DeviceBox({ dev, uPos, sizeU, chassisU, color, dimmed, selected, isCore
   const faceH      = h - FACE_INSET * 2;
   const faceZ      = d/2 + FACE_DEPTH/2;
 
-  const isSwitch = dev.class === 'switch';
-  const isPanel  = dev.class === 'patch_panel';
+  const isSwitch = clsOf(dev) === 'switch';
+  const isPanel  = clsOf(dev) === 'patch_panel';
 
   // Real datacenter equipment is dark anodized aluminum or matte black —
   // switches, patch panels, servers all live in shades of charcoal with
@@ -687,7 +694,7 @@ function DeviceBox({ dev, uPos, sizeU, chassisU, color, dimmed, selected, isCore
   // color is no longer used as a body tint; it stays as the LED rim, edge
   // trim, and brand stripe so the tier is still readable at a glance.
   const { bodyColor, faceColor, bodyMetalness, bodyRoughness } = useMemo(() => {
-    if (dev.class === 'patch_panel') {
+    if (clsOf(dev) === 'patch_panel') {
       // Matte black powder-coated panel — most patch panels look like this.
       // Lifted enough that ports + labels remain readable against the rack.
       return {
@@ -697,7 +704,7 @@ function DeviceBox({ dev, uPos, sizeU, chassisU, color, dimmed, selected, isCore
         bodyRoughness: 0.72,
       };
     }
-    if (dev.class === 'server') {
+    if (clsOf(dev) === 'server') {
       // Server chassis — light charcoal, metallic brushed finish
       return {
         bodyColor: new THREE.Color('#343434'),

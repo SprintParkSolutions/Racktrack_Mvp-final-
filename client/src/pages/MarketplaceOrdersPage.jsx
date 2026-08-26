@@ -40,7 +40,7 @@ const STATUS_PILL = {
 };
 
 function formatCurrency(cents, currency = 'USD') {
-  if (cents == null) return '—';
+  if (cents == null) return '-';
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency', currency, maximumFractionDigits: 2,
@@ -113,7 +113,7 @@ function MessageThread({ messages = [], meId, endRef }) {
   if (messages.length === 0) {
     return (
       <div className={styles.thread}>
-        <p className={styles.threadEmpty}>No messages yet — start the conversation below.</p>
+        <p className={styles.threadEmpty}>No messages yet - start the conversation below.</p>
         <div ref={endRef} />
       </div>
     );
@@ -182,7 +182,7 @@ export default function MarketplaceOrdersPage() {
       const o = orders.find(x => x.id === Number(orderId));
       if (o) openOrder(o.id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [orderId, orders]);
 
   const openOrder = async (id) => {
@@ -359,7 +359,7 @@ export default function MarketplaceOrdersPage() {
               </div>
               <div className="mkt-fact">
                 <span className="mkt-fact__key">Placed</span>
-                <span className="mkt-fact__val">{formatRelative(order.createdAt) || '—'}</span>
+                <span className="mkt-fact__val">{formatRelative(order.createdAt) || '-'}</span>
               </div>
               <div className="mkt-fact">
                 <span className="mkt-fact__key">Quantity</span>
