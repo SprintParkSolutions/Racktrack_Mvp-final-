@@ -132,7 +132,7 @@ export default function MarketplaceNewPage() {
     if (!file) return;
     setImageError(null);
     if (!/^image\//i.test(file.type) && !/\.(heic|heif)$/i.test(file.name)) {
-      setImageError('Only image files are accepted (JPG, PNG, WebP, HEIC).');
+      setImageError('Only image files are accepted (JPG/JPEG, PNG, WebP, HEIC).');
       return;
     }
     if (file.size > 8 * 1024 * 1024) {

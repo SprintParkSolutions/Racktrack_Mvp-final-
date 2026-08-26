@@ -435,14 +435,32 @@ svg { max-width: 100%; }
 }
 
 /* Ghost — transparent with hairline */
+/* Testers repeatedly could not find the back / close / secondary controls:
+   a transparent button with a 10%-alpha hairline is very nearly invisible on
+   a white page. The border is now solid and dark enough to read as an edge. */
 .btn-ghost {
   background: transparent;
   color: var(--md-on-surface);
-  border: 1px solid rgba(0, 0, 0, 0.10);
+  border: 1.5px solid rgba(0, 0, 0, 0.38);
 }
 .btn-ghost:hover {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.05);
+  border-color: #121212;
+}
+
+/* Icon-only ghost buttons are the navigation arrows - back, close. They carry
+   no label to explain them, so an outline is not enough: they are filled, the
+   way the report's Close control already is. Text ghost buttons stay outlined
+   so they cannot be mistaken for the primary action beside them ("No, I'm
+   good" must not look like "Yes, show me"). */
+.btn-ghost.btn-icon {
+  background: #121212;
+  border-color: #121212;
+  color: #ffffff;
+}
+.btn-ghost.btn-icon:hover {
+  background: #333740;
+  border-color: #333740;
 }
 
 /* Neumorphic — soft tile carved from the canvas itself. For quiet

@@ -23,7 +23,7 @@ export async function validateMedia(file) {
   // lists now stop that — see utils/mediaAccept.js), and a recording picked
   // from the file manager can still reach us here.
   if (file.type.startsWith('audio/')) {
-    return { ok: false, error: 'That is an audio file. Upload a rack photo — JPG, PNG or HEIC.' };
+    return { ok: false, error: 'That is an audio file. Upload a rack photo — JPG/JPEG, PNG, WEBP or HEIC.' };
   }
 
   // No MIME type at all: an Android content:// pick often arrives with an
@@ -32,7 +32,10 @@ export async function validateMedia(file) {
   // 400 if it really isn't an image.
   if (!file.type) return { ok: true, metrics: { skipped: 'no-mime-deferred-to-server' } };
 
-  return { ok: false, error: 'Unsupported file type. Upload a rack photo — JPG, PNG or HEIC.' };
+  // Spell JPEG out alongside JPG. Testers reported "JPEG format missing"
+  // when JPEG has always been accepted — they were reading this message,
+  // which named only "JPG", and concluded the format was unsupported.
+  return { ok: false, error: 'Unsupported file type. Upload a rack photo — JPG/JPEG, PNG, WEBP or HEIC.' };
 }
 
 async function validateImage(file) {
