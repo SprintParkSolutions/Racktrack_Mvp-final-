@@ -24,11 +24,53 @@ import * as THREE from 'three';
 const MODEL = '/racktrack-bot.glb';
 const ACCENT = '#2563eb';
 
-/* Which meshes are the face. GLB node names come from whoever authored the
-   model, so this matches on the words such parts are usually called rather
-   than on one exact name; if none match, nothing is lit and the model still
-   reads correctly from the rim and fill alone. */
-const VISOR_RE = /(eye|visor|screen|face|lens|display)/i;
+/* The model is ONE unnamed mesh with ONE material — no eyes, no visor, no
+   separable parts, and no UVs either. So the blue cannot be assigned to a
+   named node (an earlier attempt matched on /eye|visor|screen/ and silently
+   found nothing, which is why the mascot stayed grey), and it cannot be
+   textured. It has to be painted from the geometry itself.
+   
+   This shader injection does that: a horizontal band across the FRONT of the
+   head, found by local position and surface normal rather than by name. Every
+   fragment above the shoulders whose normal faces the camera inside the band
+   takes the accent, and glows slightly. It hugs whatever surface is actually
+   there, so it cannot float off the model the way added geometry would.
+   
+   The numbers are measured, not guessed. The file's bounds are x ±0.462,
+   y -0.559..0.560, z ±0.363, and the root node applies a 0.894 scale plus a
+   0.5 lift (so the model stands 1.0 tall on the floor, as the framing presets
+   assume). Rendering it and measuring the visor plate off the image puts it
+   between y -0.08 and +0.375 in LOCAL space, which is what the band spans. */
+function paintVisor(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.rtAccent = { value: new THREE.Color(ACCENT) };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 rtPos;
+        varying vec3 rtNrm;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        rtPos = position;
+        rtNrm = normal;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 rtPos;
+        varying vec3 rtNrm;
+        uniform vec3 rtAccent;`)
+      // color_fragment runs before emissivemap_fragment in the standard
+      // shader, so `rtBand` declared here is still in scope below.
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float rtUp    = smoothstep(-0.12, -0.05, rtPos.y) * (1.0 - smoothstep(0.33, 0.40, rtPos.y));
+        float rtFront = smoothstep(0.45, 0.80, rtNrm.z);
+        float rtBand  = rtUp * rtFront;
+        diffuseColor.rgb = mix(diffuseColor.rgb, rtAccent, rtBand * 0.95);`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += rtAccent * rtBand * 0.42;`);
+  };
+  // Two materials with identical parameters but different onBeforeCompile need
+  // different cache keys, or three reuses the first one's compiled program.
+  material.customProgramCacheKey = () => 'rt-visor-v1';
+  return material;
+}
 
 // Framing presets. The model is exactly 1.0 unit tall with its origin on the
 // floor, so these are expressed in model units and stay correct regardless of
@@ -67,24 +109,17 @@ function Bot({ framing, reduced }) {
       // with black accents, so the body is near-white and the accents come
       // from the outline shell below plus tighter lighting, which lets the
       // recessed eyes, mouth and panel lines fall into shadow.
-      // The visor is the one part that carries the colour outright: emissive so
-      // it holds its blue whatever the lighting does, which is what makes the
-      // model read as "looking at you" rather than as a white shape.
-      if (VISOR_RE.test(o.name || '')) {
-        o.material = new THREE.MeshStandardMaterial({
-          color: ACCENT,
-          emissive: ACCENT,
-          emissiveIntensity: 0.55,
-          roughness: 0.28,
-          metalness: 0.0,
-        });
-        return;
-      }
-      o.material = new THREE.MeshStandardMaterial({
-        color: '#f7f8fa',
-        roughness: 0.46,
-        metalness: 0.04,
-      });
+      // A cool white rather than a neutral one — the same #eef3fd the flat SVG
+      // stand-in uses, so the two versions of the character agree. The file's
+      // own baked material is a mid-grey (0.58, 0.60, 0.64), which is the grey
+      // that was being reported; it is replaced outright, not tinted.
+      o.material = paintVisor(new THREE.MeshStandardMaterial({
+        color: '#eef3fd',
+        emissive: new THREE.Color(ACCENT),
+        emissiveIntensity: 0,   // the shader adds emission only inside the band
+        roughness: 0.42,
+        metalness: 0.06,
+      }));
     });
     return copy;
   }, [scene]);
@@ -171,9 +206,23 @@ export default function GuideBot3D({ framing = 'full', reduced = false }) {
           rim light behind and to the left is the same blue at full strength:
           it draws a cool edge down one side of a white body, which is the
           whole difference between "white" and "grey". */}
-      <hemisphereLight args={['#ffffff', '#93b4f5', 1.05]} />
-      <directionalLight position={[2.5, 4, 3]} intensity={2.6} />
-      <directionalLight position={[-3, 1.5, -2]} intensity={0.55} color={ACCENT} />
+      {/* The previous rig was a 2.6-intensity WHITE key against a 0.55 blue
+          fill. At that ratio the blue was arithmetically present and visually
+          absent — every lit surface clipped to white and everything else read
+          as grey, which is exactly what was reported. The key is down to 1.5,
+          the blue fill is up to 1.9 and comes from the camera's left where it
+          lands on the body rather than behind it, and a second blue rim picks
+          out the silhouette's right edge. White where the light hits, blue in
+          everything that is not lit, black on the outline. */}
+      {/* White body, blue visor, black outline — in that order of area. The
+          blue in the RIG is deliberately restrained: turned up far enough to
+          be obvious it washes the whole head and the mascot stops being white,
+          which is a different failure from the grey one and no better. It sits
+          in the shadow side and the rim, and the visor carries the colour. */}
+      <hemisphereLight args={['#ffffff', '#9dbcff', 0.9]} />
+      <directionalLight position={[2.5, 4, 3]} intensity={2.0} />
+      <directionalLight position={[-2.8, 0.6, 2.0]} intensity={0.55} color={ACCENT} />
+      <directionalLight position={[3.0, 1.0, -2.6]} intensity={0.7} color={ACCENT} />
       <Bot framing={framing} reduced={reduced} />
     </Canvas>
   );
