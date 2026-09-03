@@ -49,9 +49,23 @@ function canAccessRack(principal, rackId, tenant) {
   const auth = normalize(principal);
   if (!auth) return false;
   if (auth.role === 'owner') return true;
-  if (auth.role === 'org_admin') {
-    return !!(auth.organizationId && tenant.rackInOrg(rackId, auth.organizationId));
+  // An org_admin sees every rack in their organization...
+  if (auth.role === 'org_admin'
+      && auth.organizationId
+      && tenant.rackInOrg(rackId, auth.organizationId)) {
+    return true;
   }
+  // ...and, failing that, falls through to the same site check everyone else
+  // gets. It used to return early on the org test, which left an org_admin
+  // with strictly LESS access than a plain member of the same site: a user
+  // whose organization has no site of its own sits on the legacy default
+  // tenant, so `rackInOrg` finds nothing and their own scans became
+  // unreachable — the results page loaded with zero devices and the rack
+  // photo 404'd, for the person who took it.
+  //
+  // This does not widen anything across a boundary: tenantOwnsRack only ever
+  // answers yes for racks the caller's own site owns, which is exactly the
+  // access a member of that site already has.
   if (!auth.tenantId) return false;
   return tenant.tenantOwnsRack(auth.tenantId, rackId);
 }

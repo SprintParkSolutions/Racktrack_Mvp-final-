@@ -77,6 +77,17 @@ services:
       # auth.db and jwt.secret live here. Without this mount every redeploy
       # signs out every account and drops every scan the demo has collected.
       - ./server/data:/app/server/data
+      # Microsoft Graph mail identity: token/mailid.md (the tenant + client ids)
+      # and token/support_msal_cache.json (the support mailbox's refresh token).
+      # MOUNTED rather than baked into the image — these are credentials, and
+      # the image is built from the same context on every redeploy.
+      #
+      # Without them graphMail cannot resolve a tenant id, every send returns
+      # false, and the SMTP fallback below has nothing configured either — so
+      # the server accepted a forgot-password request, answered 200 and sent
+      # NOTHING. Signup verification fails the same way; seeded testers never
+      # noticed because their accounts skipped it.
+      - ./token:/app/token:ro
 
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]

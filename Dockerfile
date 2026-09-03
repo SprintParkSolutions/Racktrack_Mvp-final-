@@ -96,6 +96,15 @@ RUN pip install --no-cache-dir \
         -r requirements.txt
 
 # ---- Node server deps (production only) ---------------------------------
+# PUPPETEER_CACHE_DIR is set BEFORE the install, and deliberately inside /app.
+# `npm ci` runs as root, so Puppeteer's Chromium used to be downloaded into
+# /root/.cache/puppeteer — a path the `app` user this image drops to at the end
+# can neither read nor even reach (/root is mode 700). Puppeteer resolves its
+# browser from $HOME at RUNTIME, so every PDF render failed with "Could not find
+# Chrome", which surfaces to the user as "Could not generate the report. Please
+# try again." on both share and download. Under /app it is covered by the
+# chown below and both users see the same browser.
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
 COPY server/package.json server/package-lock.json* ./server/
 RUN cd server && npm ci --omit=dev
 
@@ -119,6 +128,16 @@ COPY servicenow/ ./servicenow/
 # absolute path under the app root). Without it /api/specs/vendors answers 500
 # and the Specifications page is dead in every containerised deployment.
 COPY Switch_Vendors_Websites.xlsx ./Switch_Vendors_Websites.xlsx
+# The vendor spec + firmware lookups, which the Switches page calls on every
+# device it shows. /api/specs spawns Agent/Agent_scrap/cli.py and /api/firmware
+# runs `python -m firmware_lookup`; neither directory was ever copied in, so in
+# every container the first answered "agent not installed at Agent/Agent_scrap"
+# and the second failed to start. Both surface identically in the app: the
+# Specifications and Firmware tabs of a switch render their error state and
+# never show anything. The xlsx above is the DATA for this lookup — it shipped
+# while the code that reads it did not.
+COPY Agent/           ./Agent/
+COPY firmware_lookup/ ./firmware_lookup/
 
 # Built client assets from stage 1 -> /app/client/dist (served by app.js).
 COPY --from=client-build /build/client/dist ./client/dist

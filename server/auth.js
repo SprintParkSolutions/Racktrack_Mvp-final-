@@ -506,6 +506,27 @@ function mailProviders() {
   return list;
 }
 
+// Can this server deliver mail AT ALL right now?
+//
+// A property of the deployment, not of any one address — which is what makes it
+// safe to tell the caller about. The forgot-password endpoint is deliberately
+// silent about whether an address is registered, and that silence used to
+// swallow a much more basic failure: with no transport configured the demo box
+// accepted every reset request, answered 200 and sent nothing, so the user
+// stood there waiting for a code that was never going to arrive.
+//
+// Saying "email is down" leaks nothing about who has an account: the answer is
+// identical for a registered address, an unregistered one, and a string nobody
+// has ever typed before.
+function mailTransportAvailable() {
+  try {
+    if (graphMail.isConfigured && graphMail.isConfigured()) return true;
+  } catch (err) {
+    logger.warn(`[auth] graphMail.isConfigured threw: ${err.message}`);
+  }
+  return mailProviders().length > 0;
+}
+
 function emailHtml(code) {
   return `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#F0EFF5;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
@@ -1338,6 +1359,22 @@ function registerRoutes(app) {
       return res.status(400).json({ error: 'Valid email required' });
     }
     const emailNorm = String(email).trim().toLowerCase();
+
+    // Refuse before writing a reset row when nothing can carry the code. The
+    // row would expire in 60s unread, and the user would be staring at a code
+    // entry screen for a message that was never sent. Checked for every
+    // address, registered or not, so this cannot be used to probe accounts.
+    if (!mailTransportAvailable()) {
+      logger.error('[auth] forgot-password requested but NO mail transport is configured — nothing was sent');
+      audit.log({ req, action: 'auth.forgot_password.start', status: 'fail',
+        error: 'no mail transport', payload: { email: emailNorm } });
+      return res.status(503).json({
+        error: 'We can\'t send email right now, so a reset code can\'t reach you. '
+             + 'Please contact support@racktrack.ai and we\'ll reset it for you.',
+        code: 'mail_unavailable',
+      });
+    }
+
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(emailNorm);
 
     if (user) {

@@ -95,6 +95,19 @@ test('end to end: an org admin reaches their own org and no further', () => {
   assert.equal(canAccessRack(ADMIN_B, RACK_A1, tenant), false);
 });
 
+test('an org_admin stranded outside their org still reaches their own Site', () => {
+  // The live case this was written for: a user is created as org_admin of a new
+  // organization, but that organization never gets a Site of its own, so the
+  // account stays on the legacy default tenant. rackInOrg then matches nothing,
+  // and the org_admin branch used to return early — leaving the person who took
+  // the scan unable to open it, while a plain member of the same Site could.
+  const STRANDED = { role: 'org_admin', organizationId: 999, tenantId: SITE_A1 };
+  assert.equal(canAccessRack(STRANDED, RACK_A1, tenant), true,
+    'their own Site owns this rack, so they must reach it');
+  assert.equal(canAccessRack(STRANDED, RACK_B1, tenant), false,
+    'and it must not become a way into another Site');
+});
+
 test('end to end: a member reaches only their own Site', () => {
   assert.equal(canAccessRack(MEMBER_A1, RACK_A1, tenant), true);
   assert.equal(canAccessRack(MEMBER_A1, RACK_A2, tenant), false, 'a sibling Site is not theirs');

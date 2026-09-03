@@ -37,6 +37,9 @@ services:
       - ./active_learning_Cache/data:/app/active_learning_Cache/data
       # Pipeline outputs (annotated images, device maps, ...) — read-write.
       - ./outputs:/app/outputs
+      # Graph mail identity (ids + the support mailbox refresh token). Mounted,
+      # never baked in — see the note in docker-compose.demo.yml.
+      - ./token:/app/token:ro
 
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]

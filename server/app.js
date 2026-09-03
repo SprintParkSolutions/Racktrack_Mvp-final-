@@ -1229,14 +1229,26 @@ function buildResponse(rackId, cached) {
     connected_ports: dev.connected_ports || [],
   }));
 
-  // Detect original image extension
-  let originalExt = 'png';
-  for (const ext of ['jpg', 'jpeg', 'png']) {
+  // The original photo, exactly as the phone sent it. The client used to
+  // rebuild this path itself as `original_image.${originalExt || 'png'}`, so
+  // any scan whose payload reached it without an extension asked for a .png
+  // that has never existed — the file on disk is whatever the camera produced.
+  // iPhones send JPEG (or HEIC), which is why testers on iOS saw the rack photo
+  // as a broken image while every other part of the result loaded normally.
+  //
+  // Resolve the real filename here and hand the client a URL rather than the
+  // ingredients to guess one. HEIC/HEIF and WEBP are in the list because the
+  // upload accepts them.
+  let originalExt = null;
+  for (const ext of ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp']) {
     if (fs.existsSync(path.join(rackDir, `original_image.${ext}`))) {
       originalExt = ext;
       break;
     }
   }
+  const originalImageUrl = originalExt
+    ? `/outputs/${rackId}/original_image.${originalExt}`
+    : null;
 
   return {
     rackId,
@@ -1245,7 +1257,8 @@ function buildResponse(rackId, cached) {
     cached,
     imageUrl:        `/outputs/${rackId}/${imageFile}`,
     overlayImageUrl: overlayFile ? `/outputs/${rackId}/${overlayFile}` : null,
-    originalExt,
+    originalExt: originalExt || 'png',   // kept for older clients
+    originalImageUrl,                     // authoritative: use this
     devices,
     units_detected:  data.units_detected || [],
     qualityWarning:    meta?.qualityWarning || null,
@@ -2166,7 +2179,8 @@ ${realDevices.map(dev => {
   }
 
   /* ── Stat cards ── */
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0 4px}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 4px}
+  .stats .stat{flex:0 1 auto;min-width:150px}
   .stat{
     padding:12px 14px;border-radius:10px;
     background:var(--card);
@@ -2513,8 +2527,11 @@ ${realDevices.map(dev => {
   </div>
 </div>
 
+<!-- One tile, not two. The Devices count was printed three lines above it in
+     the hero meta, so the report opened by saying the same number twice under
+     different labels — which is the whole of what a reader took from the strip.
+     Ports in use is the figure that is NOT stated anywhere else. -->
 <div class="stats">
-  <div class="stat"><div class="k">Devices</div><div class="v">${deviceCount}</div></div>
   <div class="stat"><div class="k">Ports · in use</div><div class="v">${connectedPorts}<span class="statOf"> / ${totalPorts}</span></div></div>
 </div>
 
@@ -3064,6 +3081,18 @@ async function getBrowser() {
   _browserPromise = _puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  }).catch((err) => {
+    // Every caller turns this into "Could not generate the report. Please try
+    // again.", which says nothing about the cause and sent the last failure to
+    // be diagnosed by reading the Dockerfile. Name the real one in the log:
+    // the two that actually happen are a missing Chromium (the download went to
+    // a cache directory this user cannot read) and a missing shared library.
+    logger.error(
+      { err: err.message, cacheDir: process.env.PUPPETEER_CACHE_DIR || '(default: $HOME/.cache/puppeteer)', uid: process.getuid?.() },
+      '[pdf] headless Chromium failed to launch — every report share and download will fail until this is fixed',
+    );
+    _browserPromise = null;   // don't cache the rejection; let the next call retry
+    throw err;
   });
   return _browserPromise;
 }

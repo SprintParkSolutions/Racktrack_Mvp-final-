@@ -34,6 +34,12 @@ servicenow_inbox
 servicenow/mock_scans
 servicenow/__pycache__
 cmdb_racks
+# Agent/ and firmware_lookup/ ship (the Switches page's spec + firmware lookups
+# spawn them), minus their compiled bytecode. The bare `__pycache__` line at the
+# top of this file only ever matched the one at the repo root — Docker anchors a
+# pattern without a wildcard, which is why servicenow's had to be named too.
+Agent/**/__pycache__
+firmware_lookup/**/__pycache__
 
 # --- VCS / tooling ---
 .git
