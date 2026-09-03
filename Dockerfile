@@ -60,7 +60,24 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 # which is the loader failing to resolve a shared object, not a missing binary.
 # The note that used to live here said these "may" be needed if the PDF paths
 # were exercised. They were, in production, and they were dead.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Debian mirror override, off by default.
+#
+# The office LAN's gateway blackholes deb.debian.org, so `apt-get update` in a
+# LOCAL build dies with exit 100 while the same Dockerfile builds fine on the
+# VPS. Passing a mirror host here swaps it for one that is reachable, without
+# the Dockerfile carrying a network-specific default that would follow the
+# image everywhere:
+#
+#   docker compose build --build-arg APT_MIRROR_HOST=debian.osuosl.org
+#
+# Left empty (the default, and what the VPS and CI use) nothing is rewritten.
+ARG APT_MIRROR_HOST=""
+RUN if [ -n "$APT_MIRROR_HOST" ]; then \
+        find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) \
+            -exec sed -i "s|deb\.debian\.org|${APT_MIRROR_HOST}|g" {} + ; \
+        echo "apt mirror -> ${APT_MIRROR_HOST}"; \
+    fi \
+    && apt-get update && apt-get install -y --no-install-recommends \
         libgl1 \
         libglib2.0-0 \
         libgomp1 \
