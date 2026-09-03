@@ -69,12 +69,28 @@
    Underline tabs rather than pills: they carry six items without the
    row turning into a wall of capsules, and they scroll cleanly on
    mobile with the scrollbar hidden. */
+/* The wrapper exists to carry the right-edge fade: painted on .nav it would
+   scroll with the content and disappear the moment you moved. */
+.navWrap {
+  position: relative;
+  max-width: var(--mkt-maxw, 1180px); width: 100%; margin: 0 auto;
+}
+.navWrap::after {
+  content: '';
+  position: absolute; top: 0; bottom: 0; right: 0;
+  width: 34px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, var(--mkt-bg, #ffffff) 78%);
+  pointer-events: none;
+}
 .nav {
   display: flex; gap: 2px;
-  padding: 0 20px;
-  max-width: var(--mkt-maxw, 1180px); width: 100%; margin: 0 auto;
+  /* The right padding is what makes the LAST tab clear the fade instead of
+     sitting under it. */
+  padding: 0 34px 0 20px;
+  width: 100%;
   overflow-x: auto;
   -ms-overflow-style: none; scrollbar-width: none;
+  scroll-padding-inline: 20px 34px;
 }
 .nav::-webkit-scrollbar { display: none; }
 
@@ -90,9 +106,14 @@
   transition: color .14s ease, border-color .14s ease;
 }
 .navItem:hover { color: var(--mkt-ink, #121212); }
+/* The current section: a 2.5px rule and a lit ground. A 2px underline in the
+   same weight as the label was reported as "not highlighting" — at a glance,
+   on a phone, against five other tabs, it simply did not register. */
 .navItemActive {
   color: var(--mkt-ink, #121212); font-weight: 700;
-  border-bottom-color: var(--mkt-ink, #121212);
+  border-bottom: 2.5px solid var(--mkt-ink, #121212);
+  background: rgba(18, 18, 18, 0.05);
+  border-radius: 7px 7px 0 0;
 }
 
 .navBadge {

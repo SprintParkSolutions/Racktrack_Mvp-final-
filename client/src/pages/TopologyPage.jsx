@@ -415,10 +415,12 @@ function TopologyInner({ rackId, embedded }) {
   return <div className={styles.page}>{topoBody}</div>;
 }
 
+// The rack's identity and the view switch. It used to carry a strip of five
+// counted tiles under that — size, switches, panels, servers, cables — which is
+// what a dashboard does, not what a diagram does: every one of those numbers is
+// visible by looking at the drawing directly below, and the strip pushed the
+// drawing itself off the top of a phone screen.
 function RackBanner({ topo, view, setView }) {
-  const switches = topo.devices.filter(d => d.in_rack && clsOf(d) === 'switch').length;
-  const panels   = topo.devices.filter(d => d.in_rack && clsOf(d) === 'patch_panel').length;
-  const servers  = topo.devices.filter(d => d.in_rack && clsOf(d) === 'server').length;
   const showToggle = !!(view && setView);
   return (
     <div className={styles.rackBanner}>
@@ -445,23 +447,6 @@ function RackBanner({ topo, view, setView }) {
           </div>
         )}
       </div>
-      <div className={styles.rackBannerStats}>
-        <Stat label="size"     value={`${topo.u_size}U`}        tone="size" />
-        <Stat label="switches" value={switches}                  tone="switch" />
-        <Stat label="panels"   value={panels}                    tone="panel" />
-        <Stat label="servers"  value={servers}                   tone="server" />
-        <Stat label="cables"   value={topo.stats.edge_count}     tone="cable" />
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, tone }) {
-  const toneClass = tone ? styles[`bannerStat_${tone}`] : '';
-  return (
-    <div className={`${styles.bannerStat} ${toneClass}`}>
-      <span className={styles.bannerStatValue}>{value}</span>
-      <span className={styles.bannerStatLabel}>{label}</span>
     </div>
   );
 }

@@ -714,8 +714,10 @@
 /* Buttons & pills — outlined, never solid black. */
 .ghostBtn {
   background: var(--md-surface-container-lowest, #FFFFFF);
-  border: 1px solid var(--md-outline-variant, #E0E0E0);
+  /* --md-outline-variant is a #E0E0E0 hairline: invisible on white. */
+  border: 1.5px solid rgba(18, 18, 18, 0.34);
   color: var(--md-on-surface, #121212);
+  font-weight: 600;
   border-radius: 8px;
   box-shadow: none;
 }

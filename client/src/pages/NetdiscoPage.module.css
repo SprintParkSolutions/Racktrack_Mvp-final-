@@ -148,14 +148,20 @@
   color: rgba(0,0,0,0.55);
 }
 
+/* 0.7rem at 55% black is below the app's floor for something tappable — it
+   read as a caption, not a control. */
 .linkBtn {
   background: none; border: none;
-  color: rgba(0,0,0,0.55);
-  font-size: 0.7rem; cursor: pointer;
-  padding: 2px 6px;
+  color: rgba(0,0,0,0.78);
+  font-size: 0.78rem; font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+  min-height: 32px;
   font-family: var(--mono);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
-.linkBtn:hover { color: #474747; }
+.linkBtn:hover { color: #121212; }
 
 .syncBtn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -1953,9 +1959,11 @@
 }
 .filterBtn:hover { opacity: 0.9 !important; }
 .filterBtnActive {
-  background: var(--md-on-surface) !important;
-  color: var(--md-surface-container-lowest) !important;
-  border-color: var(--md-on-surface) !important;
+  /* Lit surface + hard edge, not an ink slab — see the note on
+     .viewBtnActive in TopologyPage.module.css. */
+  background: rgba(18, 18, 18, 0.06) !important;
+  color: var(--md-on-surface) !important;
+  border: 1.5px solid var(--md-on-surface) !important;
   opacity: 1 !important;
   font-weight: 700 !important;
 }

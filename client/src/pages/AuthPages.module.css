@@ -274,8 +274,11 @@
 /* ── Forgot link ─────────────────────────────────────────────────────
    Its own line under the password field, pulled up tight against it so it
    reads as belonging to that field rather than as another form row. */
+/* Centred, not right-aligned. Sitting hard against the right edge under a
+   full-width password field, it read as a stray caption rather than the way
+   out of a locked account — testers looked for it and did not find it. */
 .forgotRow {
-  display: flex; justify-content: flex-end;
+  display: flex; justify-content: center;
   margin-top: -6px;
 }
 .forgotLink {
@@ -320,16 +323,20 @@
   min-height: 44px;
   display: flex; align-items: center; justify-content: center; gap: 9px;
   border-radius: 6px;
-  border: 1px solid var(--line);
+  /* A hairline in --line against a white page is very nearly nothing, and this
+     is the "No, keep my password" half of a two-button choice — it has to be
+     findable. Solid enough to read as a control, still plainly quieter than
+     the filled primary beside it. */
+  border: 1.5px solid rgba(18, 18, 18, 0.34);
   background: #ffffff;
   color: var(--ink);
   font-family: inherit;
-  font-size: .9375rem; font-weight: 500;
+  font-size: .9375rem; font-weight: 600;
   cursor: pointer;
-  transition: border-color .15s;
+  transition: border-color .15s, background-color .15s;
   -webkit-tap-highlight-color: transparent;
 }
-.ghostBtn:hover:not(:disabled) { border-color: #c8ccd1; }
+.ghostBtn:hover:not(:disabled) { border-color: #121212; background: rgba(18, 18, 18, 0.04); }
 .ghostBtn:disabled { opacity: .4; cursor: not-allowed; }
 
 .spinner {

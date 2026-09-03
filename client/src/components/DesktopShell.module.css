@@ -135,12 +135,29 @@
   background: rgba(0,0,0,0.07);
   color: #000000;
 }
+/* The current page is marked, not blacked out. A full-black row in a white
+   sidebar reads as a slab dropped over the item — the same complaint testers
+   made about selected buttons elsewhere — and it made the icon and label
+   harder to read, not easier. A lit ground, ink text at bold and a marker on
+   the rail say "you are here" without covering anything.
+
+   The marker is drawn on ::before rather than as a border so the row's text
+   does not shift by 3px when it becomes active. */
 :global([data-theme='light']) .navLink.active {
-  background: #000000;
-  color: #ffffff;
+  background: rgba(18, 18, 18, 0.06);
+  color: #121212;
+  font-weight: 700;
   box-shadow: none;
 }
-:global([data-theme='light']) .navLink.active svg { color: #ffffff; opacity: 1; }
+:global([data-theme='light']) .navLink.active::before {
+  content: '';
+  position: absolute;
+  left: 4px; top: 9px; bottom: 9px;
+  width: 3px;
+  border-radius: 2px;
+  background: #121212;
+}
+:global([data-theme='light']) .navLink.active svg { color: #121212; opacity: 1; }
 
 /* ── Bottom anchor (theme toggle / user) ── */
 .sidebarBottom {

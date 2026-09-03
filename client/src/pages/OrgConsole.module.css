@@ -37,15 +37,10 @@
   gap: 20px; padding-bottom: 14px; margin-bottom: 22px;
   border-bottom: 1px solid #eee;
 }
-.headBackBtn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; flex: none;
-  border-radius: 10px; border: 1px solid var(--md-outline-variant, #e0e0e0);
-  background: #fff; color: var(--md-on-surface, #121212); cursor: pointer;
-  align-self: center; transition: background-color .15s;
-  -webkit-tap-highlight-color: transparent;
-}
-.headBackBtn:hover { background: var(--md-surface-container-highest, #f5f5f5); }
+/* .headBackBtn is gone: this header now renders the shared <BackButton>, like
+   every other page. Its `align-self: center` was also why the control appeared
+   CENTRED at the top of the org dashboard on a phone — below 640px .head
+   becomes a column, and centring an item in a column centres it horizontally. */
 .eyebrow {
   margin: 0 0 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .16em;
   text-transform: uppercase; color: #6b6b6b;
@@ -60,12 +55,18 @@
   padding: 5px 10px; border-radius: 999px;
   background: #000000; color: #fff;
 }
+/* Was a #ececec hairline with #545454 text on white — testers reported
+   secondary controls "too dull and blending into the background", and this is
+   one of them. The border is now dark enough to read as an edge and the label
+   is ink, matching the global .btn-ghost in index.css, which was already fixed
+   for exactly this reason. */
 .ghostBtn {
-  font-size: 12.5px; font-weight: 600; padding: 7px 12px;
-  border-radius: 999px; border: 1px solid #ececec; background: #fff; color: #545454;
-  cursor: pointer; transition: border-color .16s, color .16s;
+  font-size: 12.5px; font-weight: 600; padding: 8px 14px;
+  min-height: 34px;
+  border-radius: 999px; border: 1.5px solid rgba(18, 18, 18, 0.38); background: #fff; color: #121212;
+  cursor: pointer; transition: border-color .16s, background-color .16s;
 }
-.ghostBtn:hover { border-color: #000000; color: #000000; }
+.ghostBtn:hover { border-color: #121212; background: rgba(18, 18, 18, 0.05); }
 
 /* ── Banners ── */
 .banner, .error {
@@ -269,7 +270,12 @@
 /* ── Small screens ── */
 @media (max-width: 640px) {
   .page { padding: calc(20px + env(safe-area-inset-top)) 15px calc(40px + env(safe-area-inset-bottom)); }
-  .head { flex-direction: column; align-items: stretch; gap: 14px; }
+  /* Back and the title stay on ONE row; only the actions drop below. Stacking
+     everything put the back control on a line of its own, where — with the old
+     `align-self: center` — it landed in the middle of the screen. */
+  .head { flex-wrap: wrap; align-items: center; gap: 12px 10px; }
+  .head > div { flex: 1 1 auto; min-width: 0; }
+  .headActions { flex-basis: 100%; }
   .title { font-size: 1.55rem; }
   .headActions { justify-content: flex-start; }
   .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -395,13 +401,10 @@
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
 .heroTopLeft { display: flex; align-items: center; gap: 16px; min-width: 0; }
-/* Doubled selector out-specificities BackButton's own .back base styles. */
-.heroBack.heroBack {
-  width: 40px; height: 40px; border-radius: 10px;
-  border: 1px solid #e4e4e4;
-  background: #fff; color: #000000;
-}
-.heroBack.heroBack:hover { background: #f5f5f5; border-color: #000000; }
+/* The .heroBack override that repainted BackButton white-on-hairline here is
+   gone too — testers reported the back control as inconsistent and hard to
+   find, and it was: filled black on every other screen, nearly invisible on
+   this one. */
 .heroTitle {
   margin: 0; font-weight: 800; font-size: clamp(22px, 3vw, 26px);
   letter-spacing: -0.02em; line-height: 1.05;

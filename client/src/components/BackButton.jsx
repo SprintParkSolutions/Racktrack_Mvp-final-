@@ -14,8 +14,14 @@ import styles from './BackButton.module.css';
  * either do nothing or throw you somewhere you were never coming from. Pass
  * `always` for pages that are only ever reached from somewhere else.
  */
-export default function BackButton({ fallback = '/', always = false, label = 'Back', className = '' }) {
+export default function BackButton({ fallback = '/', always = false, label = 'Back', className = '', onBack = null }) {
   const goBack = useSmartBack(fallback);
+  // `onBack` is for the pages whose "back" is a state change rather than a
+  // navigation — the org console steps out of an open organization into the
+  // list without touching history. They used to hand-roll their own button for
+  // that, which is how the app ended up with three back controls that looked
+  // different from each other. Passing the behaviour in keeps one control.
+  const handle = onBack || goBack;
 
   // React Router stamps its stack position on history.state.idx; 0 or null
   // means this is the first entry and there is nothing behind it.
@@ -25,12 +31,14 @@ export default function BackButton({ fallback = '/', always = false, label = 'Ba
   // `always` still renders the control on pages that are only ever reached
   // from somewhere else, even on a cold start — it falls back to the given
   // route in that case rather than doing nothing.
-  if (!always && !hasHistory) return null;
+  // A page-local back (onBack) is always meaningful — there is somewhere to go
+  // by definition — so the history check only governs the navigating kind.
+  if (!onBack && !always && !hasHistory) return null;
 
   return (
     <button
       type="button"
-      onClick={goBack}
+      onClick={handle}
       className={`${styles.back} ${className}`}
       aria-label={label}
       title={label}

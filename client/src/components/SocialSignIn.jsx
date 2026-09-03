@@ -19,6 +19,19 @@ import styles from '../pages/AuthPages.module.css';
  * agent (`disallowed_useragent`), so it opens a real in-app browser tab.
  */
 
+/* Providers the server may well have configured but that we do not render.
+ *
+ * Google is here on the owner's instruction for this round ("remove the sign in
+ * with google option for now"). Filtered client-side rather than by unsetting
+ * GOOGLE_* on the box: the env change would also disturb the callback URLs that
+ * are registered with Google, and it would come back the moment someone copied
+ * a working .env forward. Accounts already created through Google are
+ * untouched — the OAuth routes still exist, so an existing session and the
+ * /auth/callback deep link both keep working; there is simply no button.
+ *
+ * Deleting the name from this set is the whole of putting it back. */
+const HIDDEN_PROVIDERS = new Set(['google']);
+
 const MARKS = {
   google: (
     <svg width="19" height="19" viewBox="0 0 48 48" aria-hidden="true">
@@ -56,8 +69,12 @@ export default function SocialSignIn({ mode = 'login', inviteCode, onLoaded }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled || !d?.providers) return;
-        setProviders(d.providers);
-        onLoaded?.(d.providers);
+        const shown = d.providers.filter((p) => !HIDDEN_PROVIDERS.has(p.name));
+        setProviders(shown);
+        // The parent tailors its copy from this ("you may have signed up with
+        // Google"), so it must be told what is actually on screen, not what the
+        // server offers.
+        onLoaded?.(shown);
       })
       // A server that doesn't know this route yet, or is simply unreachable,
       // just means no buttons. Never block the password form on it.

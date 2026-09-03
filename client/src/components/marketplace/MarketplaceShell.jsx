@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styles from './MarketplaceShell.module.css';
 import './marketplace-theme.css';
@@ -88,6 +88,21 @@ export default function MarketplaceShell({
 
   const resolvedAction = action === undefined ? defaultAction : action;
 
+  // The tab strip scrolls horizontally on a phone, and the current section can
+  // start life off-screen — open Orders from a link and the strip still shows
+  // Browse / My listings, with nothing marked. Pull the active tab into view
+  // whenever it changes, so "which section am I in?" is always answerable
+  // without scrolling first.
+  const navRef = useRef(null);
+  const activeTabRef = useRef(null);
+  useEffect(() => {
+    const el = activeTabRef.current;
+    if (!el || !navRef.current) return;
+    // `nearest` scrolls only if it is actually out of view, and only the strip
+    // — `center` would also drag the whole page on a short screen.
+    el.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  }, [location.pathname, location.search]);
+
   // Browse and My listings share a pathname, so NavLink's own matching
   // can't tell them apart — the tab decides.
   const onRoot   = location.pathname === '/marketplace';
@@ -131,13 +146,20 @@ export default function MarketplaceShell({
           </div>
         </div>
 
-        <nav className={styles.nav} aria-label="Marketplace sections">
+        {/* The scroller is wrapped so the fade at its right edge can be painted
+            on the wrapper. Inside an `overflow-x: auto` element a fade would
+            scroll away with the content — which is why there was no sign at
+            all that there was more to the right of Alerts. */}
+        <div className={styles.navWrap}>
+        <nav className={styles.nav} aria-label="Marketplace sections" ref={navRef}>
           {NAV.filter(item => !item.authOnly || isAuthed).map(item => {
             const count = item.badge ? counts[item.badge] : 0;
+            const active = isActive(item);
             return (
               <NavLink
                 key={item.key}
                 to={item.to}
+                ref={active ? activeTabRef : undefined}
                 // replace, not push: switching sections (For sale → Alerts →
                 // Orders …) used to stack a history entry each time, so the
                 // back button walked through every section you'd visited and
@@ -154,6 +176,7 @@ export default function MarketplaceShell({
             );
           })}
         </nav>
+        </div>
       </header>
 
       {/* On desktop the DesktopShell draws the one shared [back] [Title] bar

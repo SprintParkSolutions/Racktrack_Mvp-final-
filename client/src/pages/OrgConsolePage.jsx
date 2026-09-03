@@ -212,7 +212,7 @@ export default function OrgConsolePage() {
         <header className={`${styles.bleed} ${styles.hero}`}>
           <div className={styles.heroTop}>
             <div className={styles.heroTopLeft}>
-              <BackButton fallback="/" always className={styles.heroBack} />
+              <BackButton fallback="/" always />
               <h1 className={styles.heroTitle}>Organizations</h1>
             </div>
             <span className={styles.ownerPill}>{roleLabel(user?.role)}</span>
@@ -244,11 +244,16 @@ export default function OrgConsolePage() {
           // Inside an organization, "back" returns to the organization LIST,
           // not to wherever the owner came from (the dashboard/profile). Only
           // at the list does back leave the console.
+          //
+          // Same component as everywhere else, with the destination overridden.
+          // It used to be a hand-rolled button styled white-on-hairline, so
+          // this page carried two back controls that looked nothing like each
+          // other and nothing like the filled one the rest of the app uses.
           ? (
-            <button type="button" className={styles.headBackBtn} aria-label="Back to organizations"
-              onClick={() => { setActiveOrg(null); setSites([]); setMembers([]); setOdash(null); setOrgMenuFor(null); }}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-            </button>
+            <BackButton
+              label="Back to organizations"
+              onBack={() => { setActiveOrg(null); setSites([]); setMembers([]); setOdash(null); setOrgMenuFor(null); }}
+            />
           )
           : <BackButton fallback="/" />}
         <div>

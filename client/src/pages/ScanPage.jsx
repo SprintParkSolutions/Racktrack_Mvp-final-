@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, Suspense, lazy } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import styles from './ScanPage.module.css';
@@ -14,13 +14,55 @@ import { useTour } from '../TourContext.jsx';
 import { useIsDesktop } from '../hooks/useIsDesktop';
 import { useSmartBack } from '../hooks/useSmartBack';
 import Icon from '../components/Icon';
+import { getItem, setItem } from '../utils/safeStorage';
 
-// Lazy so the (~140 kB) three-fiber bundle only loads when the user opens VR.
-const TopologyScene3D = lazy(() => import('./TopologyScene3D.jsx'));
-// Same reason: this is decoration on the analysing overlay, and importing it
-// eagerly pulled all of three.js into the initial bundle — the exact cost the
-// lazy import above exists to avoid.
-const MiniRack3D = lazy(() => import('../components/MiniRack3D.jsx'));
+// three.js is no longer reachable from this page at all. MiniRack3D was the
+// decoration on the analysing overlay and is gone; TopologyScene3D was declared
+// here but never rendered — the VR view lives on the topology page. Both lazy
+// imports have been removed rather than left as unused chunk boundaries.
+
+// ── First-scan guidance ──────────────────────────────────────
+//
+// The same five lines that used to sit permanently under the Analyze button.
+// Printed on every visit they were wallpaper — a block of advice the user had
+// already read and could no longer see, taking a screenful on the one page
+// where the content should be the photograph. Shown once, on the first scan
+// this device ever starts, they are instructions; after that the user knows.
+//
+// The flag is per-device rather than per-account: it is about whether this
+// person has done it before, and someone handed a second phone genuinely has
+// not. "Show again" in the sheet clears it, which is the only route back.
+const FIRST_SCAN_KEY = 'racktrack.scan.tipsSeen';
+
+const SCAN_TIPS = [
+  'Full rack in frame - keep the top and bottom visible',
+  'Phone straight and level - stand directly in front',
+  'Labels clearly visible - port and device labels readable',
+  'Good lighting, no glare - turn the flash off',
+  'Step back if needed - fit the whole rack on screen',
+];
+
+function FirstScanSheet({ onClose }) {
+  return createPortal(
+    <div className={styles.tipsBackdrop} onClick={onClose}>
+      <div
+        className={styles.tipsSheet}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="first-scan-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="first-scan-title" className={styles.tipsSheetTitle}>Before your first scan</h2>
+        <p className={styles.tipsSheetLede}>Five things that decide whether the read is accurate.</p>
+        <ul className={styles.tipsSheetList}>
+          {SCAN_TIPS.map((t) => <li key={t}>{t}</li>)}
+        </ul>
+        <button type="button" className={styles.tipsSheetBtn} onClick={onClose}>Got it</button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 // ── Preview Card ─────────────────────────────────────────────
 function PreviewCard({ file, onClear }) {
@@ -851,30 +893,26 @@ function boxIoU(a, b) {
   return union > 0 ? inter / union : 0;
 }
 
-// ── Cinematic Loading Overlay ────────────────────────────────
+// ── Analysing overlay ────────────────────────────────────────
+//
+// Was a spinning 3D rack under a glow, over a rotating list of pipeline stages
+// ("Detecting rack boundaries…", "Mapping ports and cables…"). Two problems
+// with that, both reported: the 3D object with its shadow and bloom was the
+// least app-like thing on any screen, and the stage list was theatre — the
+// timings came from a fixed 400ms ticker, not from the server, so it narrated
+// progress it did not actually know about.
+//
+// What is left is what is true: a title, one line of status, and a bar. The
+// percentage is the same estimate it always was, but it no longer claims to be
+// reporting on five named stages.
 function AnalyzingOverlay({ progress, step }) {
   return (
     <div className={styles.overlay}>
       <div className={styles.overlayInner}>
-        {/* The 150px slot is reserved by .ovRack3D whether or not the 3D rack
-            has loaded. It is lazy (three.js is ~140 kB) and the fallback here
-            used to be null, so on the first scan of a session the top of this
-            overlay was an EMPTY box that suddenly filled and shoved the title,
-            step text and progress bar downward mid-scan. That jump is what was
-            reported as the top of the analysing screen being unstructured.
-            The placeholder holds the same space and reads as deliberate, so
-            nothing moves when the real thing arrives. */}
-        <div className={styles.ovRack3D}>
-          <Suspense fallback={<div className={styles.ovRackFallback} aria-hidden="true" />}>
-            <MiniRack3D progress={progress} size={150} />
-          </Suspense>
-          <div className={styles.ovRack3DGlow} aria-hidden="true" />
-        </div>
         <p className={styles.ovTitle}>Analyzing rack…</p>
         <p className={styles.ovStep}>{step}</p>
         <div className={styles.ovTrack}>
           <div className={styles.ovFill} style={{width:`${progress}%`}}/>
-          <div className={styles.ovGlow} style={{left:`${progress}%`}}/>
         </div>
         <span className={styles.ovPct}>{progress}%</span>
       </div>
@@ -916,6 +954,13 @@ export default function ScanPage() {
   const [step,     setStep]     = useState('');
   const [error,    setError]    = useState(null);
   const [qualityChoice, setQualityChoice] = useState(null);  // {error, kind} — shows Retake/Proceed
+  // First visit to this screen on this device: show the capture guidance once.
+  // Read lazily so the storage hit happens on mount rather than every render.
+  const [showFirstScan, setShowFirstScan] = useState(() => !getItem(FIRST_SCAN_KEY));
+  const dismissFirstScan = useCallback(() => {
+    setShowFirstScan(false);
+    setItem(FIRST_SCAN_KEY, '1');
+  }, []);
 
   // Starting a new scan clears the previous rack context, so the sidebar's
   // rack tabs (Overview / Ports / Topology / Network / Switches / Drift) stop
@@ -1223,6 +1268,30 @@ export default function ScanPage() {
     setError(null);
     setQualityChoice(null);
 
+    // The same check the single-image path runs, over every photo in the set.
+    //
+    // Multi used to skip this entirely and post straight to /api/stitch, so a
+    // low-resolution photo that single-image mode accepts with a "Proceed
+    // anyway" came back from the server as a stitch failure instead — the same
+    // picture, accepted one way and refused the other, with no way through.
+    // Checking here restores the choice AND saves uploading a set that was
+    // never going to stitch.
+    if (!override) {
+      for (let i = 0; i < multiFiles.length; i++) {
+        const check = await validateMedia(multiFiles[i]);
+        if (check.ok) continue;
+        // Name the photo. "Image resolution is low" over a set of eight is not
+        // something a user can act on without being told which one.
+        const which = `Photo ${i + 1} of ${multiFiles.length}: `;
+        if (check.retryable) {
+          setQualityChoice({ error: which + check.error, kind: check.kind || 'quality' });
+        } else {
+          setError(which + check.error);
+        }
+        return;
+      }
+    }
+
     setLoading(true); setProgress(0);
     const MULTI_STEPS = [
       'Preparing photos…',
@@ -1281,7 +1350,11 @@ export default function ScanPage() {
   };
 
   const handleRetake = () => {
-    setFile(null);
+    // Single: drop the photo, since there is exactly one and it is the problem.
+    // Multi: keep the set. The warning names which photo is at fault, and the
+    // user needs the list in front of them to swap that one out — clearing all
+    // eight would make them start the whole set again to fix one picture.
+    if (tab !== 'multi') setFile(null);
     setQualityChoice(null);
     setError(null);
   };
@@ -1667,7 +1740,9 @@ export default function ScanPage() {
               <span>{qualityChoice.error}</span>
             </div>
             <div className={styles.qualityChoiceActions}>
-              <button className="btn btn-ghost" onClick={handleRetake}>Retake</button>
+              <button className="btn btn-ghost" onClick={handleRetake}>
+                {tab === 'multi' ? 'Edit photos' : 'Retake'}
+              </button>
               <button className="btn btn-primary"
                 onClick={() => tab === 'multi'
                   ? analyzeMulti({ override: true })
@@ -1713,28 +1788,17 @@ export default function ScanPage() {
             </>
           );
         })()}
-        {/* Tips — desktop-only (not rendered on mobile). */}
-        {/* Shown on every viewport, not just desktop. These are instructions
-            for someone standing in front of a rack holding a phone, and the
-            isDesktop gate meant the only people who could read them were the
-            ones not taking the photograph. Each line is now an action rather
-            than a quality ("Step back if needed", not "fill the frame") —
-            testers reported the previous wording did not tell them what to
-            physically do. */}
-        <div className={styles.tips}>
-          <div className={`${styles.eyebrow} ${styles.tipsTitle}`}>Tips for a clear scan</div>
-          <ul className={styles.tipsList}>
-            <li>Full rack in frame - keep the top and bottom visible</li>
-            <li>Phone straight and level - stand directly in front</li>
-            <li>Labels clearly visible - port and device labels readable</li>
-            <li>Good lighting, no glare - turn the flash off</li>
-            <li>Step back if needed - fit the whole rack on screen</li>
-          </ul>
-        </div>
+        {/* The tips that used to live here are now the one-time sheet at the
+            top of this file — see FirstScanSheet. */}
 
         {/* Spacer so the last button isn't flush against the fixed bottom nav */}
         <div className={styles.scanSpacer} style={{height:'calc(env(safe-area-inset-bottom, 0px) + 72px)'}} aria-hidden="true" />
       </div>
+
+      {/* Not while the guided tour is running: the tour drives this same screen
+          and a modal over its spotlight would fight it for the user's
+          attention. Someone taking the tour is being shown all of this anyway. */}
+      {showFirstScan && !tourActive && !loading && <FirstScanSheet onClose={dismissFirstScan} />}
 
       {loading && <AnalyzingOverlay progress={progress} step={step}/>}
       {verifying && <AnalyzingOverlay progress={50} step="Verifying rack identity…"/>}

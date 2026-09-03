@@ -1,15 +1,21 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext.jsx';
 import styles from './HomeHero.module.css';
 
 /**
- * Home hero — one full-bleed frame: cold-aisle footage behind the claim.
+ * Home hero — a white frame with the claim on the left and a rack drawn on the
+ * right.
  *
- * The page is the room. Footage fills the viewport edge to edge, the mark sits
- * on a hairline at the top, and the claim and its two actions are the only
- * other things on the screen.
+ * Replaces the full-bleed cold-aisle video. The footage was stock: it said
+ * "data centre", not "RackTrack", and every word on the page had to be dropped
+ * onto a scrim to stay readable, which is what made the screen feel heavy. The
+ * rack here is drawn, so it is the product's own subject rather than a picture
+ * of someone else's room, it costs no download, and it needs no scrim.
+ *
+ * One action. The bottom of the page used to carry a second "Sign in" and a
+ * "Create an organization" link while the top bar already held Sign in — three
+ * routes into two destinations, which testers read as clutter.
  *
  * Portalled to <body> so it escapes #root's 540px frame and fills the viewport.
  */
@@ -18,13 +24,6 @@ const ArrowR = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
        strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
-  </svg>
-);
-
-const ArrowUpR = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <line x1="7" y1="17" x2="17" y2="7" /><polyline points="8 7 17 7 17 16" />
   </svg>
 );
 
@@ -40,44 +39,77 @@ const DotMark = () => (
   </svg>
 );
 
+/* The subject of the product, drawn rather than photographed: a 12U elevation
+   with two switches, a patch panel, servers and a PDU — the same classes the
+   scanner labels. Line art at one weight, one blue accent on the ports of the
+   device a scan would key on. Decorative: the claim beside it carries the
+   meaning, so it is hidden from assistive tech. */
+const RackFigure = () => (
+  <svg className={styles.rackArt} viewBox="0 0 260 400" fill="none" aria-hidden="true"
+       xmlns="http://www.w3.org/2000/svg">
+    {/* frame */}
+    <rect x="24" y="16" width="212" height="368" rx="7" stroke="currentColor" strokeWidth="2" />
+    <line x1="42" y1="16" x2="42" y2="384" stroke="currentColor" strokeWidth="1" opacity=".28" />
+    <line x1="218" y1="16" x2="218" y2="384" stroke="currentColor" strokeWidth="1" opacity=".28" />
+    {/* rack-unit ticks down both rails */}
+    {Array.from({ length: 12 }).map((_, i) => (
+      <g key={i} opacity=".3">
+        <line x1="30" y1={40 + i * 29} x2="36" y2={40 + i * 29} stroke="currentColor" strokeWidth="1.5" />
+        <line x1="224" y1={40 + i * 29} x2="230" y2={40 + i * 29} stroke="currentColor" strokeWidth="1.5" />
+      </g>
+    ))}
+
+    {/* 1U switch — the one a scan has keyed on, so its ports carry the accent */}
+    <rect x="50" y="34" width="160" height="26" rx="3" stroke="currentColor" strokeWidth="1.6" />
+    {Array.from({ length: 12 }).map((_, i) => (
+      <rect key={i} x={60 + i * 12} y="42" width="8" height="10" rx="1.5" fill="var(--home-accent)" opacity={i % 3 === 2 ? '.28' : '.9'} />
+    ))}
+
+    {/* 1U switch */}
+    <rect x="50" y="68" width="160" height="26" rx="3" stroke="currentColor" strokeWidth="1.6" />
+    {Array.from({ length: 12 }).map((_, i) => (
+      <rect key={i} x={60 + i * 12} y="76" width="8" height="10" rx="1.5" fill="currentColor" opacity=".22" />
+    ))}
+
+    {/* patch panel */}
+    <rect x="50" y="102" width="160" height="24" rx="3" stroke="currentColor" strokeWidth="1.6" />
+    {Array.from({ length: 16 }).map((_, i) => (
+      <line key={i} x1={58 + i * 9.5} y1="108" x2={58 + i * 9.5} y2="120" stroke="currentColor" strokeWidth="1.4" opacity=".35" />
+    ))}
+
+    {/* blanking / cable management */}
+    <rect x="50" y="134" width="160" height="18" rx="3" stroke="currentColor" strokeWidth="1.4" opacity=".5" />
+
+    {/* servers */}
+    {[160, 196, 232].map((y) => (
+      <g key={y}>
+        <rect x="50" y={y} width="160" height="28" rx="3" stroke="currentColor" strokeWidth="1.6" />
+        <circle cx="64" cy={y + 14} r="2.6" fill="currentColor" opacity=".4" />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <rect key={i} x={82 + i * 22} y={y + 8} width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.2" opacity=".33" />
+        ))}
+      </g>
+    ))}
+
+    {/* 2U PDU */}
+    <rect x="50" y="272" width="160" height="34" rx="3" stroke="currentColor" strokeWidth="1.6" />
+    {Array.from({ length: 6 }).map((_, i) => (
+      <circle key={i} cx={70 + i * 24} cy="289" r="5" stroke="currentColor" strokeWidth="1.4" opacity=".42" />
+    ))}
+
+    {/* blank + vented base */}
+    <rect x="50" y="314" width="160" height="26" rx="3" stroke="currentColor" strokeWidth="1.4" opacity=".5" />
+    <rect x="50" y="348" width="160" height="22" rx="3" stroke="currentColor" strokeWidth="1.4" opacity=".35" />
+  </svg>
+);
+
 export default function HomeHero() {
   const navigate = useNavigate();
   const auth = useAuth();
   const authed = auth?.isAuthed;
-  const filmRef = useRef(null);
-
-  /* The footage is the page's only motion, and it loops forever — which is
-     exactly what "reduce motion" is asking us not to do. The poster frame is
-     already the right image, so pausing leaves the design intact. Handled here
-     rather than in CSS because `animation`/`transition` rules can't stop video
-     playback. */
-  useEffect(() => {
-    const film = filmRef.current;
-    if (!film) return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const apply = () => { if (mq.matches) film.pause(); else film.play?.().catch(() => {}); };
-    apply();
-    mq.addEventListener?.('change', apply);
-    return () => mq.removeEventListener?.('change', apply);
-  }, []);
 
   return createPortal(
     <section className={styles.hero}>
-      {/* Decorative: the room, not information. Muted + playsInline is what
-          lets it autoplay on iOS at all; the poster is the still the old hero
-          used, so a slow connection in an aisle still gets the right frame. */}
-      <video
-        ref={filmRef}
-        className={styles.film}
-        src="/racktrack-coldaisle.mp4"
-        poster="/home-bg.jpg"
-        autoPlay muted loop playsInline
-        preload="auto"
-        aria-hidden="true"
-        tabIndex={-1}
-      />
-      <div className={styles.scrim} aria-hidden="true" />
-
       <nav className={styles.nav}>
         <div className={styles.brand}>
           <img src="/logo.jpg" alt="" className={styles.mark} />
@@ -111,39 +143,34 @@ export default function HomeHero() {
           </h1>
 
           <p className={styles.lede}>
-            RackTrack is the system of record for your physical infrastructure.
             Photograph a rack and <strong>every switch, patch panel, port and
-            cable</strong> becomes a live inventory you can search - kept true
+            cable</strong> becomes a live inventory you can search — kept true
             across every site you run.
           </p>
 
+          {/* One action, whatever the state. Signed out it opens sign-in, which
+              is also where an organization is created; signed in it goes
+              straight to the thing the app is for. */}
           <div className={styles.actions}>
             <button
               type="button"
               className={styles.cta}
               onClick={() => navigate(authed ? '/scan' : '/login')}
             >
-              {authed ? 'Start a scan' : 'Sign in'}
+              {authed ? 'Start a scan' : 'Get started'}
               <ArrowR />
             </button>
-            {/* Signed in, the second action used to be "Past scans" → /history.
-                It's gone: /history and the Profile page both listed the user's
-                scans, so the app offered the same thing under two names and
-                testers read them as one screen duplicated. Profile owns that
-                list now, and it has a permanent slot in the phone's bottom bar,
-                so nothing became harder to reach. Signed out, the second action
-                still matters — it's how an organization gets created. */}
-            {!authed && (
-              <button
-                type="button"
-                className={styles.link}
-                onClick={() => navigate('/signup')}
-              >
-                Create an organization
-                <ArrowUpR />
-              </button>
-            )}
           </div>
+
+          <ul className={styles.proof}>
+            <li>Scan a rack in one photograph</li>
+            <li>Ports, cables and labels read automatically</li>
+            <li>Every site in one searchable record</li>
+          </ul>
+        </div>
+
+        <div className={styles.figure} aria-hidden="true">
+          <RackFigure />
         </div>
       </main>
 

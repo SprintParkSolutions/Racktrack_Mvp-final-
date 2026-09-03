@@ -1,5 +1,6 @@
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './ResultsPage.module.css';
 import { apiUrl, authFetch, bustUrl } from '../utils/api';
 import { getItem, getJSON, setItem, setJSON } from '../utils/safeStorage';
@@ -894,7 +895,7 @@ function ConfirmRackButton({ scanId }) {
   );
 }
 
-export function AllDevicesView({ devices, labels, rackId, scanId, originalExt, onBack, embedded = false }) {
+export function AllDevicesView({ devices, labels, rackId, scanId, originalExt, originalImageUrl, onBack, embedded = false }) {
   const navigate = useNavigate();
   const { state } = useLocation();
   const safeDevices = Array.isArray(devices) ? devices : [];
@@ -907,7 +908,8 @@ export function AllDevicesView({ devices, labels, rackId, scanId, originalExt, o
 
   const [selectedCard, setSelectedCard] = useState(null);
   const [imgNat, setImgNat] = useState(null);
-  const heroPath = `/outputs/${scanId}/original_image.${originalExt || 'png'}`;
+  const heroPath = originalImageUrl
+    || `/outputs/${scanId}/original_image.${originalExt || 'jpg'}`;
   const heroSrc = apiUrl(heroPath);
 
   // CMDB approval modal — shows once after a fresh detect-mode scan when
@@ -1327,6 +1329,10 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   const [reportToken, setReportToken] = useState(null);
   const [reportTokenErr, setReportTokenErr] = useState(null);
   const [sessionPorts, setSessionPorts] = useState([]); // [{deviceIdx, port, deviceLabel, deviceClass, status}]
+  // The device picker's own open state. It is a listbox we draw, not a native
+  // <select>, so the open/closed state is ours to hold — see the note where it
+  // is rendered.
+  const [deviceListOpen, setDeviceListOpen] = useState(false);
   const [shareStatus, setShareStatus] = useState('idle'); // 'idle' | 'sending' | 'sent' | 'error'
   const [shareMsg, setShareMsg] = useState(null);
   const [shareChannel, setShareChannel] = useState(null); // 'slack' | 'teams' | 'outlook'
@@ -1450,7 +1456,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
     return () => { cancelled = true; };
   }, [consoleOpen, switchCreds.vendor]);
 
-  const { scanId, rackId, cached, devices: initialDevices = [], units_detected = [], originalExt, qualityWarning, qualityWarningMsg, timings: analysisTimings } = result || {};
+  const { scanId, rackId, cached, devices: initialDevices = [], units_detected = [], originalExt, originalImageUrl, qualityWarning, qualityWarningMsg, timings: analysisTimings } = result || {};
   const [fetchedOcrLabels, setFetchedOcrLabels] = useState(null);
   const ocrLabels = fetchedOcrLabels;
   const [warningDismissed, setWarningDismissed] = useState(false);
@@ -1689,7 +1695,14 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   // The old fallback chain was also unsound: with overlayImageUrl absent it
   // dropped to resultImg, a DEVICE CROP, while the SVG overlay above it keeps
   // drawing in full-image coordinates — a crop under a full-rack overlay.
-  const originalPath = `/outputs/${scanId}/original_image.${originalExt || 'png'}`;
+  // Prefer the path the server resolved from the file that actually exists.
+  // Guessing it here as `original_image.${originalExt || 'png'}` meant any
+  // payload that arrived without an extension asked for a .png the camera
+  // never produced — an iPhone sends JPEG or HEIC — and the rack photo came up
+  // as a broken image while the rest of the result rendered fine. The guess is
+  // kept only as a fallback for a server that predates originalImageUrl.
+  const originalPath = originalImageUrl
+    || `/outputs/${scanId}/original_image.${originalExt || 'jpg'}`;
   const originalSrc = apiUrl(originalPath);
   // Keep the server-relative path alongside the resolved URL: AssetImg needs the
   // path so it can rebuild the URL with a fresh capability token when the old
@@ -4840,45 +4853,113 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
               </div>
             );
           }
+          const pickDevice = (idx) => {
+            setSelectedIdx(idx);
+            setPortNum(''); setPortInfo(null); setError(null);
+            setDeviceFbStatus('idle');
+            setActualDeviceClass('');
+            setDeviceFbError(null);
+            setPortCountFbStatus('idle');
+            setActualPortCount('');
+            setPortCountFbError(null);
+            setDeviceListOpen(false);
+          };
+          const chosen = pickables.find((p) => p.idx === selectedIdx) || null;
+          const detailFor = (dev) => (isPdu(dev) ? powerSummary(dev) : portBreakdown(dev)) || '';
+
           return (
             <div className={styles.devicePicker} data-tour="device-picker">
-              <label className={styles.devicePickerLabel} htmlFor="device-picker-select">Device</label>
-              <div className={styles.devicePickerSelectWrap}>
-                <select
-                  id="device-picker-select"
-                  className={styles.devicePickerSelect}
-                  value={selectedIdx || ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!v) {
-                      setSelectedIdx(null);
-                      setPortNum(''); setPortInfo(null); setError(null);
-                      return;
-                    }
-                    const idx = parseInt(v, 10);
-                    setSelectedIdx(idx);
-                    setPortNum(''); setPortInfo(null); setError(null);
-                    setDeviceFbStatus('idle');
-                    setActualDeviceClass('');
-                    setDeviceFbError(null);
-                    setPortCountFbStatus('idle');
-                    setActualPortCount('');
-                    setPortCountFbError(null);
-                  }}>
-                  <option value="">- Pick a device (or tap one in the image) -</option>
-                  {pickables.map(({ dev, idx, label }) => (
-                    <option key={idx} value={idx}>
-                      {label} · {dev.class_name}
-                      {isPdu(dev)
-                        ? (powerSummary(dev) ? ` · ${powerSummary(dev)}` : '')
-                        : (portBreakdown(dev) ? ` · ${portBreakdown(dev)}` : '')}
-                    </option>
-                  ))}
-                </select>
+              <span className={styles.devicePickerLabel}>Device</span>
+
+              {/* A listbox, not a native <select>.
+                  The native control's popup is drawn by the OS: on Android it
+                  is a full-bleed list in the system font with no room to
+                  breathe, and every option here is three facts joined by
+                  middots — "U01-SW01 · switch · 24 RJ45" — which that popup
+                  truncates. Testers read the result as broken. Rendering the
+                  list ourselves lets each device be a row with its identifier
+                  on one line and its detail beneath, in the app's own type. */}
+              <button
+                type="button"
+                className={styles.devicePickerTrigger}
+                aria-haspopup="listbox"
+                aria-expanded={deviceListOpen}
+                onClick={() => setDeviceListOpen((o) => !o)}
+              >
+                <span className={styles.devicePickerValue}>
+                  {chosen
+                    ? <><span className={styles.devicePickerValueId}>{chosen.label}</span>
+                        <span className={styles.devicePickerValueSub}>{chosen.dev.class_name}</span></>
+                    : <span className={styles.devicePickerPlaceholder}>Pick a device, or tap one in the image</span>}
+                </span>
                 <svg className={styles.devicePickerCaret} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <polyline points="6 9 12 15 18 9"/>
                 </svg>
-              </div>
+              </button>
+
+              {/* Portalled to <body>, and a sheet rather than a dropdown
+                  anchored under the trigger. The picker lives inside .sheet,
+                  which is an `overflow-y: auto` scroll container — an absolutely
+                  positioned list would be clipped by it, which is the same trap
+                  the native <select> was avoiding by handing its popup to the
+                  OS. A sheet also gives the list the room the tester asked for:
+                  margins, full-width rows, and the app's own type. */}
+              {deviceListOpen && createPortal(
+                <div className={styles.devicePickerBackdrop} onClick={() => setDeviceListOpen(false)}>
+                  <div
+                    className={styles.devicePickerSheet}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Choose a device"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className={styles.devicePickerSheetHead}>
+                      <span className={styles.devicePickerSheetTitle}>Device</span>
+                      <button
+                        type="button"
+                        className={styles.devicePickerSheetClose}
+                        onClick={() => setDeviceListOpen(false)}
+                        aria-label="Close"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <ul className={styles.devicePickerList} role="listbox" aria-label="Devices in this rack">
+                      {pickables.map(({ dev, idx, label }) => {
+                        const detail = detailFor(dev);
+                        return (
+                          <li key={idx}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={idx === selectedIdx}
+                              className={`${styles.devicePickerOption} ${idx === selectedIdx ? styles.devicePickerOptionOn : ''}`}
+                              onClick={() => pickDevice(idx)}
+                            >
+                              <span className={styles.devicePickerOptionId}>{label}</span>
+                              <span className={styles.devicePickerOptionMeta}>
+                                {dev.class_name}{detail ? ` · ${detail}` : ''}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {chosen && (
+                      <button
+                        type="button"
+                        className={styles.devicePickerClear}
+                        onClick={() => { setSelectedIdx(null); setPortNum(''); setPortInfo(null); setError(null); setDeviceListOpen(false); }}
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                  </div>
+                </div>,
+                document.body,
+              )}
             </div>
           );
         })()}

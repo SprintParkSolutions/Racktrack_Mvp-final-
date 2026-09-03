@@ -170,59 +170,8 @@
   color: rgba(255,255,255,0.5);
   letter-spacing: 0.08em;
 }
-.rackBannerStats {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  align-items: stretch;
-  gap: 0;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-}
-.bannerStat {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px;
-  padding: 4px 6px;
-  position: relative;
-  min-width: 0;
-}
-.bannerStat + .bannerStat::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 18%; bottom: 18%;
-  width: 1px;
-  background: linear-gradient(to bottom,
-    rgba(255,255,255,0) 0%,
-    rgba(255,255,255,0.14) 50%,
-    rgba(255,255,255,0) 100%);
-}
-.bannerStatValue {
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 18px; font-weight: 800;
-  color: #fff;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  text-shadow: 0 0 12px var(--bannerStatGlow, transparent);
-}
-.bannerStatLabel {
-  font-size: 9px;
-  color: rgba(255,255,255,0.45);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  line-height: 1;
-}
-
-/* Tier-colored value tints — match the topology tier palette so the
-   stats row reads as a tiny legend at a glance. */
-.bannerStat_size   { --bannerStatGlow: rgba(245,158,11,0.55); }
-.bannerStat_size   .bannerStatValue { color: #fbbf24; }
-.bannerStat_switch { --bannerStatGlow: rgba(99, 102, 241,0.55); }
-.bannerStat_switch .bannerStatValue { color: #67e8f9; }
-.bannerStat_panel  { --bannerStatGlow: rgba(96,165,250,0.55); }
-.bannerStat_panel  .bannerStatValue { color: #93c5fd; }
-.bannerStat_server { --bannerStatGlow: rgba(167,139,250,0.55); }
-.bannerStat_server .bannerStatValue { color: #c4b5fd; }
-.bannerStat_cable  { --bannerStatGlow: rgba(255,255,255,0.35); }
-.bannerStat_cable  .bannerStatValue { color: #f4f4f4; }
+/* The five-tile stats strip that used to sit under the rack name is gone —
+   see RackBanner. Its light-theme overrides went with it. */
 
 /* ── Toolbar: cable filter pills + capacity toggle ── */
 .toolbar {
@@ -738,23 +687,6 @@
   background-clip: text;
 }
 :global([data-theme='light']) .rackBannerId { color: #6b6b6b; }
-:global([data-theme='light']) .bannerStatValue { color: #181818; }
-:global([data-theme='light']) .bannerStatLabel { color: #6b6b6b; }
-:global([data-theme='light']) .rackBannerStats {
-  border-top-color: rgba(99, 102, 241, 0.18);
-}
-:global([data-theme='light']) .bannerStat + .bannerStat::before {
-  background: linear-gradient(to bottom,
-    rgba(99, 102, 241, 0) 0%,
-    rgba(99, 102, 241, 0.22) 50%,
-    rgba(99, 102, 241, 0) 100%);
-}
-:global([data-theme='light']) .bannerStat_size   .bannerStatValue { color: #B45309; }
-:global([data-theme='light']) .bannerStat_switch .bannerStatValue { color: #0E7490; }
-:global([data-theme='light']) .bannerStat_panel  .bannerStatValue { color: #1D4ED8; }
-:global([data-theme='light']) .bannerStat_server .bannerStatValue { color: #6D28D9; }
-:global([data-theme='light']) .bannerStat_cable  .bannerStatValue { color: #181818; }
-
 :global([data-theme='light']) .toolbar {
   background: #FFFFFF;
   border: 1px solid #FFFFFF;
@@ -995,11 +927,15 @@
 }
 .viewBtnActive,
 :global([data-theme='light']) .viewBtnActive {
-  /* Solid inverted fill so the selected mode is unmistakable: dark pill +
-     light text on a light bar, and the reverse in dark mode. */
-  background: var(--md-on-surface) !important;
-  color: var(--md-surface-container-lowest) !important;
-  border: 1px solid var(--md-on-surface) !important;
+  /* Selected = a lit surface with a hard edge, NOT a black fill.
+     A solid ink block over a light page reads as something covering the control
+     rather than the control being chosen — testers described it as "overlaying
+     the black instead of highlighting". Tinted ground + full-strength border +
+     ink text at bold gives the same at-a-glance answer to "which one is on?"
+     without the button disappearing under a slab. */
+  background: rgba(18, 18, 18, 0.06) !important;
+  color: var(--md-on-surface) !important;
+  border: 1.5px solid var(--md-on-surface) !important;
   box-shadow: none !important;
   filter: none !important;
   opacity: 1;
@@ -1069,45 +1005,6 @@
   color: var(--md-on-surface) !important;
   opacity: 0.65;
 }
-.rackBannerStats,
-:global([data-theme='light']) .rackBannerStats {
-  border-top: 1px solid var(--md-outline-variant) !important;
-}
-.bannerStat + .bannerStat::before,
-:global([data-theme='light']) .bannerStat + .bannerStat::before {
-  background: var(--md-outline-variant) !important;
-}
-.bannerStatValue,
-:global([data-theme='light']) .bannerStatValue {
-  color: var(--md-on-surface) !important;
-  text-shadow: none !important;
-  filter: none !important;
-  font-weight: 800;
-}
-.bannerStatLabel,
-:global([data-theme='light']) .bannerStatLabel {
-  color: var(--md-on-surface) !important;
-  opacity: 0.6;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.10em;
-}
-/* Kill tier colour tints on stat values — keep them solid black */
-.bannerStat_size   .bannerStatValue,
-.bannerStat_switch .bannerStatValue,
-.bannerStat_panel  .bannerStatValue,
-.bannerStat_server .bannerStatValue,
-.bannerStat_cable  .bannerStatValue,
-:global([data-theme='light']) .bannerStat_size   .bannerStatValue,
-:global([data-theme='light']) .bannerStat_switch .bannerStatValue,
-:global([data-theme='light']) .bannerStat_panel  .bannerStatValue,
-:global([data-theme='light']) .bannerStat_server .bannerStatValue,
-:global([data-theme='light']) .bannerStat_cable  .bannerStatValue {
-  color: var(--md-on-surface) !important;
-  --bannerStatGlow: transparent !important;
-}
-
 /* ── Toolbar ── */
 .toolbar,
 :global([data-theme='light']) .toolbar {

@@ -837,34 +837,37 @@
 
 /* The shutter. It used to be hidden inside the bottom nav's Scan tab, so
    there was no visible way to capture — this is a real, obvious button. */
+/* 74px of ring around a 58px red disc, with a 22px drop shadow and a pulse
+   that threw a 12px halo twice a second, was reported as simply too big — it
+   was the largest element on the camera screen and the thing least in need of
+   emphasis, since the whole screen is already the camera. 58/42 is the iOS
+   camera's own proportion, the shadow is a hairline's worth of separation
+   rather than a bloom, and nothing pulses. */
 .shutter {
-  width:74px; height:74px; padding:0;
+  width:58px; height:58px; padding:0;
   border-radius:50%;
-  border:4px solid rgba(255,255,255,0.95);
+  border:3px solid rgba(255,255,255,0.95);
   background:transparent;
   display:grid; place-items:center;
   cursor:pointer;
   -webkit-tap-highlight-color:transparent;
   transition:transform .12s ease, opacity .15s ease;
-  box-shadow:0 6px 22px rgba(0,0,0,0.4);
+  box-shadow:0 1px 6px rgba(0,0,0,0.28);
 }
 .shutter:active { transform:scale(.93); }
 .shutter[disabled] { opacity:.4; cursor:not-allowed; }
 
 .shutterInner {
-  width:58px; height:58px; border-radius:50%;
+  width:42px; height:42px; border-radius:50%;
   background:#ffffff;
   transition:width .16s ease, height .16s ease, border-radius .16s ease, background .16s ease;
 }
-/* Video, idle → red dot. Video, recording → red square (stop). */
+/* Video, idle → red dot. Video, recording → red square (stop). The square is
+   the whole recording signal now; the ring turns red with it, and the timer in
+   the HUD above says how long it has been running. */
 .shutterRed    { background:#ef4444; }
-.shutterSquare { width:26px; height:26px; border-radius:7px; background:#ef4444; }
-.shutterRec    { border-color:#ef4444; animation:shutterPulseRec 1.4s ease-in-out infinite; }
-
-@keyframes shutterPulseRec {
-  0%,100% { box-shadow:0 6px 22px rgba(0,0,0,.4), 0 0 0 0 rgba(239,68,68,.55); }
-  50%     { box-shadow:0 6px 22px rgba(0,0,0,.4), 0 0 0 12px rgba(239,68,68,0); }
-}
+.shutterSquare { width:20px; height:20px; border-radius:5px; background:#ef4444; }
+.shutterRec    { border-color:#ef4444; }
 .modeBtn {
   border:none; background:transparent;
   color:rgba(255,255,255,0.5);
@@ -950,28 +953,8 @@
   gap:16px; padding:32px 28px; max-width:340px; width:100%;
 }
 
-.ovRack3D {
-  position:relative;
-  width:150px; height:150px;
-  display:flex; align-items:center; justify-content:center;
-  filter: drop-shadow(0 6px 18px rgba(0,0,0,0.35));
-}
-.ovRack3DGlow {
-  position:absolute; inset:-18px;
-  border-radius:50%;
-  background:radial-gradient(circle at center,
-    rgba(0,0,0,0.22) 0%,
-    rgba(0,0,0,0.12) 40%,
-    transparent 70%);
-  filter: blur(10px);
-  animation: pulse-glow 2.4s ease-in-out infinite;
-  pointer-events:none;
-  z-index:-1;
-}
-@keyframes pulse-glow {
-  0%, 100% { opacity: 0.55; transform: scale(0.95); }
-  50%      { opacity: 0.95; transform: scale(1.08); }
-}
+/* The 3D rack, its drop shadow and its pulsing radial glow used to sit above
+   the title. All three are gone with the model — see AnalyzingOverlay. */
 
 .ovTitle { font-size:1.1rem; font-weight:700; color:var(--t1); }
 .ovStep  { font-size:.78rem; color:var(--c2); font-family:var(--mono); }
@@ -982,8 +965,7 @@
   border:1px solid rgba(0,0,0,0.1);
   border-radius:3px; position:relative; overflow:visible;
 }
-.ovFill  { height:100%; background:linear-gradient(90deg,var(--c3),var(--c2)); border-radius:3px; transition:width .3s ease; box-shadow: 0 0 8px rgba(0,0,0,0.45); }
-.ovGlow  { position:absolute; top:50%; transform:translate(-50%,-50%); width:18px; height:18px; background:radial-gradient(var(--c2),transparent 70%); pointer-events:none; transition:left .3s ease; }
+.ovFill  { height:100%; background:var(--t1); border-radius:3px; transition:width .3s ease; }
 .ovPct   { font-family:var(--mono); font-size:.8rem; font-weight:700; color:var(--c2); align-self:flex-end; }
 
 .ovSteps { width:100%; display:flex; flex-direction:column; gap:8px; }
@@ -1263,28 +1245,13 @@
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
 }
-:global([data-theme='light']) .ovRack3D {
-  filter: drop-shadow(0 6px 18px rgba(0,0,0,0.32));
-}
-:global([data-theme='light']) .ovRack3DGlow {
-  background: radial-gradient(circle at center,
-    rgba(0,0,0,0.30) 0%,
-    rgba(0,0,0,0.16) 40%,
-    transparent 70%);
-}
 :global([data-theme='light']) .ovTitle { color: #1c1c1c; }
 :global([data-theme='light']) .ovStep  { color: #000000; }
 :global([data-theme='light']) .ovTrack {
   background: rgba(0,0,0,0.10);
   border-color: rgba(0,0,0,0.18);
 }
-:global([data-theme='light']) .ovFill {
-  background: linear-gradient(90deg, #000000, #474747);
-  box-shadow: 0 0 8px rgba(0,0,0,0.45);
-}
-:global([data-theme='light']) .ovGlow {
-  background: radial-gradient(#474747, transparent 70%);
-}
+:global([data-theme='light']) .ovFill { background: #121212; }
 :global([data-theme='light']) .ovPct { color: #000000; }
 :global([data-theme='light']) .ovStepRow { color: #474747; }
 :global([data-theme='light']) .ovDone    { color: #1c1c1c; }
@@ -1620,33 +1587,8 @@
   flex-shrink: 0;
 }
 
-/* --- TIPS block ----------------------------------------------------- */
-.scanContentDesktop .tips {
-  border-top: 1px solid #ededed;
-  padding-top: 18px;
-}
-.scanContentDesktop .tipsTitle { color: #6b6b6b; }
-.scanContentDesktop .tipsList {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.scanContentDesktop .tipsList li {
-  position: relative;
-  padding-left: 18px;
-  font-size: 13.5px;
-  line-height: 1.45;
-  color: #5c5c5c;
-}
-.scanContentDesktop .tipsList li::before {
-  content: "•";
-  position: absolute;
-  left: 2px;
-  color: #111;
-}
+/* The tips list that used to be styled here is now a one-time sheet — see
+   .tipsSheet at the foot of this file. */
 
 /* ══════════════════════════════════════════════════════════════════════
    TWO-COLUMN REFERENCE GRID (≥1180px only)
@@ -1672,7 +1614,6 @@
   .scanContentDesktop .qualityChoice  { order: 41; }
   .scanContentDesktop .cta            { order: 50; }
   .scanContentDesktop .analyzeHelper  { order: 51; }
-  .scanContentDesktop .tips           { order: 60; }
   .scanContentDesktop .scanSpacer     { order: 99; }
 }
 
@@ -1803,12 +1744,6 @@
 
 /* ── Tips ──────────────────────────────────────────────────────────────
    Lines land in reading order, just behind the block they belong to. */
-.tipsList li { animation: rtRise .4s cubic-bezier(.22, .61, .36, 1) both; }
-.tipsList li:nth-child(1) { animation-delay: 340ms; }
-.tipsList li:nth-child(2) { animation-delay: 385ms; }
-.tipsList li:nth-child(3) { animation-delay: 430ms; }
-.tipsList li:nth-child(4) { animation-delay: 475ms; }
-.tipsList li:nth-child(5) { animation-delay: 520ms; }
 
 .fmtPill { animation: rtRise .38s cubic-bezier(.22, .61, .36, 1) both; }
 .fmtPill:nth-child(1) { animation-delay: 200ms; }
@@ -1855,28 +1790,79 @@
    promise the page can't keep. */
 .scanContentDesktop .cta:disabled svg { opacity: .45; }
 
-/* ── Tips as a numbered checklist ──────────────────────────────────────
-   Five bullets of equal weight is a paragraph pretending to be a list. The
-   person reading this is holding a phone in front of a rack working
-   through them in order, so they are numbered, and each sits on its own
-   ruled row — the same mono-label-plus-hairline vocabulary as the rest of
-   the app. */
-.scanContentDesktop .tipsList { counter-reset: tip; gap: 0 !important; }
-.scanContentDesktop .tipsList li {
-  counter-increment: tip;
-  padding: 11px 0 11px 30px !important;
-  border-top: 1px solid #f2f2f2;
-  color: #4a4a4a !important;
+/* ── First-scan sheet ──────────────────────────────────────────────────
+   The capture guidance, shown once on the first scan a device ever starts
+   rather than printed under the button on every visit. Numbered, because the
+   person reading it is holding a phone in front of a rack working through
+   them in order — the same mono-label-plus-hairline vocabulary as the rest of
+   the app.
+
+   Portalled to <body>, so it is styled from the viewport rather than from
+   inside the page's column. */
+.tipsBackdrop {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(18, 18, 18, .38);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
-.scanContentDesktop .tipsList li:first-child { border-top: 0; }
-.scanContentDesktop .tipsList li::before {
+.tipsSheet {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  color: #121212;
+  border: 1px solid #ececec;
+  border-radius: 16px;
+  padding: 22px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .22);
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.tipsSheetTitle {
+  margin: 0;
+  font-size: 18px; font-weight: 700; letter-spacing: -.02em;
+}
+.tipsSheetLede {
+  margin: 6px 0 0;
+  font-size: 13.5px; line-height: 1.5; color: #5c5c5c;
+}
+.tipsSheetList {
+  counter-reset: tip;
+  list-style: none;
+  margin: 16px 0 0; padding: 0;
+}
+.tipsSheetList li {
+  counter-increment: tip;
+  position: relative;
+  padding: 11px 0 11px 30px;
+  border-top: 1px solid #f2f2f2;
+  font-size: 13.5px; line-height: 1.45; color: #4a4a4a;
+}
+.tipsSheetList li:first-child { border-top: 0; }
+.tipsSheetList li::before {
   content: counter(tip, decimal-leading-zero);
-  left: 0 !important;
-  top: 11px;
+  position: absolute; left: 0; top: 11px;
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 11px !important;
-  letter-spacing: .06em;
-  color: #b0b0b0 !important;
+  font-size: 11px; letter-spacing: .06em;
+  color: #b0b0b0;
+}
+.tipsSheetBtn {
+  margin-top: 18px;
+  width: 100%; min-height: 46px;
+  border-radius: 10px;
+  border: 1px solid #121212;
+  background: #121212; color: #ffffff;
+  font: inherit; font-size: 15px; font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tipsSheetBtn:active { background: #333740; border-color: #333740; }
+
+/* Centred on a wide screen; a bottom sheet is a phone idiom. */
+@media (min-width: 768px) {
+  .tipsBackdrop { align-items: center; }
 }
 
 /* ── Format pills → format marks ───────────────────────────────────────

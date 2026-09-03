@@ -37,40 +37,50 @@
 .head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 18px 12px;
+  gap: 9px;
+  padding: 12px 16px 11px;
   border-bottom: 1px solid var(--line-soft);
   flex-shrink: 0;
 }
 
-/* The DOT artwork is a small face on a large square; the chip clips and scales
-   the image up onto the face. */
+/* The mark is drawn now (an inline SVG that inherits currentColor), so it needs
+   no chip to clip a raster into and no per-theme file. It sits on the line with
+   the name rather than above it. */
 .mark {
-  width: 36px;
-  height: 36px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
-  border-radius: 10px;
-  overflow: hidden;
   display: grid;
   place-items: center;
-  border: 1px solid var(--line);
+  color: var(--ink);
 }
-.mark img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  transform: scale(2.1);
-  transform-origin: 50% 40%;
-  display: block;
-}
-
-.headText { flex: 1; min-width: 0; }
+.mark svg { width: 100%; height: 100%; display: block; }
 
 .title {
   margin: 0;
-  font-size: 19px;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
+  flex: 0 0 auto;
+}
+/* What DOT is, on the same line as its name. The old header stacked a boxed
+   logo over a heading, which ate a third of a phone screen before a single
+   answer had been given. */
+.titleNote {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--dim, #5C6672);
+  letter-spacing: -.003em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.titleNote::before {
+  content: '·';
+  margin-right: 7px;
+  opacity: .5;
 }
 
 /* ── conversation ─────────────────────────────────────────────────────── */
@@ -249,9 +259,9 @@
   box-shadow: 0 6px 0 rgba(255, 255, 255, 0.9), 0 -6px 0 rgba(255, 255, 255, 0.9);
 }
 .intro h2 {
-  margin: 0 0 9px;
-  font-size: clamp(1.2rem, 4.5vw, 1.4rem);
-  font-weight: 800;
+  margin: 0 0 clamp(18px, 4vw, 24px);
+  font-size: clamp(1.05rem, 4vw, 1.22rem);
+  font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.2;
   color: var(--ink);
@@ -420,25 +430,29 @@
 
 /* Permanent route to a human from the assistant's header. Quiet on purpose —
    it must not compete with DOT itself, only be findable without a menu. */
+/* "Support", not "Contact support", and a filled control rather than grey
+   underlined text. It is the way through to a human when the bot cannot help —
+   the single most important thing in this header — and it was the quietest
+   thing on it. Short enough now that it never competes with the name for width
+   on a phone. */
 .headContact {
   margin-left: auto;
   flex: 0 0 auto;
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 700;
   letter-spacing: -.004em;
-  color: var(--muted, #5C6672);
-  background: none;
-  border: 0;
-  padding: 8px 4px;
+  color: #ffffff;
+  background: var(--ink, #121212);
+  border: 1px solid var(--ink, #121212);
+  border-radius: 999px;
+  padding: 7px 14px;
+  min-height: 32px;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1px;
   -webkit-tap-highlight-color: transparent;
-  transition: color .16s;
+  transition: background-color .16s, border-color .16s;
 }
-.headContact:hover { color: var(--accent, #121212); }
+.headContact:hover { background: #333740; border-color: #333740; }
 .headContact:focus-visible {
   outline: 2px solid var(--accent-ring, rgba(18,18,18,.16));
   outline-offset: 2px;

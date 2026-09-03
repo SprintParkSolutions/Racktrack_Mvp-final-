@@ -267,6 +267,9 @@ export default function TourOverlay() {
   const vh = window.innerHeight;
   const bubbleWidth = Math.min(320, vw - 24);
   const mascotSize = 62;
+  // How far the mascot hangs past the card's left edge. Needs to be readable
+  // here because the corner is now chosen from the available room.
+  const MASCOT_OVERHANG = 55;
   // Leaves room for the mascot, which overhangs the card's top edge by up to
   // 46px on phones (see .mascot in TourOverlay.module.css).
   const TOP_GUTTER = 56;
@@ -316,6 +319,17 @@ export default function TourOverlay() {
   // The mascot perches on the info card's own corner (not the spotlight ring)
   // — it's the character "speaking" the step instructions. The speech-bubble
   // tail still points at the ring, independently.
+  //
+  // Which corner is decided here, by measured room, rather than by a
+  // screen-width media query. The card is clamped to at least 12px from the
+  // left edge, so any time it lands there the left-hand overhang puts half the
+  // mascot off-screen. That was treated as a phone-only problem, but a desktop
+  // window puts the card against the left edge just as readily — which is
+  // exactly where it was being cut in half.
+  const mascotOnLeft = bubbleLeft >= MASCOT_OVERHANG + 4;
+  const mascotStyle = mascotOnLeft
+    ? { width: mascotSize, height: mascotSize, top: -10, left: -MASCOT_OVERHANG, right: 'auto' }
+    : { width: mascotSize, height: mascotSize, top: -(mascotSize - 16), left: 'auto', right: 6 };
   const tailX = Math.min(Math.max(left + 20, bubbleLeft + 20), bubbleLeft + bubbleWidth - 20);
 
   // Clamp the card's OWN top edge into the viewport.
@@ -367,7 +381,7 @@ export default function TourOverlay() {
         role="dialog"
         aria-label={currentStep.title}
       >
-        <div className={styles.mascot} style={{ width: mascotSize, height: mascotSize }}>
+        <div className={styles.mascot} style={mascotStyle}>
           <TourMascot />
         </div>
         <p className={styles.bubbleTitle}>{currentStep.title}</p>

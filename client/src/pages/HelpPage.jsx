@@ -23,10 +23,24 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiUrl, authFetch } from '../utils/api';
-import { useTheme } from '../ThemeContext.jsx';
 import { useTour } from '../TourContext.jsx';
 import BackButton from '../components/BackButton.jsx';
 import styles from './HelpPage.module.css';
+
+/* DOT's mark: a speech bubble carrying a single dot.
+ *
+ * Replaces /white_DOT.png + /dark_DOT.png — two raster files, one per theme,
+ * neither of which read as anything at 22px. Drawn here it inherits
+ * currentColor (so one glyph covers both themes), stays sharp on every screen,
+ * and is the same mark the home screen's Ask DOT button uses, which is what
+ * makes the two feel like one assistant rather than two features. */
+const DotMark = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+    <circle cx="12" cy="11.5" r="1.4" fill="currentColor" stroke="none" />
+  </svg>
+);
 
 const STARTERS = [
   "I can't sign in",
@@ -87,8 +101,6 @@ export default function HelpPage() {
     && new URLSearchParams(window.location.search).has('debug');
   // Each logo has its background baked in, so the wrong one shows as a black
   // square on a white bar (or the reverse) rather than just looking off.
-  const { theme } = useTheme();
-  const dotLogo = theme === 'dark' ? '/dark_DOT.png' : '/white_DOT.png';
 
   const logRef = useRef(null);
   const inputRef = useRef(null);
@@ -197,12 +209,12 @@ export default function HelpPage() {
         {/* Every other destination reached from the menu has a back control;
             Help was the one that did not, so it was a dead end. */}
         <BackButton fallback="/scan" always />
-        <span className={styles.mark} aria-hidden="true">
-          <img src={dotLogo} alt="" />
-        </span>
-        <div className={styles.headText}>
-          <h1 className={styles.title}>DOT</h1>
-        </div>
+        {/* One line: mark, name, what it is. It used to be a stacked block —
+            a boxed logo, a heading and a subtitle — which took a third of a
+            phone screen before a single answer appeared. */}
+        <span className={styles.mark} aria-hidden="true"><DotMark /></span>
+        <h1 className={styles.title}>DOT</h1>
+        <span className={styles.titleNote}>Support assistant</span>
 
         {/* A permanent way through to a human.
             Contact used to be reachable only from the phone's More menu, which
@@ -216,7 +228,7 @@ export default function HelpPage() {
           className={styles.headContact}
           onClick={() => navigate('/contact')}
         >
-          Contact support
+          Support
         </button>
 
       </header>
@@ -226,12 +238,10 @@ export default function HelpPage() {
           {messages.length === 0 && (
             <div className={styles.intro}>
               <div className={styles.introRule} aria-hidden="true" />
-              <h2>Hello! I&apos;m the RackTrack support assistant.</h2>
-              <p>
-                Ask me anything about using RackTrack - scans, racks, switches,
-                reports, your account - and I&apos;ll answer from our verified
-                help content.
-              </p>
+              {/* One line, not a heading plus a paragraph that between them
+                  said the same thing three times. The questions below are the
+                  real explanation of what this screen can do. */}
+              <h2>Ask me about scans, racks, ports, reports or your account.</h2>
               <div className={styles.startersLabel}>Common questions</div>
               <div className={styles.starters}>
                 {STARTERS.map((s) => (
@@ -348,7 +358,7 @@ export default function HelpPage() {
             type="text"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Ask about scans, racks, ports, reports…"
+            placeholder="Ask here"
             maxLength={1000}
             autoComplete="off"
             aria-label="Your question"

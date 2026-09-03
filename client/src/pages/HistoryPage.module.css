@@ -259,12 +259,14 @@
 }
 .chip:hover { border-color: rgba(18, 18, 18, 0.28); color: #121212; }
 .chip:active { transform: scale(0.97); }
-/* The accent. Small area, full black — the first thing the eye finds. */
+/* Selected: lit ground and a hard edge rather than a black fill, matching
+   every other segmented control in the app. */
 .chipOn,
 .chipOn:hover {
-  background: #121212;
-  border-color: #121212;
-  color: #ffffff;
+  background: rgba(18, 18, 18, 0.06);
+  border: 1.5px solid #121212;
+  color: #121212;
+  font-weight: 700;
 }
 
 .sortWrap {
