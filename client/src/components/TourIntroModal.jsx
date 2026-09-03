@@ -2,12 +2,6 @@ import { useState } from 'react';
 import { useTour } from '../TourContext.jsx';
 import useModalA11y from '../hooks/useModalA11y.js';
 import styles from './TourIntroModal.module.css';
-import GuideBot from './GuideBot.jsx';
-// The RackTrack mascot, replacing the two-PNG robot testers found off-putting
-// ("bot design must be change its not giving good vibe", "the guide bot
-// scary"). GuideBot renders the 3D model where the device supports it and the
-// flat SVG where it does not — both honour prefers-reduced-motion, which the
-// PNG pair never did.
 
 // First-run prompt: "New to RackTrack?" Yes/No, then (on Yes) a short
 // welcome + "Get Started" that kicks off the step-by-step walkthrough.
@@ -27,11 +21,6 @@ export default function TourIntroModal() {
     <div className={styles.backdrop}>
       <div ref={panelRef} className={styles.panel}
            role="dialog" aria-modal="true" aria-labelledby="rt-tour-intro-heading">
-        {/* Anchored to the card's bottom-left corner, entirely below it —
-            not layered on top of the card's own content. */}
-        <div className={styles.mascot} aria-hidden="true">
-          <GuideBot framing="full" className={styles.mascotBody} />
-        </div>
         {stage === 'ask' ? (
             <>
               <p className={styles.eyebrow}>Welcome</p>

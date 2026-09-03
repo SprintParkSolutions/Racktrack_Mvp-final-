@@ -2,10 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import { useTour } from '../TourContext.jsx';
 import styles from './TourOverlay.module.css';
-// Same mascot as the tour intro - see the note there. "bust" framing because
-// this box is only 62px: the full-body camera renders the head too small to
-// read at that size, so the model is framed on the head and shoulders.
-import GuideBot from './GuideBot.jsx';
 
 function findAnchor(target) {
   return document.querySelector(`[data-tour="${target}"]`);
@@ -16,7 +12,7 @@ function findAnchor(target) {
 // renders once /api/incidents/active has answered — so an immediate skip would
 // race the fetch. This used to be 4000ms, which on the common path (an org with
 // no open tickets) left the walkthrough showing NOTHING for four seconds: no
-// dim, no card, no robot. Testers read that as the tour crashing. The card now
+// dim and no card. Testers read that as the tour crashing. The card now
 // stays up while we wait, and the wait itself is short.
 const OPTIONAL_SKIP_MS = 1200;
 
@@ -28,16 +24,6 @@ const ADVANCE_GRACE_MS = 900;
 // all handled by events; this only catches layout the browser doesn't tell us
 // about, e.g. a CSS animation settling.
 const FALLBACK_MEASURE_MS = 500;
-
-// The tour's "guide" character — the same waving robot used on the welcome
-// card (TourIntroModal), so it's one consistent character throughout.
-function TourMascot() {
-  return (
-    <div className={styles.robotStage} aria-hidden="true">
-      <GuideBot framing="bust" className={styles.robotBody} />
-    </div>
-  );
-}
 
 // Renders nothing fake — it spotlights the real `data-tour` anchor already in
 // the page and waits for the real click/change on it before moving on.
@@ -266,13 +252,10 @@ export default function TourOverlay() {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const bubbleWidth = Math.min(320, vw - 24);
-  const mascotSize = 62;
-  // How far the mascot hangs past the card's left edge. Needs to be readable
-  // here because the corner is now chosen from the available room.
-  const MASCOT_OVERHANG = 55;
-  // Leaves room for the mascot, which overhangs the card's top edge by up to
-  // 46px on phones (see .mascot in TourOverlay.module.css).
-  const TOP_GUTTER = 56;
+  // The card used to carry a 62px mascot overhanging its top-left corner, and
+  // this gutter existed to leave room for it. With the character gone the card
+  // needs only enough clearance not to sit against the edge of the screen.
+  const TOP_GUTTER = 16;
 
   // Anchor not on screen — show NOTHING.
   //
@@ -316,20 +299,6 @@ export default function TourOverlay() {
   const placeBelow = fitsBelow || (!fitsAbove && spaceBelow >= spaceAbove);
   const bubbleLeft = Math.min(Math.max(12, left), vw - bubbleWidth - 12);
 
-  // The mascot perches on the info card's own corner (not the spotlight ring)
-  // — it's the character "speaking" the step instructions. The speech-bubble
-  // tail still points at the ring, independently.
-  //
-  // Which corner is decided here, by measured room, rather than by a
-  // screen-width media query. The card is clamped to at least 12px from the
-  // left edge, so any time it lands there the left-hand overhang puts half the
-  // mascot off-screen. That was treated as a phone-only problem, but a desktop
-  // window puts the card against the left edge just as readily — which is
-  // exactly where it was being cut in half.
-  const mascotOnLeft = bubbleLeft >= MASCOT_OVERHANG + 4;
-  const mascotStyle = mascotOnLeft
-    ? { width: mascotSize, height: mascotSize, top: -10, left: -MASCOT_OVERHANG, right: 'auto' }
-    : { width: mascotSize, height: mascotSize, top: -(mascotSize - 16), left: 'auto', right: 6 };
   const tailX = Math.min(Math.max(left + 20, bubbleLeft + 20), bubbleLeft + bubbleWidth - 20);
 
   // Clamp the card's OWN top edge into the viewport.
@@ -338,7 +307,7 @@ export default function TourOverlay() {
   // plus `translateY(-100%)` — which clamps the anchor-relative coordinate and
   // then shifts the card up by its full height, so the clamp guards nothing.
   // A tall anchor (the desktop drop zone is ~780px, which leaves no room
-  // below) pushed the card's title and mascot clean off the top of the screen;
+  // below) pushed the card's title clean off the top of the screen;
   // all that was left on screen was its two buttons. Subtracting the measured
   // height up front and clamping the result keeps the whole card visible in
   // both directions, even when the anchor is taller than the space around it.
@@ -381,9 +350,6 @@ export default function TourOverlay() {
         role="dialog"
         aria-label={currentStep.title}
       >
-        <div className={styles.mascot} style={mascotStyle}>
-          <TourMascot />
-        </div>
         <p className={styles.bubbleTitle}>{currentStep.title}</p>
         <p className={styles.bubbleBody}>{currentStep.body}</p>
         <div className={styles.bubbleActions}>

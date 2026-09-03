@@ -40,53 +40,10 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Big robot mascot anchored to the card's bottom-left corner via absolute
-   positioning (top: 100%) — always flush against the corner with zero gap,
-   regardless of viewport/centering, and never overlapping the card's own
-   content since it sits entirely below it. */
-.mascot {
-  position: absolute;
-  top: 80%;
-  left: -100px;
-  /* Sized to the mascot SVG's own 148×168 viewBox so it fills the box with no
-     letterboxing. The float animation that used to live here is gone: the SVG
-     declares its own, and running both made it bob twice. */
-  width: 116px;
-  height: 132px;
-  z-index: 2;
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.35));
-}
-
-.mascotBody {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  user-select: none;
-  -webkit-user-drag: none;
-}
+/* The robot that stood beside this card is gone; so is the gutter it needed
+   and the phone-specific reposition that kept it on a narrow screen. */
 
 
-
-
-/* Phones. The sidecar position above needs ~100px of empty gutter beside the
-   card, and a 414px-wide screen has 17px — the robot rendered as a sliver at
-   the screen edge. Below the card is no good either: the backdrop bottom-aligns
-   the card on mobile, so there's nothing under it. It stands on the card's top
-   edge instead, which keeps the same "beside the content, never over it"
-   intent and stays fully on screen down to the narrowest phone we support. */
-@media (max-width: 639px) {
-  .mascot {
-    top: auto;
-    bottom: 100%;
-    left: 10px;
-    /* Slight overlap so it reads as standing ON the card, not floating above. */
-    margin-bottom: -4px;
-    width: 100px;
-    height: 114px;
-  }
-}
 
 .eyebrow {
   margin: 0 0 4px;
