@@ -174,7 +174,17 @@ EXPOSE 3001
 # can still read config and write outputs/Models/cache.
 # NOTE: if outputs/ or Models/ are backed by host volumes, make those volumes
 # writable by UID 10001 (chown them on the host, or set the volume's owner).
-RUN groupadd -r app && useradd -r -g app -u 10001 app && chown -R app:app /app
+# `useradd -r` without -m points HOME at a directory that does not exist, and
+# that is enough to break PDF rendering outright: Chrome spawns
+# chrome_crashpad_handler, the handler derives its --database path from HOME,
+# gets nothing, exits with "--database is required", and takes the browser down
+# with it. Puppeteer surfaces that as "Failed to launch the browser process:
+# Code: null" — no missing file, no missing library, nothing that points at a
+# home directory. Every report share and download failed on this after the
+# non-root switch, with the Chromium binary sitting right there and runnable.
+RUN groupadd -r app && useradd -r -g app -u 10001 -m -d /home/app app \
+    && chown -R app:app /app /home/app
+ENV HOME=/home/app
 USER app
 
 # Run from the repo root (/app) so PROJECT_ROOT, config.json, Models/, outputs/

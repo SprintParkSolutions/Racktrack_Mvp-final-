@@ -77,7 +77,7 @@
 .brand {
   padding: 0; border: 0; background: none;
   font-family: inherit;
-  font-size: clamp(19px, 2.2vw, 23px);
+  font-size: clamp(19px, 2.6vmin, 24px);
   font-weight: 600;
   letter-spacing: -.028em;
   color: var(--ink);
@@ -146,9 +146,18 @@
   min-height: 0;
 }
 
+/* Every size on this page is driven by vmin — the SMALLER of the two viewport
+   axes — rather than vw or vh.
+   
+   Keyed to width, an iPad in portrait (768 wide, 1024 tall) got phone-sized
+   type on a screen with half a metre of room, because 5vw of 768 is the same
+   as 5vw of 768 whatever the height. Keyed to height, a laptop in landscape
+   got the opposite. vmin asks "how big is this screen, really?" and answers
+   correctly for a phone, a tablet either way up, a laptop and a monitor with
+   one expression and no breakpoints. */
 .eyebrow {
   margin: 0;
-  font-size: clamp(10.5px, 1.3vh, 12px);
+  font-size: clamp(10.5px, 1.5vmin, 13px);
   font-weight: 500;
   letter-spacing: .19em;
   text-transform: uppercase;
@@ -158,8 +167,8 @@
 /* Normal weight, large size, tight tracking — the reference's proportions.
    The line break is placed by hand so the claim always reads in two beats. */
 .h1 {
-  margin: clamp(14px, 2.2vh, 22px) 0 0;
-  font-size: clamp(38px, min(5.4vw, 8.6vh), 76px);
+  margin: clamp(14px, 2.4vmin, 24px) 0 0;
+  font-size: clamp(38px, 8vmin, 78px);
   font-weight: 500;
   line-height: 1.06;
   letter-spacing: -.038em;
@@ -167,8 +176,8 @@
 }
 
 .lede {
-  margin: clamp(16px, 2.6vh, 28px) 0 0;
-  font-size: clamp(15px, min(1.15vw, 2vh), 18px);
+  margin: clamp(16px, 2.6vmin, 30px) 0 0;
+  font-size: clamp(15px, 2.1vmin, 20px);
   font-weight: 400;
   line-height: 1.62;
   color: var(--soft);
@@ -178,12 +187,12 @@
 /* A link, not a button: text, a rule of space, and a long thin arrow. */
 .cta {
   display: inline-flex; align-items: center; gap: 16px;
-  margin-top: clamp(22px, 4vh, 44px);
+  margin-top: clamp(22px, 4.2vmin, 48px);
   min-height: 44px;
   padding: 0;
   border: 0; background: none;
   font-family: inherit;
-  font-size: clamp(15px, 1.9vh, 17px); font-weight: 500;
+  font-size: clamp(15px, 2.1vmin, 18px); font-weight: 500;
   letter-spacing: -.012em;
   color: var(--blue);
   cursor: pointer;
@@ -198,8 +207,17 @@
 @media (min-width: 900px) {
   .stage {
     justify-content: center;
-    max-width: 54%;
+    /* Both a share of the screen AND a hard measure. On a 2560px monitor 54%
+       alone is a 1300px column, which is far past the point where a line of
+       prose stops being readable. */
+    max-width: min(54%, 760px);
   }
+  /* The photograph is a TALL portrait, so `cover` on a wide viewport scales it
+     to the width and shows a thin horizontal slice. Anchored to the top, that
+     slice is ceiling tiles — on an ultrawide the racks disappeared off the
+     bottom entirely and the page became a white rectangle with a grey corner.
+     Anchoring 42% down keeps the racks in frame at every wide aspect ratio. */
+  .film { background-position: right 42%; }
   .scrim {
     background:
       linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, .94) 34%,

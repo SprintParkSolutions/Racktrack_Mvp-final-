@@ -3080,7 +3080,14 @@ async function getBrowser() {
   }
   _browserPromise = _puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    args: [
+      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+      // Belt and braces for the crashpad failure the Dockerfile's HOME fixes.
+      // We never collect crash reports from this browser — it renders one HTML
+      // file to PDF and exits — so the handler is pure liability: when it
+      // cannot write its database it does not degrade, it aborts the launch.
+      '--disable-crash-reporter',
+    ],
   }).catch((err) => {
     // Every caller turns this into "Could not generate the report. Please try
     // again.", which says nothing about the cause and sent the last failure to
@@ -3088,7 +3095,7 @@ async function getBrowser() {
     // the two that actually happen are a missing Chromium (the download went to
     // a cache directory this user cannot read) and a missing shared library.
     logger.error(
-      { err: err.message, cacheDir: process.env.PUPPETEER_CACHE_DIR || '(default: $HOME/.cache/puppeteer)', uid: process.getuid?.() },
+      { err: err.message, cacheDir: process.env.PUPPETEER_CACHE_DIR || '(default: $HOME/.cache/puppeteer)', home: process.env.HOME, uid: process.getuid?.() },
       '[pdf] headless Chromium failed to launch — every report share and download will fail until this is fixed',
     );
     _browserPromise = null;   // don't cache the rejection; let the next call retry
