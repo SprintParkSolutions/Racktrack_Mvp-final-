@@ -1,23 +1,19 @@
-/* Home hero — white ground, the claim on the left, a drawn rack on the right.
+/* Home hero — built to the owner's reference: a bright aisle running off the
+   top-right corner, dissolving into white, with the claim sitting on the
+   clean half.
 
-   Replaces the dark cold-aisle video treatment. Notes on what carries over and
-   what does not:
+   Rules the reference sets, and this sheet keeps:
 
-   · WHITE, not near-black. The rest of the app is white surfaces; the home
-     screen was the one place that wasn't, so opening the app and then signing
-     in felt like two products. Nothing here needs a scrim any more, which is
-     what makes the screen read as calm rather than heavy.
-   · SQUARE corners, not pills. 3px on the buttons. A pill reads as consumer
-     app chrome; a near-square control reads as a tool.
-   · ONE hue, used once. --home-accent is the blue that also picks out the
-     guide bot's visor, and it appears on exactly one thing: the ports of the
-     switch a scan would key on. Everything else is ink at four opacities.
-   · WEIGHT. Geist ships 400/500/600/700 only (fonts.css) — no 650, no 800.
-     Asking for a weight it doesn't have makes the browser synthesise or round,
-     which smears the stems at hero size.
-   · Mono is for labels, the sans is for prose.
-   · FULL WIDTH. The frame is fixed to the viewport and the columns are laid on
-     it directly — no centred max-width wrapper, on any device.
+   · WHITE IS THE DESIGN. No cards, no panels, no shadows, no borders. The only
+     mass on the page is the photograph, and it fades rather than ending.
+   · ONE BLUE, used three times: the full stop after the wordmark, the full
+     stop after the claim, and the link. Nothing else has colour.
+   · THE CLAIM IS NOT BOLD. The reference sets it at a normal weight and a
+     large size; pushing it to 700 turns an editorial page into an advert.
+   · A LINK, NOT A BUTTON. The action is text and an arrow.
+   · Geist ships 400/500/600/700 only (fonts.css). Asking for a weight it does
+     not have makes the browser synthesise, which smears the stems at this
+     size.
 
    On class names: index.css's surface-enforcement layer matches substrings —
    card, panel, tile, surface, chip, badge, bg, header, banner — and repaints
@@ -28,209 +24,208 @@
   display: flex; flex-direction: column;
   overflow: hidden;
   background-color: #ffffff;
-  color: #121212;
+  color: #111214;
   color-scheme: light;
   font-family: var(--font, 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
-  --ink: #121212;
-  --soft: rgba(18, 18, 18, .66);
-  --faint: rgba(18, 18, 18, .44);
-  --hair: rgba(18, 18, 18, .12);
-  --home-accent: #2563eb;
-  --gutter: clamp(20px, 4vw, 64px);
-  /* Literal, not var(--mono, …) — a custom property that references itself is
-     a cycle and resolves to nothing. index.css declares the same stack. */
+  --ink: #111214;
+  --soft: #6b7076;
+  --faint: #9aa0a6;
+  --hair: rgba(17, 18, 20, .10);
+  --blue: #2563eb;
+  --gutter: clamp(22px, 5vw, 76px);
   --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* The room, as a photograph. Desaturated and lifted almost to white, so what
-   survives is the SHAPE of a rack — enough that the page is obviously about
-   physical infrastructure, not so much that black type stops being readable
-   over it. */
+/* ── The room ─────────────────────────────────────────────
+   Anchored to the TOP RIGHT and allowed to run off both edges, the way the
+   reference does — the aisle's perspective only works if the far end is
+   cropped by the corner rather than floating inside a box.
+
+   If the file is absent the rule simply paints nothing and the page is white,
+   which is a correct-looking fallback rather than a broken image. */
 .film {
-  position: absolute; inset: 0;
-  background: url('/home-bg.jpg') center right / cover no-repeat;
-  /* Greyed and lifted, but NOT to the point of disappearing: pushed further
-     than this the hardware stops reading as a rack and becomes smudges, which
-     is worse than no photograph at all. */
-  filter: grayscale(1) brightness(1.28) contrast(.88);
-  opacity: .5;
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: url('/home-aisle.jpg') top right / cover no-repeat;
   pointer-events: none;
 }
 
-/* The wash. Solid white where the words are, clearing towards the right so
-   the photograph is visible somewhere. Without it the type sits on mid-grey
-   hardware and the point of a light theme is lost. */
+/* The dissolve. The photograph is already almost white, so this is a soft
+   wash rather than the heavy scrim a dark image needs: solid under the type,
+   nothing at all over the racks. */
 .scrim {
   position: absolute; inset: 0;
   background:
-    linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, .97) 38%,
-                           rgba(255, 255, 255, .62) 72%, rgba(255, 255, 255, .42) 100%),
-    radial-gradient(120% 90% at 100% 0%, rgba(37, 99, 235, .07) 0%, rgba(37, 99, 235, 0) 58%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 28%, rgba(255, 255, 255, .72) 46%,
+                            rgba(255, 255, 255, .97) 56%, #ffffff 62%),
+    linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, .8) 20%,
+                           rgba(255, 255, 255, 0) 56%);
   pointer-events: none;
 }
 
 /* ── Nav ──────────────────────────────────────────────────
-   A hairline runs under it, gutter to gutter, so the top of the page reads as
-   a ruled edge rather than a floating row. */
+   A hairline under it, edge to edge, and nothing else. */
 .nav {
-  position: relative; z-index: 2;
+  position: relative; z-index: 3;
   flex: 0 0 auto;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: clamp(14px, 2.2vh, 22px) 0;
-  padding-top: max(clamp(14px, 2.2vh, 22px), env(safe-area-inset-top, 0px));
-  margin: 0 var(--gutter);
+  padding: clamp(16px, 2.4vh, 24px) var(--gutter);
+  padding-top: max(clamp(16px, 2.4vh, 24px), env(safe-area-inset-top, 0px));
   border-bottom: 1px solid var(--hair);
+  background: #ffffff;
 }
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.mark { width: 28px; height: 28px; object-fit: cover; display: block; border-radius: 5px; }
-.brandName { font-weight: 700; font-size: 16.5px; letter-spacing: -.014em; color: var(--ink); }
-.rule { width: 1px; height: 15px; background: var(--hair); margin: 0 3px; flex: 0 0 auto; }
-.tag {
-  font-family: var(--mono);
-  font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase;
-  color: var(--faint);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.brand {
+  padding: 0; border: 0; background: none;
+  font-family: inherit;
+  font-size: clamp(19px, 2.2vw, 23px);
+  font-weight: 600;
+  letter-spacing: -.028em;
+  color: var(--ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-/* 44px floor: this is the one control in the nav and it is tapped with a
-   gloved thumb. index.css:388 sets the same floor on the global .btn. */
-.navBtn {
-  flex: 0 0 auto;
-  display: inline-flex; align-items: center; justify-content: center;
-  min-height: 40px; padding: 8px 20px;
-  border: 1px solid rgba(18, 18, 18, .22); border-radius: 3px;
-  font-size: 14px; font-weight: 600;
-  background: #ffffff; color: var(--ink);
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: background-color .16s, border-color .16s, color .16s;
-}
-.navBtn:hover { background: var(--ink); border-color: var(--ink); color: #ffffff; }
-/* tap-highlight is off, so without this a touch produces no feedback at all. */
-.navBtn:active { background: var(--ink); border-color: var(--ink); color: #ffffff; }
+/* The blue full stop. Used on the wordmark and on the claim, and nowhere
+   else — it is the whole of the brand's colour. */
+.stop { color: var(--blue); }
 
-/* ── The stage ────────────────────────────────────────────
-   One column, laid straight onto the viewport and vertically centred in the
-   band under the nav. Held to a measure so the title breaks where it should. */
+.burger {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px;
+  padding: 0; border: 0; background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.burger span {
+  display: block;
+  width: 24px; height: 1.8px;
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+/* The menu the hamburger opens. Plain white, one hairline, no shadow beyond
+   the minimum needed to lift it off the photograph. */
+.menuScrim { position: fixed; inset: 0; z-index: 4; }
+.menu {
+  position: absolute; z-index: 5;
+  top: calc(env(safe-area-inset-top, 0px) + 66px);
+  right: var(--gutter);
+  min-width: 232px;
+  display: flex; flex-direction: column;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(17, 18, 20, .10);
+}
+.menuItem {
+  padding: 12px 14px;
+  min-height: 46px;
+  border: 0; border-radius: 8px;
+  background: none;
+  font-family: inherit; font-size: 15px; font-weight: 500;
+  letter-spacing: -.01em;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.menuItem:hover { background: rgba(17, 18, 20, .05); }
+
+/* ── The claim ────────────────────────────────────────────
+   Bottom-left on a phone, which is where the reference puts it: the aisle
+   fills the top two thirds and the words sit under it on clean white. */
 .stage {
   position: relative; z-index: 2;
   flex: 1 1 auto;
-  display: flex; flex-direction: column; justify-content: center;
-  padding: clamp(20px, 4vh, 56px) var(--gutter);
-  min-height: 0;
-}
-.copy {
   display: flex; flex-direction: column; align-items: flex-start;
-  max-width: min(760px, 94%);
+  justify-content: flex-end;
+  padding: clamp(24px, 4vh, 56px) var(--gutter)
+           calc(clamp(32px, 7vh, 72px) + env(safe-area-inset-bottom, 0px));
+  min-height: 0;
 }
 
 .eyebrow {
-  display: inline-flex; align-items: center; gap: 9px;
   margin: 0;
-  font-family: var(--mono);
-  font-size: clamp(10px, 1.25vh, 11.5px);
-  letter-spacing: .19em; text-transform: uppercase;
-  color: var(--soft);
-}
-/* The one live element on the page. Reduced motion kills the animation
-   globally in index.css, leaving a plain dot. */
-.dot {
-  position: relative;
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--home-accent); flex: 0 0 auto;
-}
-.dot::after {
-  content: ''; position: absolute; inset: -4px;
-  border-radius: 50%; border: 1px solid rgba(37, 99, 235, .55);
-  animation: pulse 2.6s ease-out infinite;
-}
-@keyframes pulse {
-  0%   { transform: scale(.6); opacity: .9; }
-  70%  { transform: scale(1.5); opacity: 0; }
-  100% { transform: scale(1.5); opacity: 0; }
+  font-size: clamp(10.5px, 1.3vh, 12px);
+  font-weight: 500;
+  letter-spacing: .19em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
 
-/* Sized off the WIDTH as well as the height, so the claim holds its two lines
-   at every viewport instead of re-breaking. */
+/* Normal weight, large size, tight tracking — the reference's proportions.
+   The line break is placed by hand so the claim always reads in two beats. */
 .h1 {
-  margin: 0;
-  font-size: clamp(34px, min(4.6vw, 9vh), 72px);
-  font-weight: 700;
-  line-height: 1.04;
-  letter-spacing: -.042em;
+  margin: clamp(14px, 2.2vh, 22px) 0 0;
+  font-size: clamp(38px, min(5.4vw, 8.6vh), 76px);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -.038em;
   color: var(--ink);
 }
-/* The second line steps back a tone, so the claim reads in two beats instead
-   of one wall of black. */
-.dim { color: rgba(18, 18, 18, .42); }
 
-/* One line under the title. The paragraph that used to be here, plus a
-   three-point list under the button, said the same thing three times. */
 .lede {
-  margin: clamp(14px, 2.4vh, 24px) 0 0;
-  font-size: clamp(15px, min(1.15vw, 2.1vh), 19px);
-  line-height: 1.55;
+  margin: clamp(16px, 2.6vh, 28px) 0 0;
+  font-size: clamp(15px, min(1.15vw, 2vh), 18px);
+  font-weight: 400;
+  line-height: 1.62;
   color: var(--soft);
-  max-width: 46ch;
+  max-width: 42ch;
 }
 
-/* The one solid shape on the page. */
+/* A link, not a button: text, a rule of space, and a long thin arrow. */
 .cta {
-  margin-top: clamp(20px, 3.6vh, 40px);
-  display: inline-flex; align-items: center; justify-content: center; gap: 11px;
+  display: inline-flex; align-items: center; gap: 16px;
+  margin-top: clamp(22px, 4vh, 44px);
   min-height: 44px;
-  border-radius: 3px;
-  padding: clamp(12px, 1.8vh, 17px) clamp(22px, 2vw, 32px);
-  font-size: clamp(14.5px, 1.7vh, 15.5px); font-weight: 600; letter-spacing: -.006em;
-  background: var(--ink); color: #ffffff;
-  border: 1px solid var(--ink); cursor: pointer;
+  padding: 0;
+  border: 0; background: none;
+  font-family: inherit;
+  font-size: clamp(15px, 1.9vh, 17px); font-weight: 500;
+  letter-spacing: -.012em;
+  color: var(--blue);
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color .16s, border-color .16s;
 }
-.cta:hover, .cta:active { background: #333740; border-color: #333740; }
-.cta svg { transition: transform .18s; }
-.cta:hover svg { transform: translateX(3px); }
+.cta svg { transition: transform .2s ease; }
+.cta:hover svg { transform: translateX(5px); }
 
-/* ── Narrow ───────────────────────────────────────────────
-   The photograph moves behind the whole column rather than sitting off to one
-   side, so the wash has to be even across the width. */
-@media (max-width: 900px) {
-  .copy { max-width: none; }
-  .lede { max-width: none; }
-  .h1 { font-size: clamp(32px, 9vw, 56px); }
-  .film { opacity: .5; background-position: center center; }
-  /* A white band through the middle, where the title, the line under it and
-     the button sit; the photograph stays legible above and below. An even
-     veil at the opacity the type needs washed the whole picture out. */
+/* ── Wide ─────────────────────────────────────────────────
+   The aisle moves to the right half and the claim takes the left, vertically
+   centred. Same photograph, same dissolve, rotated ninety degrees in intent. */
+@media (min-width: 900px) {
+  .stage {
+    justify-content: center;
+    max-width: 54%;
+  }
   .scrim {
     background:
-      linear-gradient(180deg,
-        rgba(255, 255, 255, .55) 0%,
-        rgba(255, 255, 255, .97) 26%,
-        rgba(255, 255, 255, .97) 74%,
-        rgba(255, 255, 255, .55) 100%);
+      linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, .94) 34%,
+                             rgba(255, 255, 255, .55) 52%, rgba(255, 255, 255, 0) 72%),
+      linear-gradient(180deg, rgba(255, 255, 255, .5) 0%, rgba(255, 255, 255, 0) 26%,
+                              rgba(255, 255, 255, 0) 74%, rgba(255, 255, 255, .5) 100%);
   }
-  .tag { display: none; }
-  .rule { display: none; }
 }
-@media (max-width: 480px) {
-  .cta { align-self: stretch; justify-content: center; }
-}
-@media (max-height: 700px) and (max-width: 900px) {
-  .lede { font-size: 14.5px; line-height: 1.5; }
+
+/* A short phone in landscape has no room for the photograph to breathe; the
+   words are what has to survive. */
+@media (max-height: 620px) and (max-width: 900px) {
+  .scrim {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .55) 0%,
+                                        rgba(255, 255, 255, .93) 42%, #ffffff 66%);
+  }
+  .lede { font-size: 14px; line-height: 1.5; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cta, .cta svg, .navBtn { transition: none; }
-  .dot::after { animation: none; opacity: 0; }
-  .askDot { transition: none; }
+  .cta svg { transition: none; }
 }
 
-/* ── Ask DOT corner button ──────────────────────────────────────────────
-   Sits in the bottom right, clear of the iOS home indicator. It shows its
-   label on a wide screen where there is room, and collapses to a circular
-   icon on a phone so it never crowds the claim.
-
-   Filled black on white: testers could not find it when it was a translucent
-   pill, and on this ground a solid mark is the one that reads. */
+/* ── Ask DOT ──────────────────────────────────────────────
+   Bottom right, clear of the iOS home indicator. Filled, because a
+   translucent one is what testers could not find. */
 .askDot {
   position: absolute;
   z-index: 3;
@@ -244,23 +239,16 @@
   color: #ffffff;
   background: var(--ink);
   border: 1px solid var(--ink);
-  box-shadow: 0 4px 16px rgba(18, 18, 18, .18);
+  box-shadow: 0 4px 16px rgba(17, 18, 20, .18);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background-color .16s, border-color .16s, transform .16s;
 }
-.askDot:hover,
-.askDot:focus-visible {
-  background: var(--home-accent);
-  border-color: var(--home-accent);
-}
+.askDot:hover, .askDot:focus-visible { background: var(--blue); border-color: var(--blue); }
 .askDot:active { transform: scale(.97); }
-
 .askDotLabel { white-space: nowrap; }
 
-/* On a phone the claim needs the width more than the button needs its word, so
-   it becomes a circle. With no label to identify it, the mark itself has to
-   carry the meaning. */
+/* On a phone the claim needs the width more than the button needs its word. */
 @media (max-width: 640px) {
   .askDot {
     width: 56px; height: 56px; min-height: 56px;
