@@ -39,70 +39,6 @@ const DotMark = () => (
   </svg>
 );
 
-/* The subject of the product, drawn rather than photographed: a 12U elevation
-   with two switches, a patch panel, servers and a PDU — the same classes the
-   scanner labels. Line art at one weight, one blue accent on the ports of the
-   device a scan would key on. Decorative: the claim beside it carries the
-   meaning, so it is hidden from assistive tech. */
-const RackFigure = () => (
-  <svg className={styles.rackArt} viewBox="0 0 260 400" fill="none" aria-hidden="true"
-       xmlns="http://www.w3.org/2000/svg">
-    {/* frame */}
-    <rect x="24" y="16" width="212" height="368" rx="7" stroke="currentColor" strokeWidth="2" />
-    <line x1="42" y1="16" x2="42" y2="384" stroke="currentColor" strokeWidth="1" opacity=".28" />
-    <line x1="218" y1="16" x2="218" y2="384" stroke="currentColor" strokeWidth="1" opacity=".28" />
-    {/* rack-unit ticks down both rails */}
-    {Array.from({ length: 12 }).map((_, i) => (
-      <g key={i} opacity=".3">
-        <line x1="30" y1={40 + i * 29} x2="36" y2={40 + i * 29} stroke="currentColor" strokeWidth="1.5" />
-        <line x1="224" y1={40 + i * 29} x2="230" y2={40 + i * 29} stroke="currentColor" strokeWidth="1.5" />
-      </g>
-    ))}
-
-    {/* 1U switch — the one a scan has keyed on, so its ports carry the accent */}
-    <rect x="50" y="34" width="160" height="26" rx="3" stroke="currentColor" strokeWidth="1.6" />
-    {Array.from({ length: 12 }).map((_, i) => (
-      <rect key={i} x={60 + i * 12} y="42" width="8" height="10" rx="1.5" fill="var(--home-accent)" opacity={i % 3 === 2 ? '.28' : '.9'} />
-    ))}
-
-    {/* 1U switch */}
-    <rect x="50" y="68" width="160" height="26" rx="3" stroke="currentColor" strokeWidth="1.6" />
-    {Array.from({ length: 12 }).map((_, i) => (
-      <rect key={i} x={60 + i * 12} y="76" width="8" height="10" rx="1.5" fill="currentColor" opacity=".22" />
-    ))}
-
-    {/* patch panel */}
-    <rect x="50" y="102" width="160" height="24" rx="3" stroke="currentColor" strokeWidth="1.6" />
-    {Array.from({ length: 16 }).map((_, i) => (
-      <line key={i} x1={58 + i * 9.5} y1="108" x2={58 + i * 9.5} y2="120" stroke="currentColor" strokeWidth="1.4" opacity=".35" />
-    ))}
-
-    {/* blanking / cable management */}
-    <rect x="50" y="134" width="160" height="18" rx="3" stroke="currentColor" strokeWidth="1.4" opacity=".5" />
-
-    {/* servers */}
-    {[160, 196, 232].map((y) => (
-      <g key={y}>
-        <rect x="50" y={y} width="160" height="28" rx="3" stroke="currentColor" strokeWidth="1.6" />
-        <circle cx="64" cy={y + 14} r="2.6" fill="currentColor" opacity=".4" />
-        {Array.from({ length: 5 }).map((_, i) => (
-          <rect key={i} x={82 + i * 22} y={y + 8} width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.2" opacity=".33" />
-        ))}
-      </g>
-    ))}
-
-    {/* 2U PDU */}
-    <rect x="50" y="272" width="160" height="34" rx="3" stroke="currentColor" strokeWidth="1.6" />
-    {Array.from({ length: 6 }).map((_, i) => (
-      <circle key={i} cx={70 + i * 24} cy="289" r="5" stroke="currentColor" strokeWidth="1.4" opacity=".42" />
-    ))}
-
-    {/* blank + vented base */}
-    <rect x="50" y="314" width="160" height="26" rx="3" stroke="currentColor" strokeWidth="1.4" opacity=".5" />
-    <rect x="50" y="348" width="160" height="22" rx="3" stroke="currentColor" strokeWidth="1.4" opacity=".35" />
-  </svg>
-);
-
 export default function HomeHero() {
   const navigate = useNavigate();
   const auth = useAuth();
@@ -110,6 +46,12 @@ export default function HomeHero() {
 
   return createPortal(
     <section className={styles.hero}>
+      {/* The room, as a photograph rather than a drawing. Decorative: the
+          claim carries the meaning, and the wash over it in CSS takes it back
+          to near-white so the page stays light and the type stays black. */}
+      <div className={styles.film} aria-hidden="true" />
+      <div className={styles.scrim} aria-hidden="true" />
+
       <nav className={styles.nav}>
         <div className={styles.brand}>
           <img src="/logo.jpg" alt="" className={styles.mark} />
@@ -128,49 +70,27 @@ export default function HomeHero() {
 
       <main className={styles.stage}>
         <div className={styles.copy}>
-          <p className={styles.eyebrow}>
-            <span className={styles.dot} aria-hidden="true" />
-            Physical infrastructure · documented
-          </p>
-
           {/* Broken by hand rather than left to wrap: the claim turns on the
               preposition, so the break falls there and the second half steps
-              back a tone. Letting it wrap on its own would orphan a word
-              somewhere different at every viewport width. */}
+              back a tone. Left to wrap it orphans a different word at every
+              viewport width. */}
           <h1 className={styles.h1}>
             Turn infrastructure<br />
             <span className={styles.dim}>to intelligence</span>
           </h1>
 
           <p className={styles.lede}>
-            Photograph a rack and <strong>every switch, patch panel, port and
-            cable</strong> becomes a live inventory you can search — kept true
-            across every site you run.
+            Photograph a rack. Every switch, port and cable becomes a record you can search.
           </p>
 
-          {/* One action, whatever the state. Signed out it opens sign-in, which
-              is also where an organization is created; signed in it goes
-              straight to the thing the app is for. */}
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.cta}
-              onClick={() => navigate(authed ? '/scan' : '/login')}
-            >
-              {authed ? 'Start a scan' : 'Get started'}
-              <ArrowR />
-            </button>
-          </div>
-
-          <ul className={styles.proof}>
-            <li>Scan a rack in one photograph</li>
-            <li>Ports, cables and labels read automatically</li>
-            <li>Every site in one searchable record</li>
-          </ul>
-        </div>
-
-        <div className={styles.figure} aria-hidden="true">
-          <RackFigure />
+          <button
+            type="button"
+            className={styles.cta}
+            onClick={() => navigate(authed ? '/scan' : '/login')}
+          >
+            {authed ? 'Start a scan' : 'Get started'}
+            <ArrowR />
+          </button>
         </div>
       </main>
 
@@ -188,7 +108,7 @@ export default function HomeHero() {
           type="button"
           className={styles.askDot}
           onClick={() => navigate('/help')}
-          aria-label="Ask DOT — get help"
+          aria-label="Ask DOT - get help"
           title="Ask DOT"
         >
           <DotMark />

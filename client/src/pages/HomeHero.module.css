@@ -42,14 +42,30 @@
   --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* A single hairline wash from the top right, so the white has a direction and
-   the rack does not float on flat paper. No image, no scrim. */
-.hero::before {
-  content: '';
+/* The room, as a photograph. Desaturated and lifted almost to white, so what
+   survives is the SHAPE of a rack — enough that the page is obviously about
+   physical infrastructure, not so much that black type stops being readable
+   over it. */
+.film {
+  position: absolute; inset: 0;
+  background: url('/home-bg.jpg') center right / cover no-repeat;
+  /* Greyed and lifted, but NOT to the point of disappearing: pushed further
+     than this the hardware stops reading as a rack and becomes smudges, which
+     is worse than no photograph at all. */
+  filter: grayscale(1) brightness(1.28) contrast(.88);
+  opacity: .5;
+  pointer-events: none;
+}
+
+/* The wash. Solid white where the words are, clearing towards the right so
+   the photograph is visible somewhere. Without it the type sits on mid-grey
+   hardware and the point of a light theme is lost. */
+.scrim {
   position: absolute; inset: 0;
   background:
-    radial-gradient(120% 90% at 100% 0%, rgba(37, 99, 235, .07) 0%, rgba(37, 99, 235, 0) 58%),
-    linear-gradient(180deg, #ffffff 0%, #fbfbfc 100%);
+    linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, .97) 38%,
+                           rgba(255, 255, 255, .62) 72%, rgba(255, 255, 255, .42) 100%),
+    radial-gradient(120% 90% at 100% 0%, rgba(37, 99, 235, .07) 0%, rgba(37, 99, 235, 0) 58%);
   pointer-events: none;
 }
 
@@ -92,19 +108,19 @@
 .navBtn:active { background: var(--ink); border-color: var(--ink); color: #ffffff; }
 
 /* ── The stage ────────────────────────────────────────────
-   Two columns on a wide screen, laid straight onto the viewport. The claim
-   column is held to a measure; the figure column takes what is left. */
+   One column, laid straight onto the viewport and vertically centred in the
+   band under the nav. Held to a measure so the title breaks where it should. */
 .stage {
   position: relative; z-index: 2;
   flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
-  align-items: center;
-  gap: clamp(24px, 5vw, 72px);
+  display: flex; flex-direction: column; justify-content: center;
   padding: clamp(20px, 4vh, 56px) var(--gutter);
   min-height: 0;
 }
-.copy { display: flex; flex-direction: column; align-items: flex-start; max-width: 720px; }
+.copy {
+  display: flex; flex-direction: column; align-items: flex-start;
+  max-width: min(760px, 94%);
+}
 
 .eyebrow {
   display: inline-flex; align-items: center; gap: 9px;
@@ -135,8 +151,8 @@
 /* Sized off the WIDTH as well as the height, so the claim holds its two lines
    at every viewport instead of re-breaking. */
 .h1 {
-  margin: clamp(16px, 2.8vh, 34px) 0 0;
-  font-size: clamp(32px, min(4.4vw, 8.4vh), 68px);
+  margin: 0;
+  font-size: clamp(34px, min(4.6vw, 9vh), 72px);
   font-weight: 700;
   line-height: 1.04;
   letter-spacing: -.042em;
@@ -146,22 +162,19 @@
    of one wall of black. */
 .dim { color: rgba(18, 18, 18, .42); }
 
+/* One line under the title. The paragraph that used to be here, plus a
+   three-point list under the button, said the same thing three times. */
 .lede {
-  margin: clamp(14px, 2.4vh, 28px) 0 0;
-  font-size: clamp(14.5px, min(1.05vw, 1.95vh), 17.5px);
-  line-height: 1.62;
+  margin: clamp(14px, 2.4vh, 24px) 0 0;
+  font-size: clamp(15px, min(1.15vw, 2.1vh), 19px);
+  line-height: 1.55;
   color: var(--soft);
-  max-width: 54ch;
+  max-width: 46ch;
 }
-.lede strong { color: var(--ink); font-weight: 600; }
 
-.actions {
-  display: flex; flex-wrap: wrap; align-items: center;
-  gap: clamp(14px, 2vw, 28px);
-  margin-top: clamp(18px, 3.2vh, 38px);
-}
 /* The one solid shape on the page. */
 .cta {
+  margin-top: clamp(20px, 3.6vh, 40px);
   display: inline-flex; align-items: center; justify-content: center; gap: 11px;
   min-height: 44px;
   border-radius: 3px;
@@ -176,89 +189,33 @@
 .cta svg { transition: transform .18s; }
 .cta:hover svg { transform: translateX(3px); }
 
-/* Three lines of what the thing actually does, under the action. Replaces the
-   second button that used to sit here: it says more and asks for nothing. */
-.proof {
-  list-style: none;
-  margin: clamp(20px, 3.4vh, 40px) 0 0; padding: 0;
-  display: flex; flex-direction: column; gap: 9px;
-}
-.proof li {
-  position: relative;
-  padding-left: 20px;
-  font-size: clamp(13px, 1.6vh, 14.5px);
-  line-height: 1.45;
-  color: var(--soft);
-}
-.proof li::before {
-  content: '';
-  position: absolute; left: 0; top: .52em;
-  width: 9px; height: 1.5px;
-  background: var(--home-accent);
-  opacity: .75;
-}
-
-/* ── The rack ─────────────────────────────────────────────
-   Sized off the available height so it never crops, and never taller than the
-   band it sits in. */
-.figure {
-  display: flex; align-items: center; justify-content: center;
-  min-width: 0; height: 100%;
-}
-.rackArt {
-  width: auto; height: min(100%, 72vh);
-  max-width: 100%;
-  color: rgba(18, 18, 18, .82);
-}
-
 /* ── Narrow ───────────────────────────────────────────────
-   One column, stacked: claim, action, three lines of proof, then the rack.
-   The rack is NOT dropped behind the type as a watermark — tried, and at any
-   opacity that made it visible it crossed the lede and read as a stray box
-   rather than as artwork. Below the copy it is plainly a picture of the thing
-   the app is about, and it fills the space the single column leaves at the
-   foot of a tall phone. */
+   The photograph moves behind the whole column rather than sitting off to one
+   side, so the wash has to be even across the width. */
 @media (max-width: 900px) {
-  .stage {
-    display: flex; flex-direction: column;
-    gap: clamp(18px, 4vh, 32px);
-    overflow-y: auto;
-    padding-bottom: clamp(24px, 5vh, 48px);
-  }
-  .copy { max-width: none; flex: 0 0 auto; }
+  .copy { max-width: none; }
   .lede { max-width: none; }
-  .h1 { font-size: clamp(32px, 8.6vw, 54px); }
-  .figure {
-    flex: 1 1 auto;
-    min-height: 120px;
-    align-items: flex-start;
-    justify-content: center;
-    /* Held back so it sits behind the words in the reading order without
-       vanishing — it is context, not the message. */
-    opacity: .5;
-  }
-  .rackArt {
-    height: 100%;
-    max-height: 34vh;
-    width: auto;
-    max-width: 100%;
+  .h1 { font-size: clamp(32px, 9vw, 56px); }
+  .film { opacity: .5; background-position: center center; }
+  /* A white band through the middle, where the title, the line under it and
+     the button sit; the photograph stays legible above and below. An even
+     veil at the opacity the type needs washed the whole picture out. */
+  .scrim {
+    background:
+      linear-gradient(180deg,
+        rgba(255, 255, 255, .55) 0%,
+        rgba(255, 255, 255, .97) 26%,
+        rgba(255, 255, 255, .97) 74%,
+        rgba(255, 255, 255, .55) 100%);
   }
   .tag { display: none; }
   .rule { display: none; }
 }
-
-/* A short phone (or a landscape one) has no room for a picture under three
-   lines of proof and a button — the copy is what has to survive. */
-@media (max-width: 900px) and (max-height: 720px) {
-  .figure { display: none; }
-}
 @media (max-width: 480px) {
-  .actions { gap: 16px; }
-  .cta { flex: 1 1 auto; }
+  .cta { align-self: stretch; justify-content: center; }
 }
 @media (max-height: 700px) and (max-width: 900px) {
-  .lede { font-size: 13.5px; line-height: 1.5; }
-  .proof { gap: 7px; }
+  .lede { font-size: 14.5px; line-height: 1.5; }
 }
 
 @media (prefers-reduced-motion: reduce) {
