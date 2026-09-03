@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useSmartBack } from '../hooks/useSmartBack';
 import styles from './SpecificationsPage.module.css';
@@ -709,12 +709,25 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
               full make + model, or whenever the user wants to correct
               what OCR returned. The user explicitly asked for manual
               entry on either-missing, not just both-missing. */}
-          {(identMissing || identIncomplete || editingIdent || makeIsUserSupplied || modelIsUserSupplied) && (
+          {/* `awaitingLabel` is in this condition deliberately. The whole
+              Identification block used to be hidden while the label was still
+              being read, which is the one moment a user most needs it: the read
+              is slow, the card shows a pulsing "Reading label" and nothing else,
+              and testers concluded there was no way to type it in and that the
+              page had hung. Now the block is there throughout — reading, failed
+              or done — and only the wording changes. */}
+          {(awaitingLabel || identMissing || identIncomplete || editingIdent || makeIsUserSupplied || modelIsUserSupplied) && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <span style={{ fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: statusColor }}>
                   Identification
                 </span>
+                {awaitingLabel && !editingIdent && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.7rem', fontWeight: 700, color: '#717171', background: '#ffffff', padding: '2px 8px', borderRadius: 20, border: '1px solid #ececec' }}>
+                    <span aria-hidden="true" className={desk.pulseDot} style={{ width: 6, height: 6 }} />
+                    Still reading
+                  </span>
+                )}
                 {identMissing && !editingIdent && (
                   <span style={{ fontSize: '.7rem', fontWeight: 700, color: '#717171', background: '#ffffff', padding: '2px 8px', borderRadius: 20, border: '1px solid #ececec' }}>
                     Not detected
@@ -745,11 +758,18 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
                       padding: '6px 12px', minHeight: 30, whiteSpace: 'nowrap',
                     }}
                   >{
-                    identMissing && !makeIsUserSupplied && !modelIsUserSupplied
-                      ? 'Type it in'
-                      : identIncomplete && !makeIsUserSupplied && !modelIsUserSupplied
-                        ? (effectiveMake ? 'Add model' : 'Add vendor')
-                        : 'Edit'
+                    // Name the subject. "Type it in" next to a heading reading
+                    // "Identification" left testers asking type WHAT in — and
+                    // while the label was still being read they did not see this
+                    // control at all, so nothing on the card said the make and
+                    // model could be entered by hand.
+                    awaitingLabel && !makeIsUserSupplied && !modelIsUserSupplied
+                      ? 'Enter make / model'
+                      : identMissing && !makeIsUserSupplied && !modelIsUserSupplied
+                        ? 'Enter make / model'
+                        : identIncomplete && !makeIsUserSupplied && !modelIsUserSupplied
+                          ? (effectiveMake ? 'Enter model' : 'Enter make')
+                          : 'Edit'
                   }</button>
                 )}
               </div>
@@ -773,7 +793,13 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
                 />
               ) : (
                 <>
-                  {identMissing ? (
+                  {awaitingLabel ? (
+                    <StatusLine color={statusColor}>
+                      Still reading the label from the rack photo. It can take a
+                      minute - you don't have to wait, enter the make and model
+                      above and it will use yours.
+                    </StatusLine>
+                  ) : identMissing ? (
                     <StatusLine color={statusColor}>
                       We couldn't identify this device from the rack photo.
                     </StatusLine>
@@ -1636,7 +1662,7 @@ function LabelProgressNote({ ocrStatus, onRetry }) {
       {working && <span aria-hidden="true" className={desk.pulseDot} />}
       <span style={{ fontSize: '.76rem', color: '#717171', lineHeight: 1.5 }}>
         {working
-          ? 'Reading make and model off the device labels - they fill in here as they land.'
+          ? 'Reading make and model from the device labels - they fill in here as they land.'
           : 'Couldn’t read the device labels. Positions and port counts are from the scan; add make and model yourself on any card.'}
       </span>
       {!working && onRetry && (
@@ -1693,6 +1719,48 @@ function SwitchPicker({ switches, rackId }) {
   const safeIdx = Math.min(activeIdx, switches.length - 1);
   const active  = switches[safeIdx];
 
+  // Whether the rail is scrolled, and which way it can still go.
+  //
+  // On a phone the rail is a horizontal strip with its scrollbar hidden, so a
+  // rack with four switches looked exactly like a rack with two: the third and
+  // fourth sat off the right edge with nothing to say they existed. Testers
+  // reported not knowing there were more cards, which is the correct reading of
+  // what was on screen. These two flags drive an arrow at each end.
+  const railRef = useRef(null);
+  const [canScroll, setCanScroll] = useState({ left: false, right: false });
+
+  const readScroll = useCallback(() => {
+    const el = railRef.current;
+    if (!el) return;
+    // A 2px slack: sub-pixel widths mean scrollLeft rarely reaches the exact
+    // maximum, which would leave the right arrow lit at the end of the strip.
+    const max = el.scrollWidth - el.clientWidth;
+    setCanScroll({ left: el.scrollLeft > 2, right: el.scrollLeft < max - 2 });
+  }, []);
+
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return undefined;
+    readScroll();
+    el.addEventListener('scroll', readScroll, { passive: true });
+    // The rail also becomes a vertical list at container widths over 880px,
+    // where none of this applies — a resize observer catches that flip as well
+    // as the phone rotating.
+    const ro = new ResizeObserver(readScroll);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', readScroll); ro.disconnect(); };
+  }, [readScroll, switches.length]);
+
+  // One card's width per press, so a tap advances by a card rather than an
+  // arbitrary number of pixels.
+  const nudge = (dir) => () => {
+    const el = railRef.current;
+    if (!el) return;
+    const card = el.firstElementChild;
+    const step = card ? card.getBoundingClientRect().width + 10 : el.clientWidth * 0.8;
+    el.scrollBy({ left: dir * step, behavior: 'smooth' });
+  };
+
   // Build a short label per switch — prefer position (U09 / U07) when the
   // OCR caught it, fall back to the short model, then to the index.
   const tabLabel = (sw, i) => {
@@ -1719,7 +1787,27 @@ function SwitchPicker({ switches, rackId }) {
     // container is wide enough. Narrow/embedded/mobile contexts stay stacked.
     <section className={`${desk.switchLayout} ${multi ? desk.master : ''}`}>
       {multi && (
+        <div className={desk.railWrap}>
+        <button
+          type="button"
+          className={`${desk.railArrow} ${desk.railArrowLeft}`}
+          onClick={nudge(-1)}
+          disabled={!canScroll.left}
+          aria-label="Previous switches"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+        <button
+          type="button"
+          className={`${desk.railArrow} ${desk.railArrowRight}`}
+          onClick={nudge(1)}
+          disabled={!canScroll.right}
+          aria-label="More switches"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
         <div
+          ref={railRef}
           role="tablist"
           aria-label="Switches detected in this rack"
           className={desk.rail}>
@@ -1817,6 +1905,7 @@ function SwitchPicker({ switches, rackId }) {
               </button>
             );
           })}
+        </div>
         </div>
       )}
 

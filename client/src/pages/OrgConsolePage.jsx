@@ -233,7 +233,12 @@ export default function OrgConsolePage() {
               </div>
               <div className={styles.heroStat}>
                 <div className={styles.heroStatNum}>{dash.totals.scans ?? 0}</div>
-                <div className={styles.heroStatLbl}>Total scans</div>
+                {/* "Racks scanned", not "Total scans". A rack id is derived
+                    from the image, so re-scanning the same photograph
+                    deliberately returns the earlier result rather than creating
+                    a second one — the number counts racks, and calling it scans
+                    made it look broken every time it did not move. */}
+                <div className={styles.heroStatLbl}>Racks scanned</div>
               </div>
             </div>
           )}

@@ -3107,6 +3107,25 @@ async function getBrowser() {
 // Renders the canonical report.html through headless Chromium and writes
 // report.pdf next to it. Body class `pdfMode` triggers the print-mode CSS that
 // already lives in the HTML (hides the top bar, unclamps console output, etc.).
+// Which tenant should own a scan this person just ran.
+//
+// Their own, when they have one. Owners and org_admins do NOT — role is what
+// gets them access, not membership of a site — and rack_owners.tenant_id is
+// NOT NULL, so `claimRack` returned early for them and their scans were never
+// recorded at all. The owner dashboard counts rows in that table, which is why
+// an owner could run a dozen scans and watch the total sit at one or two: it
+// was counting everyone's scans except their own.
+//
+// The `default` tenant always exists (auth.js creates it at startup), so it is
+// a real row to point at rather than a placeholder. created_by still records
+// who ran it, so nothing about attribution is lost.
+function scanOwnerTenantId(authPayload) {
+  const own = authPayload?.tenantId;
+  if (own) return own;
+  if (!authPayload?.sub) return null;      // not signed in — nothing to claim
+  try { return auth.getDefaultTenantId() || null; } catch { return null; }
+}
+
 async function buildScanReportPDF(rackId) {
   const built = await buildScanReport(rackId);
   const pdfPath = path.join(built.data._rackDir, 'report.pdf');
@@ -3676,7 +3695,7 @@ app.post('/api/analyze', auth.requireAuth, scanLimit, upload.single('image'), as
     // making a tenant-scoped claim on this rack. Idempotent — multiple
     // tenants can co-own the same RK-id when they scan the same image.
     const _authPayload = softAuthPayload(req);
-    const _scanTenantId = _authPayload?.tenantId || null;
+    const _scanTenantId = scanOwnerTenantId(_authPayload);
     const _scanUserId = _authPayload?.sub || null;
     if (_scanTenantId) tenant.claimRack(_scanTenantId, rackId, _scanUserId);
 
@@ -4073,7 +4092,7 @@ app.post('/api/stitch', scanLimit, upload.array('images', 8), async (req, res) =
     const jsonPath = path.join(rackDir, 'device_unit_map.json');
 
     const _authPayload = softAuthPayload(req);
-    const _scanTenantId = _authPayload?.tenantId || null;
+    const _scanTenantId = scanOwnerTenantId(_authPayload);
     const _scanUserId = _authPayload?.sub || null;
     if (_scanTenantId) tenant.claimRack(_scanTenantId, rackId, _scanUserId);
 

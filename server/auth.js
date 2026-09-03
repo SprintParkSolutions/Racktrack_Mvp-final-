@@ -2268,6 +2268,11 @@ module.exports = {
   // Kept as an explicit named list rather than exporting the module internals
   // wholesale, so it stays obvious what the social path is allowed to touch.
   db, makeToken, publicUser, assignPublicId, USERNAME_RE,
+  // app.js attributes a scan to the default tenant when the person who ran it
+  // has none of their own — owners and org_admins carry no tenant_id, and
+  // rack_owners.tenant_id is NOT NULL, so their scans were being dropped on
+  // the floor entirely. See the claimRack calls there.
+  getDefaultTenantId,
   // Cookie-session helpers. socialAuth.js sets the same pair after an OAuth
   // round-trip on web, and app.js's softAuthPayload verifies with the same
   // rules requireAuth applies rather than a looser check of its own.

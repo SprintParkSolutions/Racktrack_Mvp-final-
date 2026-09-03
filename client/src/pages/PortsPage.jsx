@@ -1245,7 +1245,7 @@ function ProbeWaiting({ probe, onRetry }) {
       <div className={styles.errorMsg}>
         <strong className={styles.errorMsgHead}>No live switch connected</strong>
         <div className={styles.errorMsgBody}>
-          This page reads live port status straight off a real switch - which
+          This page reads live port status directly from a real switch - which
           ports are up, what is plugged into each one, and which are free. That
           needs a switch on the network for RackTrack to reach.
           {' '}

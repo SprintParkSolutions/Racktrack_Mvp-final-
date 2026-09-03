@@ -69,6 +69,48 @@
 }
 .rail::-webkit-scrollbar { display: none; }
 
+/* ── Rail arrows ─────────────────────────────────────────────────────────
+   The rail hides its scrollbar, so on a phone a rack with four switches looked
+   identical to one with two — the extra cards sat off the right edge with
+   nothing to indicate they were there. An arrow at each end, lit only when
+   there is something in that direction, is the smallest honest signal.
+
+   The wrapper exists to carry them: inside the scroller they would scroll away
+   with the content. */
+.railWrap { position: relative; }
+
+.railArrow {
+  position: absolute;
+  top: calc(50% - 9px);          /* the rail's 18px bottom padding, halved */
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 1px solid var(--md-outline-variant, #E0E0E0);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--md-on-surface, #121212);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity .16s ease, visibility .16s ease;
+}
+.railArrow svg { width: 16px; height: 16px; }
+.railArrow:disabled {
+  /* Hidden rather than greyed: a permanently dead arrow at the left end of an
+     unscrolled strip is a control that has never once worked. */
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.railArrowLeft  { left: -6px; }
+.railArrowRight { right: -6px; }
+
+/* Above 880px the rail becomes a vertical list and scrolls with the page, so
+   there is nothing for these to do. */
+@container (min-width: 880px) {
+  .railArrow { display: none; }
+}
+
 /* Detail — wraps the selected SwitchCard. Plain block by default so the
    card fills the width on phone exactly as it did before. */
 .detail { min-width: 0; }

@@ -32,6 +32,13 @@ export function TourProvider({ children }) {
 
   const [asked, setAsked] = useState(() => getItem(storageKey) === '1');
   const [active, setActive] = useState(false);
+  // The tour steps aside while the app is busy with something the user started
+  // from inside it. Analysing a rack is the case that matters: the tour's
+  // spotlight and card sat on top of the analysing overlay, hiding the progress
+  // bar the user had just triggered, and the tour's own next step is about the
+  // result — which does not exist yet. Suspended, not stopped: the walkthrough
+  // resumes on the same step the moment the scan finishes.
+  const [suspended, setSuspended] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
   // This provider lives above the router outlet and never unmounts, so the
@@ -120,11 +127,16 @@ export function TourProvider({ children }) {
     startTour,
     stopTour,
     advance,
+    setSuspended,
+    suspended,
+    // `active` stays true while suspended — the tour has not ended, it is out
+    // of the way — but nothing renders, because currentStep is null and the
+    // overlay keys off that.
     active,
     stepIndex,
     steps: TOUR_STEPS,
-    currentStep: active ? TOUR_STEPS[stepIndex] : null,
-  }), [showIntro, dismissIntro, startTour, stopTour, advance, active, stepIndex]);
+    currentStep: active && !suspended ? TOUR_STEPS[stepIndex] : null,
+  }), [showIntro, dismissIntro, startTour, stopTour, advance, active, suspended, stepIndex]);
 
   return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
 }

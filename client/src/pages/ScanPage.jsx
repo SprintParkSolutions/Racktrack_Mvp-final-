@@ -929,6 +929,7 @@ export default function ScanPage() {
   const tour = useTour();
   const tourActive = !!tour?.active;
   const stopTour = tour?.stopTour;
+  const setTourSuspended = tour?.setSuspended;
   const uploadInputRef = useRef(null);
   // Which mode the camera was opened FROM. A photo taken while Tall rack
   // (multi) is selected has to join that set — it used to be treated as a
@@ -962,6 +963,7 @@ export default function ScanPage() {
     setItem(FIRST_SCAN_KEY, '1');
   }, []);
 
+
   // Starting a new scan clears the previous rack context, so the sidebar's
   // rack tabs (Overview / Ports / Topology / Network / Switches / Drift) stop
   // pointing at — and showing — the last scan. They reappear pointing at THIS
@@ -984,6 +986,21 @@ export default function ScanPage() {
   // rejection modal instead of proceeding to analyze.
   const [expectedRack, setExpectedRack] = useState(null);     // payload from GET expected-rack
   const [verifying,    setVerifying]    = useState(false);
+  // Step aside for the analysing overlay.
+  //
+  // The tour's spotlight and card sat on top of it, covering the progress bar
+  // the user had just started and pointing at a result that does not exist yet.
+  // Suspending rather than stopping means the walkthrough picks up on the same
+  // step the moment the scan finishes — which is when its next instruction
+  // actually makes sense.
+  useEffect(() => {
+    if (!setTourSuspended) return undefined;
+    const busy = loading || verifying;
+    setTourSuspended(busy);
+    // Clear it on unmount too: navigating to the results page mid-scan would
+    // otherwise leave the tour suspended for the rest of the session.
+    return () => setTourSuspended(false);
+  }, [loading, verifying, setTourSuspended]);
   const [verifyReject, setVerifyReject] = useState(null);     // 409 payload — detected / expected diff
 
   const STEPS = ['Preprocessing image…','Detecting rack boundaries…','Identifying components…','Mapping ports and cables…','Locating incident target…'];
