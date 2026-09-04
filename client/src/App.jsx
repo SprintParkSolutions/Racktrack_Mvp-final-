@@ -380,7 +380,7 @@ export default function App() {
             {/* HomePage has its own desktop branch (HomeDesktop) via
                 useIsDesktop, so DesktopShell is bypassed for "/" —
                 otherwise we'd double-render the chrome. */}
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
             <Route path="/login"  element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/invite/:code" element={<AcceptInvitePage />} />

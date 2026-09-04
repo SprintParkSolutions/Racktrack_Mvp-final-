@@ -1,0 +1,131 @@
+/* Login — one screen, one job.
+   Logo, name, two fields, one button. White ground with two soft blue
+   circles behind, in the spirit of the reference the owner showed. Full
+   device width like every other page; on a wide screen the padding grows so
+   the form stays a form and not a 1200px input. */
+
+.page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  background: #ffffff;
+  color: #0c1420;
+  padding: max(24px, env(safe-area-inset-top, 0px)) clamp(20px, 18vw, 360px) max(24px, env(safe-area-inset-bottom, 0px));
+}
+:global([data-theme='dark']) .page { background: var(--bg, #0c1420); color: var(--text, #fff); }
+
+/* Two circles. Decoration only, out of the way of the form. */
+.blobA, .blobB {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: rgba(27, 95, 217, 0.08);
+}
+.blobA { width: 62vw; max-width: 380px; aspect-ratio: 1; top: -18vw; left: -14vw; }
+.blobB { width: 44vw; max-width: 280px; aspect-ratio: 1; right: -12vw; top: 42vh; background: rgba(27, 95, 217, 0.06); }
+:global([data-theme='dark']) .blobA, :global([data-theme='dark']) .blobB { background: rgba(27, 95, 217, 0.16); }
+
+.card {
+  position: relative; z-index: 1;
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0;
+  width: 100%;
+  padding-bottom: 6vh;   /* sits a touch above centre, like the reference */
+}
+
+.logo {
+  width: 108px; height: 108px; object-fit: cover;
+  border-radius: 28px;
+  box-shadow: 0 8px 28px -12px rgba(12, 20, 32, 0.35);
+  margin-bottom: 18px;
+}
+.brand {
+  margin: 0;
+  font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+  color: inherit;
+}
+.tag {
+  margin: 8px 0 0;
+  font-size: 14px; color: #5c6878;
+}
+:global([data-theme='dark']) .tag { color: var(--muted, #9aa5b1); }
+
+.form {
+  width: 100%;
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 36px;
+}
+.field { position: relative; width: 100%; }
+.input {
+  width: 100%;
+  min-height: 56px;
+  padding: 0 18px;
+  font-size: 16px;              /* 16px or iOS zooms the page on focus */
+  color: inherit;
+  background: #ffffff;
+  border: 1px solid rgba(12, 20, 32, 0.16);
+  border-radius: 16px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  -webkit-appearance: none;
+}
+.input::placeholder { color: #8a94a0; }
+.input:focus { border-color: #1b5fd9; box-shadow: 0 0 0 4px rgba(27, 95, 217, 0.14); }
+:global([data-theme='dark']) .input { background: var(--card, #16202c); border-color: rgba(255,255,255,.14); }
+.inputPw { padding-right: 52px; }
+.eye {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border: 0; border-radius: 10px;
+  background: transparent; color: #5c6878; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.err {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(192, 57, 43, 0.08); border: 1px solid rgba(192, 57, 43, 0.28);
+  color: #b0322a; font-size: 13.5px; line-height: 1.4;
+}
+
+.cta {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 6px;
+  border: 0; border-radius: 16px;
+  background: #121212; color: #ffffff;
+  font-size: 16.5px; font-weight: 700; letter-spacing: 0.01em;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.6);
+  transition: transform .08s, opacity .15s;
+}
+.cta:active { transform: scale(0.99); }
+.cta:disabled { opacity: .55; cursor: default; }
+.spinner {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.links {
+  margin-top: 22px;
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  font-size: 13.5px; color: #5c6878;
+}
+.links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.links a:hover { color: #1b5fd9; }
+.dot { opacity: .5; }
+
+.foot {
+  position: relative; z-index: 1;
+  text-align: center;
+  font-size: 12px; color: #8a94a0;
+  padding-top: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } .cta { transition: none; } }
