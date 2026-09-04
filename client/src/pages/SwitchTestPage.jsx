@@ -150,6 +150,7 @@ export default function SwitchTestPage() {
         <ThemeToggle />
       </header>
 
+      <div className={styles.scroll}>
       <div className={styles.intro}>
         <p>
           <strong>What we are testing.</strong> Whether this phone can talk to your
@@ -227,6 +228,15 @@ export default function SwitchTestPage() {
                   <h3>It did not answer</h3>
                   <p>{err.message}</p>
                   {err.hint && <p className={styles.hint}>{err.hint}</p>}
+                  {/* A switch added before v3 existed is stored as v2c and will
+                      never answer a community string. Name the likely cause
+                      rather than leaving "did not answer" to be puzzled over. */}
+                  {sw.version !== 'v3' && /did not answer/i.test(err.message || '') && (
+                    <p className={styles.hint}>
+                      This switch is saved as <b>v2c</b>. If it is set up for SNMPv3
+                      (the TP-Links are), remove it and add it again choosing v3.
+                    </p>
+                  )}
                   <button type="button" className={styles.copy} onClick={() => copyResult(sw)}>
                     Copy result
                   </button>
@@ -418,6 +428,7 @@ export default function SwitchTestPage() {
           Add another switch
         </button>
       )}
+      </div>
     </div>
   );
 }

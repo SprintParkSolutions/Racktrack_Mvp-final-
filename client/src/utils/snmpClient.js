@@ -149,7 +149,6 @@ const bump = () => {
 };
 
 const EMPTY = [];
-const bytesEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 
 /** OID + NULL varbind list, the request shape for every PDU type here. */
 const varbindList = (oids) => tlv(T.SEQUENCE, oids.flatMap((oid) =>
@@ -389,7 +388,22 @@ export class Snmp {
   async discover() {
     const requestId = bump();
     const { message, msgId } = this.buildV3(T.GET, requestId, [], {}, true);
-    const reply = await this.transact(message, (msg) => this.parseV3(msg, msgId, requestId));
+    let reply;
+    try {
+      reply = await this.transact(message, (msg) => this.parseV3(msg, msgId, requestId));
+    } catch (e) {
+      // Silence here is the very first v3 packet going unanswered, which is a
+      // different problem from a refused user name and worth saying so: the
+      // switch is either not reachable from this network at all, or does not
+      // have SNMPv3 switched on. Neither is fixed by retyping anything.
+      if (e instanceof SnmpError && e.kind === 'timeout') {
+        throw new SnmpError('timeout', e.message,
+          'That was the SNMPv3 discovery — the first packet. Either this switch is '
+          + 'not reachable from the network the phone is on (a different subnet or '
+          + 'VLAN from the switch that did answer?), or SNMPv3 is not enabled on it.');
+      }
+      throw e;
+    }
     if (!reply?.engine?.id?.length) {
       throw new SnmpError('protocol', 'The switch did not return an engine id.',
         'It answered, but not as an SNMPv3 agent. Check that v3 is enabled.');

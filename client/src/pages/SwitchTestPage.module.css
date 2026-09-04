@@ -3,15 +3,28 @@
    index.css and adds nothing to the design system. Full device width, like
    every other page. */
 
+/* The global .page-full (index.css) pins a page at height:100vh with
+   overflow:hidden on phones — the app scrolls an inner region, not the page.
+   Build 50 gave this page min-height:100vh and let it grow, so anything past
+   one screen was clipped and could not be reached. Same shape as HelpPage now:
+   the page fills its box, .scroll does the scrolling. */
 .page {
   position: relative;
   display: flex; flex-direction: column;
-  gap: 16px;
+  gap: 0;
   width: 100%;
   max-width: none;
-  min-height: 100vh;
-  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  height: 100%;
+  min-height: 0;
   background: var(--bg);
+}
+.scroll {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; gap: 16px;
+  padding-top: 12px;
+  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Header ── */
