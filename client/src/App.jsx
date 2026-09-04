@@ -13,7 +13,7 @@ import HomePage from './pages/HomePage.jsx';
 import ScanPage from './pages/ScanPage.jsx';
 import ResultsPage from './pages/ResultsPage.jsx';
 import RackResultsRoute from './pages/RackResultsRoute.jsx';
-import { RackSwitchesRoute, RackNetworkRoute, RackPortsRoute } from './pages/SideBySideRacks.jsx';
+import { RackSwitchesRoute, RackNetworkRoute } from './pages/SideBySideRacks.jsx';
 import RackTopologyRoute from './pages/RackTopologyRoute.jsx';
 import PortsPage from './pages/PortsPage.jsx';
 import SwitchTestPage from './pages/SwitchTestPage.jsx';
@@ -53,6 +53,12 @@ const MarketplaceOrdersPage = lazy(() => import('./pages/MarketplaceOrdersPage.j
 const MarketplaceAlertsPage = lazy(() => import('./pages/MarketplaceAlertsPage.jsx'));
 const MarketplaceDashboardPage = lazy(() => import('./pages/MarketplaceDashboardPage.jsx'));
 const MarketplacePartnerAccountsPage = lazy(() => import('./pages/MarketplacePartnerAccountsPage.jsx'));
+// The chain's later steps, ported from the NetBox build. Deferred like the
+// Marketplace: most sessions never reach them and they should not sit in
+// front of the login.
+const ReviewPage = lazy(() => import('./pages/ReviewPage.jsx'));
+const ExportPage = lazy(() => import('./pages/ExportPage.jsx'));
+const ReportPage = lazy(() => import('./pages/ReportPage.jsx'));
 import OrgConsolePage from './pages/OrgConsolePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import MultiRackNewPage from './pages/MultiRackNewPage.jsx';
@@ -443,14 +449,23 @@ export default function App() {
                 inside a customer's network). One build, one question. Open to
                 any signed-in tester: the whole point is getting it in front of
                 people standing next to real switches. */}
-            <Route path="/switch-test" element={
-              <ProtectedRoute><ResponsiveLayout withBottomNav><SwitchTestPage /></ResponsiveLayout></ProtectedRoute>
-            } />
-            {/* The Network step of a rack's chain: the same page, scoped to one
-                rack. Its switches are filed against the rack, and what it read
-                lights the step up in the chain. */}
+            {/* The Network step of a rack's chain: the live switches, read from
+                this phone over SNMP, filed against the rack. Only reachable after
+                a scan — it is a step, not a destination. */}
             <Route path="/results/:rackId/network" element={
               <ProtectedRoute><ResponsiveLayout withBottomNav><SwitchTestPage /></ResponsiveLayout></ProtectedRoute>
+            } />
+            {/* Report: rack and network on one page, with the Export button. */}
+            <Route path="/results/:rackId/report" element={
+              <ProtectedRoute><ResponsiveLayout withBottomNav><ReportPage /></ResponsiveLayout></ProtectedRoute>
+            } />
+            {/* Export: preview, then push this rack to NetBox — reached from the
+                Report page's button. Review is reachable but not a step. */}
+            <Route path="/results/:rackId/export" element={
+              <ProtectedRoute><ResponsiveLayout withBottomNav><ExportPage /></ResponsiveLayout></ProtectedRoute>
+            } />
+            <Route path="/results/:rackId/review" element={
+              <ProtectedRoute><ResponsiveLayout withBottomNav><ReviewPage /></ResponsiveLayout></ProtectedRoute>
             } />
             {/* Ground Truth — technicians verify what the model detected.
                 Owner-only for now (OwnerRoute); the page also refuses non-owners
@@ -507,11 +522,8 @@ export default function App() {
             <Route path="/results/:rackId" element={
               <ProtectedRoute><ResponsiveLayout><RackResultsRoute /></ResponsiveLayout></ProtectedRoute>
             } />
-            <Route path="/results/:rackId/ports" element={
-              <ProtectedRoute><ResponsiveLayout><RackPortsRoute /></ResponsiveLayout></ProtectedRoute>
-            } />
             <Route path="/results/:rackId/topology" element={
-              <ProtectedRoute><ResponsiveLayout><RackTopologyRoute /></ResponsiveLayout></ProtectedRoute>
+              <ProtectedRoute><ResponsiveLayout withBottomNav><RackTopologyRoute /></ResponsiveLayout></ProtectedRoute>
             } />
             <Route path="/results/:rackId/netdisco" element={
               <ProtectedRoute><ResponsiveLayout><RackNetworkRoute /></ResponsiveLayout></ProtectedRoute>

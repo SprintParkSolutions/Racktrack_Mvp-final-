@@ -106,13 +106,9 @@ export function usePrimaryNav() {
       hint: 'Connect ServiceNow, NetBox and others' }] : []),
     ...(isAdmin ? [{ to: '/marketplace', label: 'Marketplace', icon: <MarketIcon />, end: false,
       hint: 'Buy and sell hardware' }] : []),
-    // Switch test — TEMPORARY, for one build. The phone talks SNMP straight to
-    // a switch instead of asking the server to, which it has never been able to
-    // do from outside a customer's network. Everyone gets it because the whole
-    // point is putting it in front of testers standing next to real switches.
-    // Remove this entry once the question is answered either way.
-    { to: '/switch-test',    label: 'Network',      icon: <SwitchTestIcon />,  end: false,
-      hint: 'Read your switches from this phone' },
+    // Network is not a destination: it is the step of a rack's chain that comes
+    // after the scan (/results/:rackId/network). It lived here as "Switch test"
+    // for the builds that proved a phone can read a switch; that is proven.
     { to: '/help',           label: 'Ask DOT',      icon: <HelpIcon />,        end: false,
       hint: 'Answers from verified documentation' },
     // Contact support — reachable directly (not only via DOT's hand-off).

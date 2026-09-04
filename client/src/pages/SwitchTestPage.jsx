@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import { getJSON, setJSON } from '../utils/safeStorage';
-import { testLogin, readSwitch } from '../utils/snmpClient';
+import { apiUrl, authFetch } from '../utils/api';
+import { testLogin, readSwitch, toServerReading } from '../utils/snmpClient';
 import styles from './SwitchTestPage.module.css';
 
 // Switch test — the phone talking to a switch directly, over SNMP.
@@ -32,6 +33,54 @@ import styles from './SwitchTestPage.module.css';
 const LEGACY_STORE = 'rt_snmp_test_switches';
 const storeKey = (rackId) => (rackId ? `rt_snmp_switches_${rackId}` : LEGACY_STORE);
 const NETWORK_STATE = (rackId) => `rt_network_state_${rackId}`;
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+/**
+ * File the phone's reading on the server, so Report, Review and Export see
+ * what the switch said and not only what the camera saw.
+ *
+ * The phone took the reading because the server cannot reach the switch; the
+ * server still keeps the record, because that is where the rest of the chain
+ * reads from. The first time a switch is filed, a server-side record is made
+ * for it (credentials go up over HTTPS and are stored encrypted there — never
+ * shown back), and its id is remembered on the phone so the next reading
+ * lands on the same record. A server that cannot be reached is not an error
+ * in the reading: the result is kept on the phone and marked "phone only".
+ */
+async function fileOnServer(rackId, sw, data, rememberServerId) {
+  if (!rackId) return { ok: false, why: 'This page is not attached to a rack.' };
+  try {
+    let serverId = sw.serverId;
+    if (!serverId) {
+      // Reuse a record already filed for this rack at the same address.
+      const list = await authFetch(apiUrl(`/api/nb/switches?rackId=${encodeURIComponent(rackId)}`));
+      if (list.ok) {
+        const found = (await list.json()).find((s) => s.host === sw.host && Number(s.port) === Number(sw.port));
+        if (found) serverId = found.id;
+      }
+    }
+    if (!serverId) {
+      const body = { rackId, label: sw.label, host: sw.host, port: sw.port, version: sw.version || 'v2c' };
+      if (body.version === 'v3') { body.username = sw.username; body.securityLevel = 'noAuthNoPriv'; }
+      else body.community = sw.community ?? 'public';
+      const made = await authFetch(apiUrl('/api/nb/switches'), {
+        method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body),
+      });
+      if (!made.ok) return { ok: false, why: `The server would not file this switch (HTTP ${made.status}).` };
+      serverId = (await made.json()).id;
+    }
+    if (serverId && serverId !== sw.serverId) rememberServerId(serverId);
+
+    const filed = await authFetch(apiUrl(`/api/nb/switches/${serverId}/reading`), {
+      method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(toServerReading(data)),
+    });
+    if (!filed.ok) return { ok: false, why: `The server would not take the reading (HTTP ${filed.status}).` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, why: e.message || 'The server could not be reached.' };
+  }
+}
 
 /** What the chain shows for this rack's Network step: how much has been read. */
 function saveNetworkState(rackId, resultsMap) {
@@ -152,8 +201,19 @@ export default function SwitchTestPage() {
     setBusy(sw.id); setStep('Starting'); clearFor(sw.id);
     try {
       const data = await readSwitch(sw, setStep);
+      let filed = { ok: false, why: 'Kept on this phone.' };
+      if (rackId) {
+        setStep('Filing the reading');
+        filed = await fileOnServer(rackId, sw, data, (serverId) => {
+          setSwitches((prev) => {
+            const next = prev.map((x) => (x.id === sw.id ? { ...x, serverId } : x));
+            setJSON(STORE, next);
+            return next;
+          });
+        });
+      }
       setResults((m) => {
-        const next = { ...m, [sw.id]: { kind: 'full', ...data } };
+        const next = { ...m, [sw.id]: { kind: 'full', ...data, filed: filed.ok, filedWhy: filed.why } };
         saveNetworkState(rackId, next);   // lights the Network step in the chain
         return next;
       });
@@ -241,7 +301,7 @@ export default function SwitchTestPage() {
                           : r ? styles.pillOk : ''}`}>
                     {working ? 'Reading…'
                       : err ? 'Did not answer'
-                        : r?.kind === 'full' ? `Read · ${r.counts.ports} ports, ${r.counts.up} up`
+                        : r?.kind === 'full' ? `Read · ${r.counts.ports} ports, ${r.counts.up} up${rackId && !r.filed ? ' · phone only' : ''}`
                           : r ? 'Answered' : 'Not read yet'}
                   </span>
                 </div>

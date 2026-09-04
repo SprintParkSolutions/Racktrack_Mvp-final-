@@ -17,7 +17,10 @@
   background: #ffffff;
   color: #0c1420;
   padding: max(20px, env(safe-area-inset-top, 0px)) 24px max(24px, env(safe-area-inset-bottom, 0px));
-  overflow: visible;
+  /* Clips only the circles' spill past the edges (they measured 70px of
+     sideways overflow inside #root). The page grows with its content, so
+     nothing of the content is ever behind this. */
+  overflow: hidden;
 }
 :global([data-theme='dark']) .page { background: var(--bg, #0c1420); color: var(--text, #fff); }
 

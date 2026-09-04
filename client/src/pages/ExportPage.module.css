@@ -1,0 +1,307 @@
+/* Export — the NetBox end of the chain.
+   Same shape as SwitchTestPage: the page fills its box, .scroll does the
+   scrolling, shared tokens from index.css, full device width. */
+
+/* The global .page-full (index.css) pins a page at height:100vh with
+   overflow:hidden on phones — the app scrolls an inner region, not the page.
+   A page that grows past one screen gets clipped, so the content lives in
+   .scroll and the page itself never grows. */
+.page {
+  position: relative;
+  display: flex; flex-direction: column;
+  gap: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+}
+.scroll {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; gap: 16px;
+  padding-top: 12px;
+  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: center; gap: 10px;
+  padding: max(20px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px 4px;
+}
+.backBtn {
+  width: 38px; height: 38px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: #121212; border: 1px solid #121212; color: #ffffff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.title {
+  flex: 1; margin: 0;
+  font-size: 20px; font-weight: 650; letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* ── Intro ── */
+.intro {
+  margin: 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  border-radius: 12px;
+  background: var(--card2);
+}
+.intro p { margin: 0 0 8px; font-size: 14px; line-height: 1.55; color: var(--text); }
+.intro p:last-child { margin-bottom: 0; }
+.introNote { color: var(--muted) !important; font-size: 12.5px !important; overflow-wrap: anywhere; }
+.introNote b { color: var(--text); font-weight: 600; }
+
+/* ── The four rules ──
+   Always on screen, above the buttons, because they are the promise the
+   buttons make. Two columns on a phone, four on anything wider. */
+.rules {
+  margin: 0 16px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+}
+@media (min-width: 720px) { .rules { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.rule {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(0,0,0,.12)); border-radius: 12px;
+  background: var(--card);
+  min-width: 0;
+}
+.rule b { font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--text); font-weight: 700; }
+.rule span { font-size: 12px; line-height: 1.45; color: var(--muted); }
+
+/* ── Summary strip: what is about to go out ── */
+.summary {
+  margin: 0 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px;
+}
+.summary > div {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(0,0,0,.12)); border-radius: 12px;
+  background: var(--card);
+}
+.summary b { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.summary span { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.sumHold { border-color: rgba(178,106,0,.35) !important; }
+.sumHold b { color: #b26a00; }
+
+/* ── Cards ── */
+.card {
+  margin: 0 16px;
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  border-radius: 14px;
+  background: var(--card);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 18px -12px rgba(0,0,0,.18);
+}
+.cardHead { display: flex; align-items: flex-start; gap: 10px; }
+.who { flex: 1; min-width: 0; }
+.who h2 { margin: 0; font-size: 16px; font-weight: 650; color: var(--text); overflow-wrap: anywhere; }
+.who p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.cardTools { flex: none; display: flex; gap: 12px; align-items: baseline; }
+.del {
+  flex: none;
+  background: none; border: 0; padding: 4px 2px;
+  color: var(--muted); font-size: 12.5px; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.del:disabled { opacity: .45; cursor: default; }
+
+/* ── Status pill ── */
+.pill {
+  display: inline-block; margin-top: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+  background: var(--bg2); color: var(--muted);
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+}
+.pillGood { background: rgba(15,123,79,.12); color: #0f7b4f; border-color: rgba(15,123,79,.3); }
+.pillWarn { background: rgba(178,106,0,.10); color: #b26a00; border-color: rgba(178,106,0,.3); }
+.pillBad  { background: rgba(192,57,43,.10); color: #c0392b; border-color: rgba(192,57,43,.3); }
+.pillBusy { background: var(--bg2); color: var(--text); }
+
+.connected {
+  margin: 0; display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--muted); overflow-wrap: anywhere;
+}
+.dotGood { width: 8px; height: 8px; border-radius: 50%; background: #0f7b4f; flex: none; }
+
+/* ── Notes: the outcome of something, in a coloured box ── */
+.note {
+  border-radius: 11px; padding: 12px 13px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.note h3 { margin: 0; font-size: 14px; font-weight: 650; color: var(--text); }
+.note p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
+.noteGood { background: rgba(15,123,79,.07); border: 1px solid rgba(15,123,79,.28); }
+.noteGood h3 { color: #0f7b4f; }
+.noteBad  { background: rgba(192,57,43,.07); border: 1px solid rgba(192,57,43,.28); }
+.noteBad h3 { color: #c0392b; }
+.noteWarn { background: rgba(178,106,0,.07); border: 1px solid rgba(178,106,0,.3); }
+.noteWarn h3 { color: #b26a00; }
+.noteInfo { background: var(--bg2); border: 1px solid var(--border, rgba(0,0,0,.12)); }
+.hint { color: var(--muted) !important; }
+.pre {
+  margin: 0; padding: 9px 10px;
+  background: var(--bg2); border-radius: 8px;
+  font-size: 12px; line-height: 1.45; color: var(--text);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 220px; overflow-y: auto;
+}
+.linkBtn {
+  align-self: flex-start;
+  display: inline-flex; align-items: center;
+  min-height: 40px; padding: 0 14px;
+  border-radius: 9px;
+  background: #121212; color: #fff; border: 1px solid #121212;
+  font-size: 13.5px; font-weight: 600; text-decoration: none;
+}
+
+/* ── Buttons ── */
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.primary, .secondary {
+  flex: 1 1 auto; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 10px; font-size: 14.5px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  padding: 0 16px;
+}
+.primary { background: #121212; border: 1px solid #121212; color: #fff; }
+.secondary { background: transparent; border: 1px solid var(--border, rgba(0,0,0,.22)); color: var(--text); }
+.primary:disabled, .secondary:disabled { opacity: .5; cursor: default; }
+.fieldNote { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+
+/* The one moment that writes to a customer's system of record gets a second
+   tap. Not a modal: the question sits where the buttons were. */
+.confirm {
+  border: 1px solid var(--border, rgba(0,0,0,.18)); border-radius: 11px;
+  background: var(--bg2); padding: 12px 13px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.confirm p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+
+/* ── Working ── */
+.working { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 13.5px; color: var(--muted); }
+.spinner {
+  width: 14px; height: 14px; flex: none;
+  border: 2px solid var(--border, rgba(0,0,0,.2));
+  border-top-color: #121212;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* ── Count tiles ── */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); gap: 6px; }
+.tile {
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding: 9px 4px; border-radius: 10px;
+  background: var(--bg); border: 1px solid var(--border, rgba(0,0,0,.1));
+}
+.tile b { font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: 2px; text-align: center; }
+.tileNew b  { color: #0f7b4f; }
+.tileUpd b  { color: #1f5fbf; }
+.tileHold b { color: #b26a00; }
+.tileFail   { border-color: rgba(192,57,43,.35); }
+.tileFail b { color: #c0392b; }
+
+/* ── Overview table ── */
+.subHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.subHead h3 { margin: 0; font-size: 14px; font-weight: 650; color: var(--text); }
+.copy {
+  background: transparent; border: 1px solid var(--border, rgba(0,0,0,.25));
+  color: var(--text); border-radius: 8px;
+  min-height: 38px; padding: 0 14px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+/* Wide content scrolls inside itself; the page never scrolls sideways. */
+.scrollx { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text); }
+.table th {
+  text-align: left; padding: 6px 8px;
+  font-size: 11px; letter-spacing: .05em; text-transform: uppercase; font-weight: 600;
+  color: var(--muted); border-bottom: 1px solid var(--border, rgba(0,0,0,.12));
+  white-space: nowrap;
+}
+.table td { padding: 8px; border-bottom: 1px solid var(--border, rgba(0,0,0,.08)); overflow-wrap: anywhere; }
+.table tr:last-child td { border-bottom: 0; }
+.num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.zero { color: var(--muted); font-weight: 400; }
+.tNew  { color: #0f7b4f; }
+.tUpd  { color: #1f5fbf; }
+.tHold { color: #b26a00; }
+.tFail { color: #c0392b; }
+
+/* ── In NetBox, absent from this scan ── */
+.orphans { border-top: 1px dashed var(--border, rgba(0,0,0,.2)); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.orphans h4 {
+  margin: 0; display: flex; align-items: center; gap: 8px;
+  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.count {
+  display: inline-block; padding: 1px 7px; border-radius: 999px;
+  background: var(--bg2); color: var(--text); font-size: 11px; letter-spacing: 0; text-transform: none;
+}
+.orphans p { margin: 0; font-size: 12.5px; line-height: 1.5; }
+.orphans ul { margin: 0; padding-left: 18px; }
+.orphans li { font-size: 13px; color: var(--text); margin-bottom: 4px; overflow-wrap: anywhere; }
+.orphans li em { font-style: normal; color: var(--muted); }
+
+/* ── Filter: which operations ── */
+.seg {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding: 4px; border-radius: 12px;
+  background: var(--bg2); border: 1px solid var(--border, rgba(0,0,0,.14));
+}
+.segBtn {
+  flex: 1 1 auto; min-height: 36px; padding: 0 10px;
+  border: 1px solid transparent; border-radius: 9px;
+  background: transparent; color: var(--muted);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.segOn { background: var(--card); color: var(--text); border-color: var(--border, rgba(0,0,0,.18)); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+
+/* ── Every operation ──
+   NetBox is strict about order, so this list is a sequence, not a set. Short
+   rows, possibly hundreds of them: the action tag does the aligning. */
+.diffList { display: flex; flex-direction: column; max-height: 60vh; overflow-y: auto; }
+.diffRow {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
+  min-width: 0;
+}
+.diffRow:last-child { border-bottom: 0; }
+.diffAction {
+  width: 52px; flex: none; margin-top: 2px;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 18px; border-radius: 5px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  background: var(--bg2); color: var(--muted);
+}
+.act_create { background: rgba(15,123,79,.12); color: #0f7b4f; }
+.act_update { background: rgba(31,95,191,.12); color: #1f5fbf; }
+.act_skip   { background: rgba(178,106,0,.12); color: #b26a00; }
+.act_fail   { background: rgba(192,57,43,.12); color: #c0392b; }
+.diffMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.diffName { font-size: 13px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.diffType { font-size: 11.5px; color: var(--muted); }
+.diffWhy {
+  flex: 0 1 42%; min-width: 0;
+  font-size: 11.5px; line-height: 1.4; color: var(--muted); text-align: right;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 420px) {
+  .diffRow { flex-wrap: wrap; }
+  .diffWhy { flex: 1 1 100%; text-align: left; padding-left: 62px; }
+}

@@ -72,3 +72,15 @@
 
 /* In the phone's bottom bar the strip is the bar: no border of its own. */
 .inBar { border-bottom: 0; background: transparent; padding: 6px 4px 6px 8px; }
+
+/* On a phone all five steps must be visible at once — that is the point of a
+   chain. Drop the hint line and tighten the step so five fit in 360px; the
+   state still reads from the mark (tick / number / lock) and the label. */
+@media (max-width: 480px) {
+  .chain { padding: 5px 4px; gap: 0; }
+  .hint { display: none; }
+  .step { padding: 3px 4px 3px 2px; gap: 4px; min-height: 40px; border-radius: 10px; }
+  .mark { width: 18px; height: 18px; font-size: 10px; }
+  .label { font-size: 11px; letter-spacing: -.01em; }
+  .spine { width: 5px; margin: 0; }
+}

@@ -12,8 +12,66 @@ const { testSwitch } = require('../../lib/netbox/collect');
 const { readSwitch, NO_CREDENTIALS } = require('../../lib/netbox/reader');
 const { SnmpError } = require('../../lib/netbox/snmp');
 const switches = require('../../lib/netbox/switches');
+// RackTrack's drift store — the table the Drift view reads.
+const portsDb = require('../../lib/port_history_db');
+const { logger } = require('../../lib/observability');
 
 const router = express.Router();
+
+/**
+ * Feed a reading into Drift.
+ *
+ * The rack's Drift view reads monitored_devices + port_snapshots, the table
+ * the SSH poller used to fill. A switch the phone reads over SNMP is filed
+ * there too — created once, with enabled:0 so the poller never tries to SSH
+ * into it (that table's poller is SSH-only and could not reach it anyway) —
+ * and every reading becomes one snapshot per port. writePoll diffs against the
+ * previous snapshot and records the change events, so "what changed since
+ * last time" works for these switches exactly as it did for polled ones.
+ *
+ * Owners and org admins carry no Site, so their devices file with tenant_id
+ * null, which that table already treats as "visible to the owner only".
+ */
+function feedDrift(req, rec, data) {
+  const host = rec.host;
+  if (!host) return;
+  let dev = portsDb.getDeviceByHost(host);
+  if (!dev) {
+    dev = portsDb.addDevice({
+      host, ssh_port: 0, vendor: 'snmp', label: rec.label || host, enabled: 0,
+      tenant_id: req.user?.tenant_id ?? null,
+    });
+  }
+  portsDb.updateDeviceMetadata(dev.id, {
+    system_name:        data.system?.sysName,
+    system_description: data.system?.sysDescr,
+    model:              data.identity?.model || data.system?.derivedModel,
+    serial:             data.identity?.serial,
+    sw_version:         data.identity?.softwareRev,
+  });
+  const byLocal = new Map();
+  for (const n of data.neighbours || []) {
+    if (n.localPort != null) byLocal.set(String(n.localPort), n);
+    if (n.localPortName) byLocal.set(String(n.localPortName), n);
+  }
+  const ts = data.collectedAt || new Date().toISOString();
+  for (const i of data.interfaces || []) {
+    const n = byLocal.get(String(i.ifIndex)) || byLocal.get(String(i.name)) || null;
+    portsDb.writePoll(dev.id, {
+      port:         i.name || String(i.ifIndex),
+      oper:         i.operStatus ?? null,
+      admin:        i.adminStatus ?? null,
+      speed_mbps:   i.speedMbps ?? null,
+      duplex:       i.duplex ?? null,
+      flowctrl:     null,                     // not in the standard MIBs the phone reads
+      medium:       null,                     // no standard MIB says copper vs fibre
+      descr:        i.alias ?? null,
+      lldp_chassis: n?.chassisId ?? null,
+      lldp_port:    n?.remotePortId ?? null,
+      lldp_system:  n?.remoteSysName ?? null,
+    }, ts);
+  }
+}
 
 /**
  * Every SNMP failure is somebody's job, and which one it is decides who gets
@@ -146,7 +204,12 @@ router.post('/:id/reading', (req, res) => {
   switches.saveData(req.params.id, stored);
   switches.recordCollected(req.params.id, stored);
   switches.recordTest(req.params.id, { ok: true, sysName: stored.system.sysName || null });
-  res.json({ ok: true, counts: stored.counts || null, collectedAt: stored.collectedAt });
+  // The reading is stored regardless; Drift is a second consumer, and a
+  // failure there must not be reported as a failure to file the reading.
+  let drift = false;
+  try { feedDrift(req, switches.find(req.params.id), stored); drift = true; }
+  catch (err) { logger.warn({ event: 'nb.drift_feed_failed', err: err.message }, 'reading stored, drift not fed'); }
+  res.json({ ok: true, counts: stored.counts || null, collectedAt: stored.collectedAt, drift });
 });
 
 module.exports = router;

@@ -1,23 +1,23 @@
+import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './RackChain.module.css';
 import { getJSON } from '../utils/safeStorage';
 
 /**
- * The chain: a rack as one job with steps, not a row of equal tabs.
+ * A rack's menu after the scan, as a chain:
  *
- *   Scan → Physical → Network → Compare → Review → Export → Report
+ *   Overview → Network → Topology → Drift → Report
  *
- * Each step knows whether it has run. A finished step carries a tick, the
- * one you are on is lit, and a step that cannot mean anything yet is locked
- * and says why. The order is the point: you cannot review disagreements
- * before the switches have been read, and you cannot export before someone
- * has settled them. Tabs said "go anywhere"; this says what comes next.
+ * Overview is what the camera saw. Network is the live switches, read from the
+ * phone over SNMP. Topology and Drift are views of both. Report puts rack and
+ * network on one page and carries the Export button. Each step shows whether
+ * it has run: a finished step carries a tick, the one you are on is lit, and a
+ * step that cannot mean anything yet is locked and says why.
  *
- * Route-based on purpose. On a phone the rack's views are hash tabs inside
- * ResultsPage; on a desktop they are routes in the sidebar. A step that is a
- * route works in both, and the one step that IS an in-page tab (Physical =
- * the Overview) is handed to the caller through onStep so it can switch the
- * tab instead of navigating.
+ * Route-based on purpose. On a phone the Overview and Drift are hash views of
+ * ResultsPage; on a desktop everything is a sidebar route. A step that is a
+ * URL works in both — ResultsPage already reads its tab from the hash, so
+ * navigating to `#drift` or to the bare rack path is enough.
  *
  * `chainSteps` is exported on its own so the desktop sidebar can draw the same
  * steps in its own style: one definition, two renderings, no drift.
@@ -30,36 +30,33 @@ export function networkState(rackId) {
   return rackId ? (getJSON(NETWORK_STATE(rackId), null) || null) : null;
 }
 
-// Which downstream steps have a page yet. Flipped as each lands; a step
-// without one shows locked with "Coming next" rather than a broken link.
-export const STEPS_READY = { report: false, export: false };
+/** Which steps have a page yet; a step without one shows locked, not broken. */
+export const STEPS_READY = { report: true };
 
 export function chainSteps(rackId, location, opts = {}) {
-  const { reportReady = STEPS_READY.report, exportReady = STEPS_READY.export } = opts;
+  const { reportReady = STEPS_READY.report } = opts;
   const base = `/results/${encodeURIComponent(rackId)}`;
   const path = location?.pathname || '';
+  const hash = (location?.hash || '').toLowerCase();
   const net = networkState(rackId);
   const netDone = Boolean(net && net.read > 0);
+  const onBase = path === base;
+  const cur = (p) => (path === p ? 'current' : 'todo');
 
-  const at = (p) => path === p;
-  const stateFor = (p, done) => (at(p) ? 'current' : done ? 'done' : 'todo');
-
-  // Scan → Physical → Network → Report → Export. Compare and Review return to
-  // the chain when they are built; until then they would only be locked
-  // entries between steps that work, which is noise.
   return [
-    { key: 'scan', label: 'Scan', to: '/scan', state: 'done',
-      hint: 'Photographed' },
-    { key: 'physical', label: 'Physical', to: base, state: stateFor(base, true),
+    { key: 'overview', label: 'Overview', to: base,
+      state: onBase && hash !== '#drift' ? 'current' : 'done',
       hint: 'What the camera saw' },
-    { key: 'network', label: 'Network', to: `${base}/network`, state: stateFor(`${base}/network`, netDone),
-      hint: netDone ? `${net.read} read · ${net.up} up` : 'Read the switches' },
+    { key: 'network', label: 'Network', to: `${base}/network`,
+      state: path === `${base}/network` ? 'current' : netDone ? 'done' : 'todo',
+      hint: netDone ? `${net.read} switch${net.read === 1 ? '' : 'es'} · ${net.up} up` : 'Read the switches' },
+    { key: 'topology', label: 'Topology', to: `${base}/topology`,
+      state: cur(`${base}/topology`), hint: 'Cables and layout' },
+    { key: 'drift', label: 'Drift', to: `${base}#drift`,
+      state: onBase && hash === '#drift' ? 'current' : 'todo', hint: 'What changed' },
     { key: 'report', label: 'Report', to: reportReady ? `${base}/report` : null,
-      state: reportReady ? stateFor(`${base}/report`, false) : 'locked',
-      hint: reportReady ? 'Rack + network, one page' : 'Coming next' },
-    { key: 'export', label: 'Export', to: exportReady ? `${base}/export` : null,
-      state: exportReady ? stateFor(`${base}/export`, false) : 'locked',
-      hint: exportReady ? 'To NetBox' : 'Coming next' },
+      state: reportReady ? cur(`${base}/report`) : 'locked',
+      hint: reportReady ? 'Rack + network · export' : 'Coming next' },
   ];
 }
 
@@ -81,36 +78,34 @@ export const Mark = ({ state, n }) => {
   return <span>{n}</span>;
 };
 
-/**
- * The strip. Horizontal, full width, scrolls if it must. `onStep(step)` may
- * return true to say "handled" (the Overview tab case); otherwise the step
- * navigates to its route.
- */
-export default function RackChain({ rackId, onStep, reportReady, exportReady, className = '' }) {
+/** The strip. Horizontal, full width, scrolls sideways if it must. */
+export default function RackChain({ rackId, className = '' }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const steps = chainSteps(rackId, location, { reportReady, exportReady });
-  const done = steps.filter((s) => s.state === 'done').length;
+  const steps = chainSteps(rackId, location);
+  const currentKey = steps.find((s) => s.state === 'current')?.key || null;
+  const currentEl = useRef(null);
 
-  const go = (s) => {
-    if (s.state === 'locked' || !s.to) return;
-    if (onStep && onStep(s) === true) return;
-    navigate(s.to);
-  };
+  // Five steps fit a 390px phone; on a narrower one the strip scrolls, so
+  // bring the step you are on into view rather than leaving it off the edge.
+  useEffect(() => {
+    currentEl.current?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+  }, [currentKey]);
 
   return (
-    <nav className={`${styles.chain} ${className}`} aria-label="Rack workflow">
+    <nav className={`${styles.chain} ${className}`} aria-label="Rack menu">
       <ol className={styles.steps}>
         {steps.map((s, i) => (
           <li key={s.key} className={styles.item}>
             {i > 0 && <span className={`${styles.spine} ${steps[i - 1].state === 'done' ? styles.spineOn : ''}`} aria-hidden="true" />}
             <button
               type="button"
+              ref={s.key === currentKey ? currentEl : undefined}
               className={`${styles.step} ${styles[s.state]}`}
-              disabled={s.state === 'locked'}
+              disabled={s.state === 'locked' || !s.to}
               aria-current={s.state === 'current' ? 'step' : undefined}
               title={s.state === 'locked' ? `${s.label} — ${s.hint}` : s.label}
-              onClick={() => go(s)}
+              onClick={() => s.to && navigate(s.to)}
             >
               <span className={styles.mark}><Mark state={s.state} n={i + 1} /></span>
               <span className={styles.text}>
@@ -121,7 +116,6 @@ export default function RackChain({ rackId, onStep, reportReady, exportReady, cl
           </li>
         ))}
       </ol>
-      <span className={styles.count} aria-label={`${done} of ${steps.length} steps done`}>{done}/{steps.length}</span>
     </nav>
   );
 }

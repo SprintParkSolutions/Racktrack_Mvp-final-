@@ -233,13 +233,10 @@ export default function DesktopShell({ children }) {
   // complete. Overview is the chain's Physical step and Ports is superseded by
   // its Network step, so neither is listed here; Netdisco is Discovery now,
   // because the chain's own Network step took the word.
+  // Everything a rack offers is in the chain above (Overview, Network,
+  // Topology, Drift, Report). Switches (CMDB specs) and Discovery (Netdisco)
+  // are out of the menu for now; their routes still answer.
   const rackLinks = rackId ? [
-    { to: `/results/${rackId}/topology${gq}`,  label: 'Topology',  icon: <TopologyIcon />, end: false },
-    { to: `/switch-info/${rackId}${gq}`,       label: 'Switches',  icon: <SwitchesIcon />, end: false },
-    { to: `/results/${rackId}/netdisco${gq}`,  label: 'Discovery', icon: <NetworkIcon />,  end: false },
-    // Drift has no separate route today — it's a sub-view inside ResultsPage
-    // activated by the #drift hash; its active state comes from that hash.
-    { to: `/results/${rackId}${gq}#drift`,     label: 'Drift',    icon: <DriftIcon />,    end: false, active: isDriftView },
     // Ground Truth — owner-only, per this scan. Only reachable here, after a
     // rack has been analysed (there IS a rackId).
     ...(isOwner ? [{ to: `/ground-truth/${rackId}`, label: 'Ground Truth', icon: <GroundTruthIcon />, end: false }] : []),
@@ -271,7 +268,7 @@ export default function DesktopShell({ children }) {
             Physical is the Overview; a locked step says why it is locked. */}
         {rackId && (
           <>
-            <div className={styles.navSection}>Workflow · {rackId}</div>
+            <div className={styles.navSection}>This rack · {rackId}</div>
             <ol className={styles.navLinks}>
               {chainSteps(rackId, location).map((s, i) => (
                 <li key={s.key}>
@@ -297,7 +294,7 @@ export default function DesktopShell({ children }) {
 
         {rackLinks.length > 0 && (
           <>
-            <div className={styles.navSection}>Rack · {rackId}</div>
+            <div className={styles.navSection}>Owner · {rackId}</div>
             <ul className={styles.navLinks}>
               {rackLinks.map(l => (
                 <li key={l.to}>

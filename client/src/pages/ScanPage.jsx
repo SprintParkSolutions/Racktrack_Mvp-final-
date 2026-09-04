@@ -5,7 +5,6 @@ import styles from './ScanPage.module.css';
 import { validateMedia } from '../utils/validateMedia';
 import { IMAGE_ACCEPT, VIDEO_ACCEPT } from '../utils/mediaAccept';
 import { apiUrl, authFetch } from '../utils/api';
-import { triggerBackgroundProbe } from '../utils/portsProbe';
 import { prefetchScan } from '../utils/scanPrefetch';
 import { newJobId, setPendingScan, clearPendingScan } from '../utils/pendingScan';
 import { useShutter } from '../ShutterContext.jsx';
@@ -1110,7 +1109,6 @@ export default function ScanPage() {
     // Kick the network-switch SSH probe in parallel with the CV pipeline so
     // the Logical tab on the Available Ports page is ready by the time the
     // user gets there. Fire-and-forget — it can't fail the scan.
-    try { triggerBackgroundProbe(); } catch (_) {}
     let si = 0;
     const ticker = setInterval(() => {
       setProgress(p => Math.min(p + 9, 88));
@@ -1318,7 +1316,6 @@ export default function ScanPage() {
       'Mapping ports and cables…',
     ];
     setStep(MULTI_STEPS[0]);
-    try { triggerBackgroundProbe(); } catch (_) {}
     let si = 0;
     const ticker = setInterval(() => {
       setProgress(p => Math.min(p + 7, 88));

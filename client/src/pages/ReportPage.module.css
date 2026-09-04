@@ -1,0 +1,250 @@
+/* Report — the rack and its network on one page.
+   Same shape as SwitchTestPage and ExportPage: the page fills its box, .scroll
+   does the scrolling, shared tokens from index.css, full device width. */
+
+/* The global .page-full (index.css) pins a page at height:100vh with
+   overflow:hidden on phones — the app scrolls an inner region, not the page.
+   A page that grows past one screen gets clipped, so the content lives in
+   .scroll and the page itself never grows. */
+.page {
+  position: relative;
+  display: flex; flex-direction: column;
+  gap: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+}
+.scroll {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; gap: 16px;
+  padding-top: 12px;
+  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: center; gap: 10px;
+  padding: max(20px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px 4px;
+}
+.backBtn {
+  width: 38px; height: 38px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: #121212; border: 1px solid #121212; color: #ffffff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.title {
+  flex: 1; margin: 0;
+  font-size: 20px; font-weight: 650; letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* ── Working ── */
+.working {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0 16px; font-size: 13.5px; color: var(--muted);
+}
+.spinner {
+  width: 14px; height: 14px; flex: none;
+  border: 2px solid var(--border, rgba(0,0,0,.2));
+  border-top-color: #121212;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* ── Notes: something the page has to say before the data ── */
+.note {
+  margin: 0 16px;
+  border-radius: 11px; padding: 12px 13px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.note h3 { margin: 0; font-size: 14px; font-weight: 650; color: var(--text); }
+.note p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
+.noteBad  { background: rgba(192,57,43,.07); border: 1px solid rgba(192,57,43,.28); }
+.noteBad h3 { color: #c0392b; }
+.noteInfo { background: var(--bg2); border: 1px solid var(--border, rgba(0,0,0,.12)); }
+.hint { color: var(--muted) !important; font-size: 12.5px !important; }
+.linkBtn {
+  align-self: flex-start;
+  display: inline-flex; align-items: center;
+  min-height: 40px; padding: 0 14px;
+  border-radius: 9px;
+  background: #121212; color: #fff; border: 1px solid #121212;
+  font-size: 13.5px; font-weight: 600; text-decoration: none;
+}
+
+/* ── Hero: which rack, when ── */
+.hero { margin: 0 16px; display: flex; flex-direction: column; gap: 1px; }
+.heroMake { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #0f7b4f; font-weight: 700; overflow-wrap: anywhere; }
+.heroModel { font-size: 26px; font-weight: 750; letter-spacing: -.02em; color: var(--text); line-height: 1.15; overflow-wrap: anywhere; }
+.heroSub { font-size: 12.5px; color: var(--muted); margin-top: 3px; overflow-wrap: anywhere; }
+
+/* ── Summary strip: the rack in one glance ── */
+.summary {
+  margin: 0 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px;
+}
+.summary > div {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(0,0,0,.12)); border-radius: 12px;
+  background: var(--card);
+  min-width: 0;
+}
+.summary b { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.summary span { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.sumUp b { color: #0f7b4f; }
+
+/* ── Cards ── */
+.card {
+  margin: 0 16px;
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  border-radius: 14px;
+  background: var(--card);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 18px -12px rgba(0,0,0,.18);
+}
+.secHead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.secHead h2 { margin: 0; font-size: 16px; font-weight: 650; color: var(--text); }
+.secHead span { font-size: 12px; color: var(--muted); }
+.emptyLine { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+/* ── The rack, one row per device, top down ── */
+.rows { display: flex; flex-direction: column; }
+.row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border, rgba(0,0,0,.08));
+}
+.row:first-child { border-top: 0; padding-top: 0; }
+.u {
+  flex: none; min-width: 42px; text-align: center;
+  padding: 4px 7px; border-radius: 7px;
+  background: var(--bg2); color: var(--text);
+  font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border, rgba(0,0,0,.1));
+}
+.uNone { color: var(--muted); font-weight: 500; }
+.rowMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rowTop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rowTitle { font-size: 15px; font-weight: 650; color: var(--text); overflow-wrap: anywhere; }
+
+/* The status pill, as on the Network page */
+.pill {
+  display: inline-block;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  background: var(--bg2); color: var(--muted);
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  white-space: nowrap;
+}
+.pillGood { background: rgba(15,123,79,.12); color: #0f7b4f; border-color: rgba(15,123,79,.3); }
+
+/* A fact line: who said it, then what they said */
+.line {
+  margin: 0; display: flex; gap: 8px; align-items: baseline;
+  font-size: 13px; line-height: 1.45; color: var(--text);
+  overflow-wrap: anywhere; min-width: 0;
+}
+.lineK {
+  flex: none; width: 58px;
+  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+
+/* Fold-out for the ports. A text button, not a card of its own. */
+.more {
+  align-self: flex-start;
+  background: none; border: 0; padding: 2px 0;
+  color: var(--text); font-size: 12.5px; font-weight: 600; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Ports in use, one line each ── */
+.ports {
+  display: flex; flex-direction: column;
+  border-radius: 9px; background: var(--bg2);
+  padding: 4px 10px;
+  max-height: 60vh; overflow-y: auto;
+}
+.port {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
+  font-size: 12.5px; line-height: 1.4; min-width: 0;
+}
+.port:last-of-type { border-bottom: 0; }
+.portName { flex: none; min-width: 64px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.portFacts { flex: 1; min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+.portFacts > span + span::before { content: ' · '; color: var(--muted); }
+.up { color: #0f7b4f; font-weight: 600; }
+.down { color: var(--muted); }
+.portNote { margin: 0; padding: 6px 0 4px; font-size: 11.5px; color: var(--muted); }
+
+/* ── Network ── */
+.sub { display: flex; flex-direction: column; gap: 6px; }
+.sub h3 {
+  margin: 0; display: flex; align-items: center; gap: 8px;
+  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.count {
+  display: inline-block; padding: 1px 7px; border-radius: 999px;
+  background: var(--bg2); color: var(--text); font-size: 11px; letter-spacing: 0; text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+.links { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.links li {
+  display: flex; align-items: baseline; gap: 6px 8px; flex-wrap: wrap;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
+  font-size: 13px; color: var(--text); min-width: 0;
+}
+.links li:last-child { border-bottom: 0; }
+.end { flex: 1 1 38%; min-width: 0; overflow-wrap: anywhere; }
+.end b { font-weight: 650; }
+.arrow { flex: none; color: var(--muted); }
+.proof {
+  flex: none;
+  padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  background: var(--bg2); color: var(--muted);
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  white-space: nowrap;
+}
+.proofGood { background: rgba(15,123,79,.12); color: #0f7b4f; border-color: rgba(15,123,79,.3); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip {
+  font-size: 12px; padding: 3px 8px; border-radius: 6px;
+  background: var(--bg2); color: var(--text);
+  border: 1px solid var(--border, rgba(0,0,0,.1));
+  overflow-wrap: anywhere;
+}
+.chip b { font-variant-numeric: tabular-nums; margin-right: 1px; }
+
+/* ── Not stated ── */
+.gaps { margin: 0; padding-left: 18px; }
+.gaps li { font-size: 13px; line-height: 1.5; color: var(--muted); margin-bottom: 6px; overflow-wrap: anywhere; }
+.gaps li:last-child { margin-bottom: 0; }
+.gaps b { color: var(--text); font-weight: 650; }
+
+/* ── The one button ── */
+.cta { margin: 0 16px; display: flex; }
+.primary {
+  flex: 1 1 auto; min-height: 48px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; font-size: 15px; font-weight: 600;
+  background: #121212; border: 1px solid #121212; color: #fff;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  padding: 0 16px;
+}
+.primary:disabled { opacity: .5; cursor: default; }

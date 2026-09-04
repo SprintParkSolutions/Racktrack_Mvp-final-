@@ -1197,7 +1197,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   // view instead of the default overview tab.
   const _initialTabFromHash = (() => {
     const h = (location.hash || '').replace(/^#/, '').toLowerCase();
-    return ['overview', 'ports', 'topology', 'network', 'switches', 'drift'].includes(h) ? h : 'overview';
+    return ['overview', 'topology', 'drift'].includes(h) ? h : 'overview';
   })();
   const [tab,         setTab]         = useState(_initialTabFromHash);
   // Once the user leaves the ticket-drift alert (picks another tab or dismisses
@@ -1272,7 +1272,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
     // An empty / unknown hash means the plain rack root → the Overview tab.
     // Without this fallback, navigating Drift (#drift) → Overview (no hash)
     // left `tab` stuck on 'drift' because empty wasn't a recognised value.
-    const next = ['overview', 'ports', 'topology', 'network', 'switches', 'drift'].includes(h)
+    const next = ['overview', 'topology', 'drift'].includes(h)
       ? h : 'overview';
     setTab(curr => {
       if (curr !== next) tabHistoryRef.current.push(curr);
@@ -4537,7 +4537,6 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
         <div className={styles.headerCenter}>
           <h2 className={styles.headerTitle}>{
             tab === 'switches' ? 'Switches'
-            : tab === 'ports'    ? 'Ports'
             : tab === 'topology' ? 'Topology'
             : tab === 'network'  ? 'Discovery'
             : tab === 'drift'    ? 'Port History & Drift'
@@ -5172,12 +5171,6 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       </>)}
 
       {/* ── Tab: Ports ── */}
-      {tab === 'ports' && (
-        <div className={styles.tabContent}>
-          <PortsContent rackId={rackId || scanId} />
-        </div>
-      )}
-
       {/* ── Tab: Topology ── */}
       {tab === 'topology' && (
         <div className={styles.tabContent}>
