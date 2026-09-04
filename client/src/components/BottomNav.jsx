@@ -5,7 +5,6 @@ import { useShutter } from '../ShutterContext.jsx';
 import { useAuth } from '../AuthContext.jsx';
 import { usePrimaryNav, MoreIcon } from '../nav/navLinks.jsx';
 import MoreSheet from './MoreSheet.jsx';
-import ScanTabBar from './ScanTabBar.jsx';
 
 /* ──────────────────────────────────────────────────────────────────────
    BottomNav — the phone navigation: HOME / SCAN / MORE / PROFILE.
@@ -25,14 +24,6 @@ export default function BottomNav() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   if (!isAuthed) return null;
-
-  // Inside a rack the bar is the rack's chain — Overview → Network →
-  // Topology → Drift → Report — not the app's destinations. Every rack page
-  // then carries the same strip, so from Network you can step on to Report
-  // without going back. The results page renders that strip itself; the
-  // other rack pages get it here.
-  const rack = location.pathname.match(/^\/results\/([^/]+)/);
-  if (rack) return <ScanTabBar rackId={decodeURIComponent(rack[1])} />;
 
   const barLinks = links.filter((l) => l.inBar);
   const overflow = links.filter((l) => !l.inBar);

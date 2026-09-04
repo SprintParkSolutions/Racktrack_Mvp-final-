@@ -1126,7 +1126,10 @@ export function AllDevicesView({ devices, labels, rackId, scanId, originalExt, o
 // ── Main page ─────────────────────────────────────────────────
 export default function ResultsPage({ rackId: propRackId = null, embedded: embeddedProp = false } = {}) {
   const navigate = useNavigate();
-  const exitRack = useSmartBack('/scan');
+  // Back from a rack goes Home. The rack was reached from a scan, and walking
+  // back into the camera is not where anyone wants to land once they have the
+  // result — Home is, with the rack still in the history if they want it.
+  const exitRack = () => navigate('/');
   // Null outside TourProvider (this page is also rendered embedded), so read
   // through optional chaining rather than destructuring.
   const tour = useTour();

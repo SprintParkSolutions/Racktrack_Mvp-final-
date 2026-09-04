@@ -28,7 +28,7 @@
 // is concerned, so that when one misbehaves the other is a reference rather
 // than a second design to hold in your head.
 
-import { registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
   T, tlv, encodeInt, encodeStr, encodeOid, readTLV,
   decodeInt, decodeValue, decodeOid, isAbsent, PDU_ERRORS,
@@ -36,6 +36,14 @@ import {
 } from './snmpBer';
 
 const SnmpUdp = registerPlugin('SnmpUdp');
+
+/**
+ * Reading a switch needs a UDP socket, and a web page is not allowed one —
+ * only the installed app is. Checked here, once, so the reason is said in
+ * words that name the fix rather than letting Capacitor's own '"SnmpUdp"
+ * plugin is not implemented on web' reach someone standing at a rack.
+ */
+export const canReadSwitches = () => Capacitor.isNativePlatform();
 
 export const OID = {
   sysDescr:    '1.3.6.1.2.1.1.1.0',
@@ -211,6 +219,13 @@ export class Snmp {
    * reply was for some other request and we keep waiting for ours.
    */
   async transact(messageBytes, matches) {
+    if (!canReadSwitches()) {
+      throw new SnmpError('web',
+        'A web browser cannot read a switch.',
+        'Open this rack in the RackTrack app on a phone that is on the same network '
+        + 'as the switch. A browser is not allowed to make the kind of network '
+        + 'connection SNMP needs; the app is.');
+    }
     const data = bytesToB64(Uint8Array.from(messageBytes));
     let last = null;
     for (let attempt = 0; attempt <= this.retries; attempt += 1) {

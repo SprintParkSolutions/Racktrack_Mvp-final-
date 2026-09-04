@@ -5,7 +5,6 @@ import styles from './DesktopShell.module.css';
 import ThemeToggle from './ThemeToggle.jsx';
 import { useAuth } from '../AuthContext';
 import { usePrimaryNav, GroundTruthIcon } from '../nav/navLinks.jsx';
-import { chainSteps, Mark as ChainMark } from './RackChain.jsx';
 import { ShellHeaderContext } from './ShellHeader.jsx';
 
 // Persistent record of the last rack the user opened. Once an image has
@@ -233,10 +232,16 @@ export default function DesktopShell({ children }) {
   // complete. Overview is the chain's Physical step and Ports is superseded by
   // its Network step, so neither is listed here; Netdisco is Discovery now,
   // because the chain's own Network step took the word.
-  // Everything a rack offers is in the chain above (Overview, Network,
-  // Topology, Drift, Report). Switches (CMDB specs) and Discovery (Netdisco)
-  // are out of the menu for now; their routes still answer.
+  // The rack's own pages. Ports is gone — the Network page reads the switches
+  // themselves over SNMP, which is what Ports tried to do over SSH from a
+  // server that could never reach them.
   const rackLinks = rackId ? [
+    { to: `/results/${rackId}${gq}`,           label: 'Overview', icon: <OverviewIcon />, end: true,  active: onRackRoot && !isDriftView },
+    { to: `/results/${rackId}/network${gq}`,   label: 'Network',  icon: <NetworkIcon />,  end: false },
+    { to: `/results/${rackId}/report${gq}`,    label: 'Report',   icon: <OverviewIcon />, end: false },
+    { to: `/results/${rackId}/topology${gq}`,  label: 'Topology', icon: <TopologyIcon />, end: false },
+    { to: `/results/${rackId}${gq}#drift`,     label: 'Drift',    icon: <DriftIcon />,    end: false, active: isDriftView },
+    { to: `/switch-info/${rackId}${gq}`,       label: 'Switches', icon: <SwitchesIcon />, end: false },
     // Ground Truth — owner-only, per this scan. Only reachable here, after a
     // rack has been analysed (there IS a rackId).
     ...(isOwner ? [{ to: `/ground-truth/${rackId}`, label: 'Ground Truth', icon: <GroundTruthIcon />, end: false }] : []),
@@ -263,38 +268,9 @@ export default function DesktopShell({ children }) {
           ))}
         </ul>
 
-        {/* The chain: the rack as one job with steps, same definition as the
-            phone's bottom bar (RackChain.chainSteps) so the two cannot drift.
-            Physical is the Overview; a locked step says why it is locked. */}
-        {rackId && (
-          <>
-            <div className={styles.navSection}>This rack · {rackId}</div>
-            <ol className={styles.navLinks}>
-              {chainSteps(rackId, location).map((s, i) => (
-                <li key={s.key}>
-                  {s.state === 'locked' || !s.to ? (
-                    <span className={`${styles.navLink} ${styles.chainLocked}`} title={`${s.label} — ${s.hint}`} aria-disabled="true">
-                      <span className={styles.chainMark}><ChainMark state="locked" n={i + 1} /></span>{s.label}
-                    </span>
-                  ) : (
-                    <NavLink
-                      end
-                      to={s.to}
-                      title={s.hint}
-                      className={() => `${styles.navLink} ${s.state === 'current' ? styles.active : ''} ${s.state === 'done' ? styles.chainDone : ''}`}
-                    >
-                      <span className={styles.chainMark}><ChainMark state={s.state} n={i + 1} /></span>{s.label}
-                    </NavLink>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </>
-        )}
-
         {rackLinks.length > 0 && (
           <>
-            <div className={styles.navSection}>Owner · {rackId}</div>
+            <div className={styles.navSection}>Rack · {rackId}</div>
             <ul className={styles.navLinks}>
               {rackLinks.map(l => (
                 <li key={l.to}>

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import { getJSON, setJSON } from '../utils/safeStorage';
 import { apiUrl, authFetch } from '../utils/api';
-import { testLogin, readSwitch, toServerReading } from '../utils/snmpClient';
+import { testLogin, readSwitch, toServerReading, canReadSwitches } from '../utils/snmpClient';
 import styles from './SwitchTestPage.module.css';
 
 // Switch test — the phone talking to a switch directly, over SNMP.
@@ -126,6 +126,25 @@ export default function SwitchTestPage() {
   const [results, setResults] = useState({});    // id -> what came back
   const [errors, setErrors] = useState({});      // id -> what went wrong
 
+  // Where each switch sits in the rack.
+  //
+  // The camera knows WHERE a device is and guesses what it is; the switch
+  // states exactly what it is and has no idea where it sits. Neither can be
+  // matched to the other with certainty — two identical switches in one rack
+  // look the same to both — so the server proposes a match by port count and a
+  // person confirms it here, next to the reading, rather than on a separate
+  // screen. Nothing is written until Save.
+  const [scanId, setScanId] = useState(null);
+  const [places, setPlaces] = useState(null);    // { devices, switches, matches }
+  const [match, setMatch] = useState({});        // serverSwitchId -> deviceUid | ''
+  const [savingMatch, setSavingMatch] = useState(false);
+  const [matchNote, setMatchNote] = useState(null);
+
+  // What each switch last said, kept per rack so leaving the page and coming
+  // back does not wipe the reading. A reading is a fact with a time on it,
+  // not a transient: the card shows when it was taken.
+  const RESULTS = rackId ? `rt_snmp_results_${rackId}` : 'rt_snmp_results';
+
   useEffect(() => {
     let list = getJSON(STORE, []) || [];
     if (rackId && list.length === 0) {
@@ -133,9 +152,56 @@ export default function SwitchTestPage() {
       if (inherited.length) { list = inherited; setJSON(STORE, list); }
     }
     setSwitches(list);
-    setResults({});
+    setResults(getJSON(RESULTS, {}) || {});
     setErrors({});
-  }, [STORE, rackId]);
+  }, [STORE, RESULTS, rackId]);
+
+  // Persist every result as it changes, so the page reopens in its read state.
+  useEffect(() => {
+    if (Object.keys(results).length) setJSON(RESULTS, results);
+  }, [results, RESULTS]);
+
+  /** Ask the server where each read switch sits, and what it proposes. */
+  const loadPlaces = useCallback(async () => {
+    if (!rackId) return;
+    try {
+      const a = await authFetch(apiUrl(`/api/nb/scans/adopt/${encodeURIComponent(rackId)}`), { method: 'POST' });
+      if (!a.ok) return;
+      const { id } = await a.json();
+      setScanId(id);
+      const v = await authFetch(apiUrl(`/api/nb/scans/${id}/reconcile`));
+      if (!v.ok) return;
+      const view = await v.json();
+      setPlaces(view);
+      // Start from what is stored; fall back to what the server proposes, so a
+      // confident match is one tap to accept rather than one to find.
+      const start = {};
+      for (const s of view.switches || []) {
+        start[s.id] = s.matchedTo || (s.autoMatch && s.autoMatch.confidence === 'high' ? s.autoMatch.deviceUid : '') || '';
+      }
+      setMatch(start);
+    } catch { /* the rack simply has no places to offer yet */ }
+  }, [rackId]);
+
+  useEffect(() => { loadPlaces(); }, [loadPlaces]);
+
+  const savePlaces = async () => {
+    if (!scanId) return;
+    setSavingMatch(true); setMatchNote(null);
+    try {
+      const r = await authFetch(apiUrl(`/api/nb/scans/${scanId}/reconcile`), {
+        method: 'POST', headers: JSON_HEADERS,
+        body: JSON.stringify({ matches: Object.fromEntries(Object.entries(match).map(([k, v]) => [k, v || null])) }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setMatchNote({ ok: true, text: 'Saved. The report will show these switches in their places.' });
+      loadPlaces();
+    } catch (e) {
+      setMatchNote({ ok: false, text: `Not saved: ${e.message}` });
+    } finally {
+      setSavingMatch(false);
+    }
+  };
 
   const persist = useCallback((next) => {
     setSwitches(next);
@@ -254,6 +320,16 @@ export default function SwitchTestPage() {
       </header>
 
       <div className={styles.scroll}>
+      {/* The phone does the reading, so say so before anyone presses a button
+          they cannot use. Only ever shown in a browser. */}
+      {!canReadSwitches() && (
+        <div className={styles.onPhone}>
+          <b>Open this on a phone to read a switch.</b> A browser is not allowed to make
+          the kind of network connection SNMP needs — the RackTrack app is. Everything
+          already read is shown here.
+        </div>
+      )}
+
       {/* One line that says how the rack's network stands, before any detail.
           No introduction above it: the numbers are the introduction. */}
       {switches.length > 0 && (() => {
@@ -371,6 +447,33 @@ export default function SwitchTestPage() {
                     Copy result
                   </button>
                 </div>
+              )}
+
+              {/* Where this switch sits, once it has been read and the rack
+                  has places to offer. The camera found the boxes; this says
+                  which box this switch is. */}
+              {r?.kind === 'full' && sw.serverId && places?.devices?.length > 0 && (
+                <label className={styles.place}>
+                  <span>In the rack</span>
+                  <select
+                    value={match[sw.serverId] ?? ''}
+                    onChange={(e) => setMatch((m) => ({ ...m, [sw.serverId]: e.target.value }))}
+                  >
+                    <option value="">Not in this rack</option>
+                    {places.devices.map((d) => (
+                      <option key={d.uid} value={d.uid}>
+                        {d.position ? `${d.position} · ` : ''}{d.name || d.cvClass}
+                        {d.portCount ? ` · ${d.portCount} ports` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {(() => {
+                    const srv = (places.switches || []).find((x) => x.id === sw.serverId);
+                    return srv?.autoMatch?.why
+                      ? <em className={styles.placeWhy}>Suggested: {srv.autoMatch.why}</em>
+                      : null;
+                  })()}
+                </label>
               )}
 
               {r && (
@@ -558,6 +661,28 @@ export default function SwitchTestPage() {
         <button type="button" className={styles.addMore} onClick={() => setForm(BLANK)}>
           Add another switch
         </button>
+      )}
+
+      {/* Save the places, then go on to the report. Only once something has
+          been read and the rack has boxes to put it in. */}
+      {!form && places?.devices?.length > 0 && Object.values(results).some((x) => x?.kind === 'full') && (
+        <div className={styles.finish}>
+          {matchNote && (
+            <p className={matchNote.ok ? styles.finishOk : styles.finishBad}>{matchNote.text}</p>
+          )}
+          <div className={styles.actions}>
+            <button type="button" className={styles.secondary} disabled={savingMatch} onClick={savePlaces}>
+              {savingMatch ? 'Saving…' : 'Save places'}
+            </button>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={async () => { await savePlaces(); navigate(`/results/${encodeURIComponent(rackId)}/report`); }}
+            >
+              Go to report
+            </button>
+          </div>
+        </div>
       )}
       </div>
     </div>

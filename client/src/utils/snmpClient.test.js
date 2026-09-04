@@ -10,7 +10,10 @@ import { vi } from 'vitest';
 
 // The native plugin does not exist under test; the session's build and parse
 // methods are exercised directly and the bridge is never touched.
-vi.mock('@capacitor/core', () => ({ registerPlugin: () => ({ query: vi.fn() }) }));
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { isNativePlatform: () => true },
+  registerPlugin: () => ({ query: vi.fn() }),
+}));
 
 import { T, tlv, encodeInt, encodeStr, encodeOid, readTLV, decodeInt } from './snmpBer';
 import { Snmp, SnmpError, OID, USM_REPORTS, vendorOf, modelFrom, toServerReading } from './snmpClient';

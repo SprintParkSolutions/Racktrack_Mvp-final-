@@ -18,6 +18,9 @@ import { vi, beforeAll, afterAll } from 'vitest';
 import dgram from 'node:dgram';
 
 vi.mock('@capacitor/core', () => ({
+  // The socket below IS the native side, so the client must believe it is on a
+  // device — otherwise the web guard refuses before a packet is ever sent.
+  Capacitor: { isNativePlatform: () => true },
   registerPlugin: () => ({
     query: ({ host, port, timeoutMs, data }) => new Promise((resolve, reject) => {
       const sock = dgram.createSocket('udp4');
