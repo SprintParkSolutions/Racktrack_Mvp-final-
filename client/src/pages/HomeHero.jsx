@@ -5,31 +5,41 @@ import { useAuth } from '../AuthContext.jsx';
 import styles from './HomeHero.module.css';
 
 /**
- * Home hero — white room, wordmark, one claim.
- *
- * Built to the reference the owner supplied: a bright aisle photograph running
- * off the top-right corner and dissolving into the page, a letterspaced
- * eyebrow, a large claim with a blue full stop, a grey line under it, and a
- * text link rather than a filled button. No panels, no cards, no shadows — the
- * white IS the design, and the photograph is the only mass on the page.
+ * Home — built to the owner's second reference: a centred serif claim over a
+ * rounded photographic card, on a pale ground.
  *
  * Portalled to <body> so it escapes #root's 540px frame and fills the viewport.
  */
 
-const ArrowR = () => (
-  <svg width="26" height="12" viewBox="0 0 26 12" fill="none" stroke="currentColor"
-       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <line x1="0" y1="6" x2="24" y2="6" /><polyline points="19 1 24 6 19 11" />
+const MenuGlyph = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" />
+    <line x1="4" y1="17" x2="20" y2="17" />
   </svg>
 );
 
-/* A speech bubble with a single dot — reads as "ask" without needing the word,
-   and the dot ties it to the assistant's name. */
-const DotMark = () => (
+const PersonGlyph = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
-    <circle cx="12" cy="11.5" r="1.4" fill="currentColor" stroke="none" />
+       strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const SlidersGlyph = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+    <line x1="4" y1="8" x2="20" y2="8" /><circle cx="10" cy="8" r="2.2" />
+    <line x1="4" y1="16" x2="20" y2="16" /><circle cx="16" cy="16" r="2.2" />
+  </svg>
+);
+
+const CameraGlyph = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 8a2 2 0 0 1 2-2h2.2l1.3-2h6l1.3 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <circle cx="12" cy="12.5" r="3.4" />
   </svg>
 );
 
@@ -39,33 +49,35 @@ export default function HomeHero() {
   const authed = auth?.isAuthed;
   const [menuOpen, setMenuOpen] = useState(false);
 
-  /* The reference puts a hamburger where the Sign in button used to be. It
-     cannot just BE sign-in — a hamburger that fires a navigation is a lie — so
-     it opens the two or three destinations this screen actually has. Sign in
-     stays one tap from the top of the page either way. */
   const go = (to) => () => { setMenuOpen(false); navigate(to); };
 
   return createPortal(
     <section className={styles.hero}>
-      {/* The room. Decorative: the claim carries the meaning. */}
-      <div className={styles.film} aria-hidden="true" />
-      <div className={styles.scrim} aria-hidden="true" />
-
-      <nav className={styles.nav}>
-        <button type="button" className={styles.brand} onClick={go('/')}>
-          RackTrack<span className={styles.stop}>.</span>
-        </button>
-
+      <header className={styles.bar}>
         <button
           type="button"
-          className={styles.burger}
+          className={styles.iconBtn}
           onClick={() => setMenuOpen((o) => !o)}
           aria-expanded={menuOpen}
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
         >
-          <span /><span /><span />
+          <MenuGlyph />
         </button>
-      </nav>
+
+        <div className={styles.brandBlock}>
+          <span className={styles.brandName}>RackTrack</span>
+          <span className={styles.tagline}>System of record</span>
+        </div>
+
+        <button
+          type="button"
+          className={styles.iconBtn}
+          onClick={authed ? go('/profile') : go('/login')}
+          aria-label={authed ? 'Your profile' : 'Sign in'}
+        >
+          <PersonGlyph />
+        </button>
+      </header>
 
       {menuOpen && (
         <>
@@ -79,9 +91,7 @@ export default function HomeHero() {
                 <button
                   type="button" role="menuitem" className={styles.menuItem}
                   onClick={() => { setMenuOpen(false); auth.logout(); navigate('/'); }}
-                >
-                  Sign out
-                </button>
+                >Sign out</button>
               </>
             ) : (
               <>
@@ -94,17 +104,30 @@ export default function HomeHero() {
       )}
 
       <main className={styles.stage}>
-        <p className={styles.eyebrow}>See it. Understand it. Manage it.</p>
+        <p className={styles.eyebrow}>
+          <span className={styles.eyebrowDot} aria-hidden="true" />
+          Physical infrastructure
+        </p>
 
-        <h1 className={styles.h1}>
-          Know your<br />
-          infrastructure<span className={styles.stop}>.</span>
-        </h1>
+        <h1 className={styles.h1}>Your Datacenter</h1>
 
         <p className={styles.lede}>
-          RackTrack gives you complete visibility of every rack, device, port
-          and connection across your data center.
+          One simple view of your physical infrastructure.
         </p>
+
+        <figure className={styles.plate}>
+          <img className={styles.shot} src="/home-aisle.jpg" alt="" />
+          <figcaption className={styles.caption}>
+            <span className={styles.captionHead}>Every rack, every port</span>
+            <span className={styles.captionSub}>Read from one photograph</span>
+          </figcaption>
+        </figure>
+
+        <div className={styles.metaRow}>
+          <span className={styles.meta}><CameraGlyph /> Photograph a rack</span>
+          <span className={styles.metaDot} aria-hidden="true" />
+          <span className={styles.meta}><SlidersGlyph /> Searchable inventory</span>
+        </div>
 
         <button
           type="button"
@@ -112,25 +135,8 @@ export default function HomeHero() {
           onClick={() => navigate(authed ? '/scan' : '/login')}
         >
           {authed ? 'Start a scan' : 'Get started'}
-          <ArrowR />
         </button>
       </main>
-
-      {/* Ask DOT stays: home is the one route without the bottom nav, and
-          testers reported not knowing the assistant existed at all. Hidden
-          signed out, because /help is a protected route. */}
-      {authed && (
-        <button
-          type="button"
-          className={styles.askDot}
-          onClick={() => navigate('/help')}
-          aria-label="Ask DOT - get help"
-          title="Ask DOT"
-        >
-          <DotMark />
-          <span className={styles.askDotLabel}>Ask DOT</span>
-        </button>
-      )}
     </section>,
     document.body,
   );
