@@ -1,61 +1,64 @@
 /* Login — one screen, one job.
-   Logo, name, two fields, one button. White ground with two soft blue
-   circles behind, in the spirit of the reference the owner showed. Full
-   device width like every other page; on a wide screen the padding grows so
-   the form stays a form and not a 1200px input. */
+   Logo, name, two fields, one button, two soft circles behind.
+
+   It lives inside #root, which on a desktop is a 540px centred column (the
+   app's phone-in-the-middle layout) and on a phone is the screen. So every
+   size here is relative to THAT box, never to the viewport: the first version
+   used 18vw side padding, which on a 2000px screen was 360px a side inside a
+   540px column — the page collapsed to one word wide and vertical centring
+   pushed the logo off the top. #root scrolls; this page never clips. */
 
 .page {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
   width: 100%;
-  overflow: hidden;
+  flex: 1 0 auto;
+  min-height: 100%;
   display: flex; flex-direction: column;
   background: #ffffff;
   color: #0c1420;
-  padding: max(24px, env(safe-area-inset-top, 0px)) clamp(20px, 18vw, 360px) max(24px, env(safe-area-inset-bottom, 0px));
+  padding: max(20px, env(safe-area-inset-top, 0px)) 24px max(24px, env(safe-area-inset-bottom, 0px));
+  overflow: visible;
 }
 :global([data-theme='dark']) .page { background: var(--bg, #0c1420); color: var(--text, #fff); }
 
-/* Two circles. Decoration only, out of the way of the form. */
+/* Two circles. Decoration only, out of the way of the form; #root clips the
+   horizontal spill. */
 .blobA, .blobB {
   position: absolute; border-radius: 50%; pointer-events: none;
   background: rgba(27, 95, 217, 0.08);
 }
-.blobA { width: 62vw; max-width: 380px; aspect-ratio: 1; top: -18vw; left: -14vw; }
-.blobB { width: 44vw; max-width: 280px; aspect-ratio: 1; right: -12vw; top: 42vh; background: rgba(27, 95, 217, 0.06); }
+.blobA { width: min(62%, 340px); aspect-ratio: 1; top: -120px; left: -90px; }
+.blobB { width: min(44%, 240px); aspect-ratio: 1; right: -70px; top: 46%; background: rgba(27, 95, 217, 0.06); }
 :global([data-theme='dark']) .blobA, :global([data-theme='dark']) .blobB { background: rgba(27, 95, 217, 0.16); }
 
+/* Top-anchored, not centred: a short screen scrolls, it never crops. */
 .card {
   position: relative; z-index: 1;
-  flex: 1;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 0;
+  flex: 1 0 auto;
+  display: flex; flex-direction: column; align-items: center;
   width: 100%;
-  padding-bottom: 6vh;   /* sits a touch above centre, like the reference */
+  padding-top: clamp(28px, 9vh, 88px);
 }
 
 .logo {
-  width: 108px; height: 108px; object-fit: cover;
-  border-radius: 28px;
+  width: 104px; height: 104px; object-fit: cover;
+  border-radius: 26px;
   box-shadow: 0 8px 28px -12px rgba(12, 20, 32, 0.35);
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 .brand {
   margin: 0;
-  font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
-  color: inherit;
+  font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+  color: inherit; text-align: center;
 }
-.tag {
-  margin: 8px 0 0;
-  font-size: 14px; color: #5c6878;
-}
+.tag { margin: 8px 0 0; font-size: 14px; color: #5c6878; text-align: center; }
 :global([data-theme='dark']) .tag { color: var(--muted, #9aa5b1); }
 
 .form {
   width: 100%;
+  max-width: 440px;
   display: flex; flex-direction: column; gap: 12px;
-  margin-top: 36px;
+  margin-top: 32px;
 }
 .field { position: relative; width: 100%; }
 .input {
@@ -115,9 +118,9 @@
 .links {
   margin-top: 22px;
   display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
-  font-size: 13.5px; color: #5c6878;
+  font-size: 13.5px; color: #5c6878; text-align: center;
 }
-.links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
 .links a:hover { color: #1b5fd9; }
 .dot { opacity: .5; }
 
@@ -125,7 +128,8 @@
   position: relative; z-index: 1;
   text-align: center;
   font-size: 12px; color: #8a94a0;
-  padding-top: 12px;
+  padding: 28px 8px 0;
+  max-width: 440px; margin: 0 auto;
 }
 
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } .cta { transition: none; } }
