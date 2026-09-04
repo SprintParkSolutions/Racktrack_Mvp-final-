@@ -58,6 +58,53 @@
 .intro p:last-child { margin-bottom: 0; }
 .introNote { color: var(--muted) !important; }
 
+/* ── Summary strip: the rack's network in one glance ── */
+.summary {
+  margin: 0 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px;
+}
+.summary > div {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(0,0,0,.12)); border-radius: 12px;
+  background: var(--card);
+}
+.summary b { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.summary span { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.sumUp b { color: #0f7b4f; }
+.sumBad { border-color: rgba(192,57,43,.35) !important; }
+.sumBad b { color: #c0392b; }
+
+/* ── Status pill on each switch ── */
+.pill {
+  display: inline-block; margin-top: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+  background: var(--bg2); color: var(--muted);
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+}
+.pillGood { background: rgba(15,123,79,.12); color: #0f7b4f; border-color: rgba(15,123,79,.3); }
+.pillOk   { background: rgba(15,123,79,.08); color: #0f7b4f; border-color: rgba(15,123,79,.22); }
+.pillBad  { background: rgba(192,57,43,.10); color: #c0392b; border-color: rgba(192,57,43,.3); }
+.pillBusy { background: var(--bg2); color: var(--text); }
+
+/* ── Identity hero inside a result ── */
+.hero { display: flex; flex-direction: column; gap: 1px; }
+.heroMake { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #0f7b4f; font-weight: 700; }
+.heroModel { font-size: 24px; font-weight: 750; letter-spacing: -.02em; color: var(--text); line-height: 1.15; overflow-wrap: anywhere; }
+.heroSub { font-size: 12.5px; color: var(--muted); margin-top: 3px; overflow-wrap: anywhere; }
+
+/* ── Count tiles ── */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tile {
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding: 9px 4px; border-radius: 10px;
+  background: var(--bg); border: 1px solid var(--border, rgba(0,0,0,.1));
+}
+.tile b { font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.tileUp b { color: #0f7b4f; }
+
 /* ── Empty ── */
 .empty {
   margin: 0 16px; padding: 28px 16px;
@@ -76,6 +123,7 @@
   background: var(--card);
   padding: 14px;
   display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 18px -12px rgba(0,0,0,.18);
 }
 .cardHead { display: flex; align-items: flex-start; gap: 10px; }
 .who { flex: 1; min-width: 0; }

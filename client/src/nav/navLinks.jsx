@@ -111,8 +111,8 @@ export function usePrimaryNav() {
     // do from outside a customer's network. Everyone gets it because the whole
     // point is putting it in front of testers standing next to real switches.
     // Remove this entry once the question is answered either way.
-    { to: '/switch-test',    label: 'Switch test',  icon: <SwitchTestIcon />,  end: false,
-      hint: 'Read a switch from this phone' },
+    { to: '/switch-test',    label: 'Network',      icon: <SwitchTestIcon />,  end: false,
+      hint: 'Read your switches from this phone' },
     { to: '/help',           label: 'Ask DOT',      icon: <HelpIcon />,        end: false,
       hint: 'Answers from verified documentation' },
     // Contact support — reachable directly (not only via DOT's hand-off).

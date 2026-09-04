@@ -156,23 +156,34 @@ export default function SwitchTestPage() {
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <h1 className={styles.title}>Switch test</h1>
+        <h1 className={styles.title}>Network</h1>
         <ThemeToggle />
       </header>
 
       <div className={styles.scroll}>
       <div className={styles.intro}>
         <p>
-          <strong>What we are testing.</strong> Whether this phone can talk to your
-          switches directly, instead of asking our server to do it. The server sits
-          outside your network and has never been able to reach them.
-        </p>
-        <p className={styles.introNote}>
-          Stay on the same Wi-Fi as the switch. Add it below, press <strong>Test
-          login</strong>, then <strong>Read it</strong>. Whatever happens — including
-          nothing — press Copy result and send it back to us.
+          Your switches, read <strong>directly from this phone</strong> over SNMP.
+          Every value comes from the switch itself — nothing is guessed.
         </p>
       </div>
+
+      {/* One line that says how the rack's network stands, before any detail. */}
+      {switches.length > 0 && (() => {
+        const read = switches.filter((s) => results[s.id]?.kind === 'full');
+        const ports = read.reduce((n, s) => n + (results[s.id].counts?.ports || 0), 0);
+        const up = read.reduce((n, s) => n + (results[s.id].counts?.up || 0), 0);
+        const failed = switches.filter((s) => errors[s.id]).length;
+        return (
+          <div className={styles.summary}>
+            <div><b>{switches.length}</b><span>switch{switches.length === 1 ? '' : 'es'}</span></div>
+            <div><b>{read.length}</b><span>read</span></div>
+            <div><b>{ports}</b><span>ports</span></div>
+            <div className={up ? styles.sumUp : ''}><b>{up}</b><span>up</span></div>
+            {failed > 0 && <div className={styles.sumBad}><b>{failed}</b><span>no answer</span></div>}
+          </div>
+        );
+      })()}
 
       {switches.length === 0 && !form && (
         <div className={styles.empty}>
@@ -196,6 +207,16 @@ export default function SwitchTestPage() {
                 <div className={styles.who}>
                   <h2>{sw.label}</h2>
                   <p>{sw.host}:{sw.port} · {dialect(sw)}</p>
+                  <span className={`${styles.pill} ${
+                    working ? styles.pillBusy
+                      : err ? styles.pillBad
+                        : r?.kind === 'full' ? styles.pillGood
+                          : r ? styles.pillOk : ''}`}>
+                    {working ? 'Reading…'
+                      : err ? 'Did not answer'
+                        : r?.kind === 'full' ? `Read · ${r.counts.ports} ports, ${r.counts.up} up`
+                          : r ? 'Answered' : 'Not read yet'}
+                  </span>
                 </div>
                 <div className={styles.cardTools}>
                   <button
@@ -234,7 +255,7 @@ export default function SwitchTestPage() {
                   disabled={working}
                   onClick={() => doRead(sw)}
                 >
-                  Read it
+                  Read switch
                 </button>
               </div>
 
@@ -267,28 +288,27 @@ export default function SwitchTestPage() {
 
               {r && (
                 <div className={styles.good}>
-                  <h3>{r.kind === 'hello' ? 'It answered' : 'Read it'}</h3>
-
-                  <dl className={styles.facts}>
-                    <div><dt>Calls itself</dt><dd>{r.sysName || <em>nothing</em>}</dd></div>
-                    <div><dt>Make</dt><dd>{r.vendor || <em>not stated</em>}</dd></div>
-                    <div><dt>Model</dt><dd>{r.model || <em>not stated</em>}</dd></div>
-                    {r.kind === 'full' && (
-                      <div><dt>Serial</dt><dd>{r.serial || <em>not stated</em>}</dd></div>
-                    )}
-                    {r.uptime != null && (
-                      <div><dt>Running</dt><dd>{uptimeText(r.uptime)}</dd></div>
-                    )}
-                  </dl>
+                  {/* What it is, said by the switch itself — the two facts a
+                      camera cannot read reliably, first and large. */}
+                  <div className={styles.hero}>
+                    <span className={styles.heroMake}>{r.vendor || 'Make not stated'}</span>
+                    <span className={styles.heroModel}>{r.model || (r.sysName || 'Model not stated')}</span>
+                    <span className={styles.heroSub}>
+                      {r.sysName && r.model ? `${r.sysName} · ` : ''}
+                      {r.uptime != null ? uptimeText(r.uptime) : 'answered'}
+                      {r.kind === 'full' ? (r.serial ? ` · serial ${r.serial}` : ' · no serial offered') : ''}
+                    </span>
+                  </div>
 
                   {r.sysDescr && <p className={styles.descr}>{r.sysDescr}</p>}
 
                   {r.kind === 'full' && (
                     <>
-                      <div className={styles.counts}>
-                        <span><b>{r.counts.ports}</b> ports</span>
-                        <span><b>{r.counts.up}</b> up</span>
-                        <span><b>{r.counts.neighbours}</b> neighbours</span>
+                      <div className={styles.tiles}>
+                        <div className={styles.tile}><b>{r.counts.ports}</b><span>ports</span></div>
+                        <div className={`${styles.tile} ${r.counts.up ? styles.tileUp : ''}`}><b>{r.counts.up}</b><span>up</span></div>
+                        <div className={styles.tile}><b>{r.counts.ports - r.counts.up}</b><span>down</span></div>
+                        <div className={styles.tile}><b>{r.counts.neighbours}</b><span>neighbours</span></div>
                       </div>
 
                       {r.interfaces.length > 0 && (
@@ -320,7 +340,7 @@ export default function SwitchTestPage() {
 
                       {r.gaps.length > 0 && (
                         <div className={styles.gaps}>
-                          <h4>What it would not tell us</h4>
+                          <h4>Not stated by the switch</h4>
                           <ul>{r.gaps.map((g, k) => <li key={k}>{g}</li>)}</ul>
                         </div>
                       )}
