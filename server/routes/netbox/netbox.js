@@ -14,9 +14,38 @@ const { NetBox } = require('../../lib/netbox/netbox');
 const { plan, push } = require('../../lib/netbox/writer');
 const { toCsv, toJson, toMarkdown } = require('../../lib/netbox/files');
 
+const profiles = require('../../lib/connection_profiles');
+
 const router = express.Router();
 
-const client = () => new NetBox(cfg.NETBOX_URL, cfg.NETBOX_TOKEN);
+/**
+ * Which NetBox, for this caller.
+ *
+ * The standalone build read one NetBox from its .env. Inside RackTrack the
+ * NetBox login belongs to the organisation and lives where every other
+ * data source does — Data Sources (/connections), encrypted, set once by an
+ * admin — so nobody standing at a rack is ever asked for a token. The server
+ * env is kept only as a fallback for a single-tenant install.
+ */
+function target(req) {
+  const orgId = req.user?.organization_id;
+  const creds = orgId ? profiles.resolveCredsForOrg(orgId, 'netbox') : null;
+  if (creds?.secret?.base_url) {
+    return { url: creds.secret.base_url, token: creds.secret.token || '', source: 'data-sources' };
+  }
+  if (cfg.NETBOX_URL && cfg.NETBOX_TOKEN) {
+    return { url: cfg.NETBOX_URL, token: cfg.NETBOX_TOKEN, source: 'server-env' };
+  }
+  return { url: '', token: '', source: 'none' };
+}
+
+const NOT_CONFIGURED = {
+  configured: false, reachable: false, authenticated: false,
+  error: 'No NetBox connection for this organisation yet.',
+  hint: 'An admin adds one under Data Sources (type: NetBox, with its URL and an API token).',
+};
+
+const client = (req) => { const t = target(req); return new NetBox(t.url, t.token); };
 
 function snapshotOf(req, res) {
   const scan = store.getScan(req.params.id);
@@ -36,9 +65,11 @@ function snapshotOf(req, res) {
 
 /** Can we reach NetBox, and are we authenticated? */
 router.get('/health', async (req, res) => {
-  const out = { url: cfg.NETBOX_URL, tokenSet: Boolean(cfg.NETBOX_TOKEN) };
+  const t = target(req);
+  if (t.source === 'none') return res.json({ ...NOT_CONFIGURED, source: t.source });
+  const out = { configured: true, source: t.source, url: t.url, tokenSet: Boolean(t.token) };
   try {
-    const body = await client().status();
+    const body = await client(req).status();
     res.json({ ...out, reachable: true, authenticated: true,
                netboxVersion: body['netbox-version'] });
   } catch (err) {
@@ -48,7 +79,12 @@ router.get('/health', async (req, res) => {
       ...out,
       reachable: err.status !== 0,
       authenticated: false,
-      error: authIssue ? `HTTP ${err.status}. Set NETBOX_TOKEN.` : String(err.message),
+      error: authIssue
+        ? `NetBox answered HTTP ${err.status}: the token was refused.`
+        : String(err.message),
+      hint: authIssue
+        ? 'Check the NetBox connection under Data Sources — the token may have expired or lack permissions.'
+        : 'Check the URL under Data Sources and that this server can reach it.',
     });
   }
 });
@@ -56,14 +92,16 @@ router.get('/health', async (req, res) => {
 router.post('/:id/preview', async (req, res) => {
   const got = snapshotOf(req, res);
   if (!got) return;
+  const t = target(req);
+  if (t.source === 'none') return res.status(428).json({ stage: 'preview', ...NOT_CONFIGURED });
   try {
-    const report = await plan(got.snap, client(),
+    const report = await plan(got.snap, client(req),
       { ensureField: req.query.ensureField === 'true' });
     store.recordStage(got.scan.id, 'preview', 'ok', countLine(report.counts));
     res.json(report);
   } catch (err) {
     store.recordStage(got.scan.id, 'preview', 'failed', String(err.message).slice(0, 400));
-    res.status(502).json({ stage: 'preview', url: cfg.NETBOX_URL,
+    res.status(502).json({ stage: 'preview', url: t.url,
                            error: err.detail ?? String(err.message) });
   }
 });
@@ -71,8 +109,9 @@ router.post('/:id/preview', async (req, res) => {
 router.post('/:id/export', async (req, res) => {
   const got = snapshotOf(req, res);
   if (!got) return;
+  if (target(req).source === 'none') return res.status(428).json({ stage: 'export', ...NOT_CONFIGURED });
   try {
-    const report = await push(got.snap, client());
+    const report = await push(got.snap, client(req));
     const status = report.counts.fail ? 'failed' : 'ok';
     store.recordStage(got.scan.id, 'export', status, countLine(report.counts));
     res.json(report);

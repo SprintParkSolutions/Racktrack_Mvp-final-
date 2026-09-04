@@ -86,7 +86,10 @@ function validate(body, existing = null) {
     if (!username) return { error: 'A username is required for this kind of login.' };
     out.username = username;
 
-    const level = String(body.securityLevel ?? existing?.securityLevel ?? 'authPriv');
+    // noAuthNoPriv is the default because it is what every switch we have is
+    // set to, and because it is the only v3 level the phone can speak today. A
+    // stronger level is still accepted; it just has to be asked for.
+    const level = String(body.securityLevel ?? existing?.securityLevel ?? 'noAuthNoPriv');
     if (!LEVELS.includes(level)) return { error: 'Unknown security level.' };
     out.securityLevel = level;
 

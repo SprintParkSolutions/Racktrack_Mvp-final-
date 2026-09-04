@@ -13,7 +13,67 @@ import { vi } from 'vitest';
 vi.mock('@capacitor/core', () => ({ registerPlugin: () => ({ query: vi.fn() }) }));
 
 import { T, tlv, encodeInt, encodeStr, encodeOid, readTLV, decodeInt } from './snmpBer';
-import { Snmp, SnmpError, OID, USM_REPORTS, vendorOf, modelFrom } from './snmpClient';
+import { Snmp, SnmpError, OID, USM_REPORTS, vendorOf, modelFrom, toServerReading } from './snmpClient';
+
+describe('toServerReading: the phone\'s reading in the server\'s shape', () => {
+  const phone = {
+    sysName: 'SG2428P', sysDescr: 'Omada 28-Port Gigabit Smart Switch with 24-Port PoE+',
+    vendor: 'TP-Link', model: 'SG2428P', uptime: 34802000, serial: null,
+    interfaces: [
+      { index: 1, name: 'gigabitEthernet 1/0/1', descr: 'uplink', up: true, enabled: true, speedMbps: 1000 },
+      { index: 2, name: 'gigabitEthernet 1/0/2', descr: null, up: false, enabled: true, speedMbps: null },
+    ],
+    neighbours: [{ sysName: 'core_sw', port: 'Slot0/2', localPort: '4' }],
+    gaps: ['No serial. This switch does not offer ENTITY-MIB, so the serial has to come from the camera or be typed in.'],
+    counts: { ports: 2, up: 1, neighbours: 1 },
+  };
+
+  test('has every top-level key a server-side reading has, and nothing invented', () => {
+    const r = toServerReading(phone, { tookMs: 1234 });
+    for (const k of ['collectedAt', 'tookMs', 'localChassisId', 'identity', 'system', 'interfaces',
+      'neighbours', 'vlans', 'ipAddrs', 'arp', 'macs', 'counts', 'gaps']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.source).toBe('phone');
+    expect(r.tookMs).toBe(1234);
+    expect(r.localChassisId).toBeNull();          // the phone does not read LLDP local chassis id
+    expect(r.vlans).toEqual([]);
+    expect(r.arp).toEqual([]);
+    expect(r.macs).toBeNull();
+  });
+
+  test('identity and system map the way the collector fills them', () => {
+    const r = toServerReading(phone);
+    expect(r.identity).toMatchObject({ model: 'SG2428P', serial: null, manufacturer: 'TP-Link', stackMembers: 0, members: [] });
+    expect(r.system).toMatchObject({ sysName: 'SG2428P', vendor: 'TP-Link', derivedModel: 'SG2428P', uptimeSeconds: 348020 });
+    expect(r.system.sysDescr).toMatch(/Omada/);
+  });
+
+  test('interfaces: up/enabled become the collector\'s up/down strings; unread fields stay null', () => {
+    const r = toServerReading(phone);
+    expect(r.interfaces).toHaveLength(2);
+    expect(r.interfaces[0]).toMatchObject({ ifIndex: 1, name: 'gigabitEthernet 1/0/1', alias: 'uplink',
+      operStatus: 'up', adminStatus: 'up', speedMbps: 1000, mtu: null, duplex: null, pvid: null, mac: null });
+    expect(r.interfaces[1]).toMatchObject({ ifIndex: 2, alias: null, operStatus: 'down', adminStatus: 'up', speedMbps: null });
+    expect(r.counts).toMatchObject({ interfaces: 2, interfacesUp: 1, neighbours: 1, vlans: 0, arp: 0, macs: null });
+  });
+
+  test('neighbours keep local port and remote name/port, and gaps travel untouched', () => {
+    const r = toServerReading(phone);
+    expect(r.neighbours[0]).toMatchObject({ localPort: '4', remoteSysName: 'core_sw', remotePortId: 'Slot0/2', chassisId: null });
+    expect(r.gaps).toEqual(phone.gaps);
+    expect(r.gaps).not.toBe(phone.gaps);          // a copy, not the caller's array
+  });
+
+  test('tolerates a minimal reading with nothing but a name', () => {
+    const r = toServerReading({ sysName: 'x' });
+    expect(r.interfaces).toEqual([]);
+    expect(r.neighbours).toEqual([]);
+    expect(r.counts.interfaces).toBe(0);
+    expect(r.system.uptimeSeconds).toBeNull();
+    expect(r.identity.model).toBeNull();
+  });
+});
 
 const U8 = (a) => Uint8Array.from(a);
 const text = (t) => new TextDecoder().decode(t.value);

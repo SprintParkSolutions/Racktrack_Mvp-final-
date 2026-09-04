@@ -99,4 +99,54 @@ router.get('/:id/data', (req, res) => {
   res.json(data);
 });
 
+// ── The phone does the reading ──────────────────────────────────────────
+//
+// /test and /collect above have the SERVER talk to the switch, which works
+// when the server sits on the customer's network and never otherwise: from
+// demo.racktrack.ai a 10.x address is unreachable, full stop. The phone
+// standing next to the rack is on the right network, so it takes the reading
+// (client/src/utils/snmpClient.js) and posts it up. These two routes are that
+// round trip. Credentials stay encrypted at rest here and are handed only to
+// the signed-in caller, only when asked, and never cached.
+
+/** The login for this switch, in the form the phone's SNMP client takes. */
+router.get('/:id/credentials', (req, res) => {
+  if (!switches.find(req.params.id)) return res.status(404).json({ error: 'No switch with that id.' });
+  const c = switches.credentials(req.params.id);
+  if (!c) return res.status(428).json(NO_CREDENTIALS);
+  const out = { host: c.host, port: c.port, version: c.version };
+  if (c.version === 'v3') {
+    out.username = c.username;
+    out.securityLevel = c.securityLevel;
+    // authKey / privKey are deliberately NOT sent. Nothing on the phone speaks
+    // authNoPriv or authPriv yet, and a secret that is not needed should not
+    // travel. When the phone learns those levels, send them here — and only then.
+  } else {
+    out.community = c.community;
+  }
+  res.set('Cache-Control', 'no-store');
+  res.json(out);
+});
+
+/** A reading the phone took, stored exactly as if the server had taken it. */
+router.post('/:id/reading', (req, res) => {
+  if (!switches.find(req.params.id)) return res.status(404).json({ error: 'No switch with that id.' });
+  const data = req.body;
+  if (!data || typeof data !== 'object' || !Array.isArray(data.interfaces)
+      || !data.system || typeof data.system !== 'object') {
+    return res.status(400).json({ error: 'That is not a switch reading.' });
+  }
+  const stored = {
+    ...data,
+    collectedAt: data.collectedAt || new Date().toISOString(),
+    source: data.source || 'phone',
+  };
+  // Same three writes the server-side reader makes, so the inventory list and
+  // the "last test" indicator cannot tell who took the reading.
+  switches.saveData(req.params.id, stored);
+  switches.recordCollected(req.params.id, stored);
+  switches.recordTest(req.params.id, { ok: true, sysName: stored.system.sysName || null });
+  res.json({ ok: true, counts: stored.counts || null, collectedAt: stored.collectedAt });
+});
+
 module.exports = router;

@@ -611,3 +611,65 @@ export async function readSwitch(config, onProgress = () => {}) {
     },
   };
 }
+
+/**
+ * The phone's reading, in the shape the server stores.
+ *
+ * The NetBox side of the server was written for readings its own collector
+ * took, and everything downstream — reconcile, the review screen, the export
+ * — consumes that one shape (see any data/netbox/switch-data/*.json). Now the
+ * phone takes the reading and posts it up, so it has to arrive looking the
+ * same. Fields the phone does not read (MTU, duplex, PVID, per-port MAC, VLANs,
+ * ARP, IP addresses) are null or empty rather than guessed — an absent value
+ * is a fact, an invented one is a liability. `source` says who read it.
+ */
+export function toServerReading(r, { tookMs = null } = {}) {
+  const interfaces = (r.interfaces || []).map((i) => ({
+    ifIndex: i.index,
+    name: i.name,
+    alias: i.descr ?? null,
+    type: 'ethernet',
+    operStatus: i.up ? 'up' : 'down',
+    adminStatus: i.enabled ? 'up' : 'down',
+    speedMbps: i.speedMbps ?? null,
+    mtu: null, duplex: null, pvid: null, mac: null,
+  }));
+  const neighbours = (r.neighbours || []).map((n) => ({
+    localPort: n.localPort ?? null,
+    localPortName: null,
+    remoteSysName: n.sysName ?? null,
+    remotePortDesc: null,
+    remotePortId: n.port ?? null,
+    chassisId: null,
+  }));
+  const model = r.model ?? null;
+  return {
+    collectedAt: new Date().toISOString(),
+    tookMs,
+    source: 'phone',
+    localChassisId: null,
+    identity: {
+      model, serial: r.serial ?? null, manufacturer: r.vendor ?? null,
+      hardwareRev: null, firmwareRev: null, softwareRev: null,
+      stackMembers: 0, members: [],
+    },
+    system: {
+      sysName: r.sysName ?? null,
+      sysDescr: r.sysDescr ?? null,
+      sysLocation: null, sysContact: null,
+      uptimeSeconds: r.uptime != null ? Math.floor(Number(r.uptime) / 100) : null,
+      vendor: r.vendor ?? null,
+      derivedModel: model,           // the server's own name for "model read out of sysDescr"
+    },
+    interfaces,
+    neighbours,
+    vlans: [], ipAddrs: [], arp: [], macs: null,
+    counts: {
+      interfaces: interfaces.length,
+      interfacesUp: interfaces.filter((i) => i.operStatus === 'up').length,
+      neighbours: neighbours.length,
+      vlans: 0, ipAddrs: 0, arp: 0, macs: null,
+    },
+    gaps: [...(r.gaps || [])],
+  };
+}

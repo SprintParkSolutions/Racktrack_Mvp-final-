@@ -13,6 +13,10 @@ const store = require('../../lib/netbox/store');
 const switches = require('../../lib/netbox/switches');
 const reconcile = require('../../lib/netbox/reconcile');
 const report = require('../../lib/netbox/report');
+// RackTrack's own libraries: who may touch which rack, and where its scans live.
+const tenant = require('../../lib/tenant');
+const { rackOwnershipParam } = require('../../lib/rack_access');
+const { logger } = require('../../lib/observability');
 
 const router = express.Router();
 
@@ -79,6 +83,84 @@ router.get('/rack/:rackId/history', (req, res) => {
  * queue would be machinery without a problem to solve yet. When video or
  * multi-rack lands, this becomes a queued job and the UI polls.
  */
+// ── Adopt a RackTrack rack ────────────────────────────────────────────────
+//
+// RackTrack has already photographed and detected the rack: the engine's
+// output sits in outputs/<rackId>/ (device_unit_map.json, original_image.jpg).
+// The NetBox side keeps its own scan records, so the Review and Export steps
+// need one that points at that existing work rather than re-uploading and
+// re-detecting the same photo. Adopt builds the NetBox-shaped snapshot from
+// the engine output already on disk — the same converter the detect step
+// below uses — and files it as a scan of this rack.
+//
+// Idempotent: a rack is adopted once and asking again returns the same record,
+// so every step can call it freely. ?refresh=1 rebuilds the snapshot from the
+// current detection (and drops any review done against the old one).
+//
+// Every :rackId on this router is checked against the caller with the same
+// guard the rest of RackTrack uses — a rack you cannot see is a 404 here too.
+const OUTPUTS_DIR = process.env.RT_OUTPUTS_DIR || path.resolve(__dirname, '..', '..', '..', 'outputs');
+
+router.param('rackId', rackOwnershipParam({ tenant, logger }));
+
+router.post('/adopt/:rackId', (req, res) => {
+  const { rackId } = req.params;
+  const existing = store.scansForRack(rackId).find((s) => s.source === 'adopted');
+  if (existing && !req.query.refresh) {
+    return res.json({ id: existing.id, rackId, adopted: false, createdAt: existing.createdAt });
+  }
+
+  const dir = path.join(OUTPUTS_DIR, rackId);
+  const mapFile = path.join(dir, 'device_unit_map.json');
+  if (!fs.existsSync(mapFile)) {
+    return res.status(409).json({
+      error: 'This rack has no detection result yet.',
+      hint: 'Scan it first — the Physical step has to run before anything after it can.',
+    });
+  }
+
+  let map;
+  try { map = JSON.parse(fs.readFileSync(mapFile, 'utf8')); }
+  catch (err) { return res.status(500).json({ error: `The detection result could not be read: ${err.message}` }); }
+
+  const image = ['original_image.jpg', 'original_image.jpeg', 'original_image.png']
+    .map((f) => path.join(dir, f)).find((p) => fs.existsSync(p)) || null;
+  let meta = {};
+  try { meta = JSON.parse(fs.readFileSync(path.join(dir, 'scan_meta.json'), 'utf8')); } catch { /* optional */ }
+
+  // Names are a person's to give, never invented: the caller may pass them,
+  // otherwise the rack keeps its id and the site is the product's own name.
+  const siteName = String((req.body && req.body.siteName) || 'RackTrack').trim();
+  const rackName = String((req.body && req.body.rackName) || rackId).trim();
+  const scannedAt = meta.timestamp || new Date().toISOString();
+
+  let snapshot;
+  try {
+    snapshot = cv.toSnapshot(map, { rackId, siteName, rackName, uHeight: cfg.U_HEIGHT, scannedAt });
+  } catch (err) {
+    return res.status(500).json({ error: `The detection result could not be converted: ${err.message}` });
+  }
+  const payload = {
+    snapshot, siteName, rackName,
+    adoptedFrom: rackId, adoptedAt: new Date().toISOString(), engineOutput: dir,
+  };
+
+  let rec;
+  if (existing) {
+    store.setPayload(existing.id, payload);
+    rec = existing;
+  } else {
+    rec = store.addScan({
+      rackId, source: 'adopted', imagePath: image,
+      imageHash: meta.imageHash || null, rackName, siteName, payload,
+    });
+  }
+  const devices = (map.devices || []).length;
+  store.recordStage(rec.id, 'capture', 'ok', 'adopted from the RackTrack scan');
+  store.recordStage(rec.id, 'detect', 'ok', `${devices} device${devices === 1 ? '' : 's'} from the existing detection`);
+  res.status(existing ? 200 : 201).json({ id: rec.id, rackId, adopted: true, devices });
+});
+
 router.post('/', upload.single('image'), async (req, res) => {
   const engine = cv.engineStatus();
   if (!engine.ready) {
