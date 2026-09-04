@@ -17,6 +17,7 @@ const report = require('../../lib/netbox/report');
 const tenant = require('../../lib/tenant');
 const { rackOwnershipParam } = require('../../lib/rack_access');
 const { logger } = require('../../lib/observability');
+const { db: authDb } = require('../../auth');   // for the site's name, nothing else
 
 const router = express.Router();
 
@@ -128,11 +129,45 @@ router.post('/adopt/:rackId', (req, res) => {
   let meta = {};
   try { meta = JSON.parse(fs.readFileSync(path.join(dir, 'scan_meta.json'), 'utf8')); } catch { /* optional */ }
 
-  // Names are a person's to give, never invented: the caller may pass them,
-  // otherwise the rack keeps its id and the site is the product's own name.
-  const siteName = String((req.body && req.body.siteName) || 'RackTrack').trim();
+  // Names are a person's to give, never invented. The caller may pass them;
+  // failing that the site is the name someone gave the Site this rack was
+  // scanned under, and the rack keeps its id.
+  let siteName = String((req.body && req.body.siteName) || '').trim();
+  if (!siteName && meta.tenantId) {
+    try {
+      siteName = authDb.prepare('SELECT name FROM tenants WHERE id = ?').get(Number(meta.tenantId))?.name || '';
+    } catch { /* an older schema without a name column: fall through */ }
+  }
+  if (!siteName) siteName = 'RackTrack';
   const rackName = String((req.body && req.body.rackName) || rackId).trim();
   const scannedAt = meta.timestamp || new Date().toISOString();
+
+  // The map may carry the photo's path from wherever the engine ran; point it
+  // at the file that is actually here, or at nothing.
+  map.image = image || '';
+
+  // RackTrack's OCR pass keeps make and model in ocr_devices.json, keyed by
+  // rack position, not in the unit map. Fold the rows that actually read
+  // something in under the names the converter looks for (ocr_make,
+  // ocr_model), so an adopted rack exports the model RackTrack already read
+  // rather than "Unidentified". Rows marked failed or skipped carry nothing
+  // trustworthy and are left out; the device then takes the honest
+  // "Unidentified <class>" path.
+  try {
+    const ocr = JSON.parse(fs.readFileSync(path.join(dir, 'ocr_devices.json'), 'utf8'));
+    const rows = (ocr.devices || []).filter((r) =>
+      ['ocr_full', 'ocr_make_only'].includes(String(r.source || '')) || Number(r.match_conf) > 0);
+    const posOf = (u) => `U${String(parseInt(String(u).replace(/\D/g, ''), 10)).padStart(2, '0')}`;
+    for (const d of map.devices || []) {
+      if (!Array.isArray(d.units) || !d.units.length) continue;
+      const first = posOf(d.units[0]);
+      const row = rows.find((r) => r.position === first && r.class_name === d.class_name)
+        || rows.find((r) => r.position === first);
+      if (!row) continue;
+      if (row.make && !d.ocr_make) d.ocr_make = row.make;
+      if (row.model && !d.ocr_model) d.ocr_model = row.model;
+    }
+  } catch { /* no OCR file is fine: the camera's classes stand on their own */ }
 
   let snapshot;
   try {
@@ -140,8 +175,12 @@ router.post('/adopt/:rackId', (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: `The detection result could not be converted: ${err.message}` });
   }
+  // `map` is kept alongside the snapshot, as the detect step keeps it: GET /:id
+  // derives the detection boxes from payload.map, and without it the Review
+  // page's pick-from-photo has nothing to draw and every adopted scan reports
+  // "no detections" while plainly having them.
   const payload = {
-    snapshot, siteName, rackName,
+    snapshot, map, siteName, rackName,
     adoptedFrom: rackId, adoptedAt: new Date().toISOString(), engineOutput: dir,
   };
 
@@ -150,9 +189,12 @@ router.post('/adopt/:rackId', (req, res) => {
     store.setPayload(existing.id, payload);
     rec = existing;
   } else {
+    // imageHash is left null on purpose: RackTrack's scan_meta carries a SHA-256
+    // of the file, the NetBox side's similarity search compares perceptual
+    // hashes, and one would be mistaken for the other.
     rec = store.addScan({
       rackId, source: 'adopted', imagePath: image,
-      imageHash: meta.imageHash || null, rackName, siteName, payload,
+      imageHash: null, rackName, siteName, payload,
     });
   }
   const devices = (map.devices || []).length;
