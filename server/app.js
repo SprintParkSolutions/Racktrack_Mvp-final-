@@ -601,6 +601,47 @@ try {
     'lab devices router not loaded');
 }
 
+// RackTrack for NetBox — the standalone build's server, folded in as one unit
+// under lib/netbox and routes/netbox, mounted under /api/nb/*. Nothing here
+// touches an existing route: /api/scans is v1's, /api/nb/scans is this.
+//
+// OWNER-ONLY for now. The NetBox build had no login at all and its store has
+// no tenant column, so until scans and switches are scoped per organisation,
+// exposing it to org admins would show every tenant's switches to every
+// tenant — the same reasoning that keeps /api/lab owner-only.
+//
+// Its libs read their environment at require time, so the paths have to be
+// settled before the first one loads:
+//   RT_DATA_DIR    where it keeps scans, uploads, switch credentials and its
+//                  encryption key. Its own subfolder, away from auth.db.
+//   RT_ENGINE_DIR  the Python CV engine. The NetBox build carried its own copy;
+//                  its Models, switch_ocr, firmware_lookup and config.json are
+//                  byte-identical to the ones at this repo's root, so it points
+//                  here instead of duplicating 3 GB of weights.
+//   RT_PYTHON      the interpreter. PYTHON_CMD is what the rest of this server
+//                  already honours, so it wins; then the repo venv; then PATH.
+try {
+  const repoRoot = path.resolve(__dirname, '..');
+  if (!process.env.RT_DATA_DIR) process.env.RT_DATA_DIR = path.join(__dirname, 'data', 'netbox');
+  if (!process.env.RT_ENGINE_DIR) process.env.RT_ENGINE_DIR = repoRoot;
+  if (!process.env.RT_PYTHON) {
+    const venvPy = path.join(repoRoot, '.venv', 'bin', 'python');
+    process.env.RT_PYTHON = process.env.PYTHON_CMD
+      || (fs.existsSync(venvPy) ? venvPy : 'python3');
+  }
+  const nbOwner = auth.requireRole('owner');   // authenticates too — see requireRole
+  app.use('/api/nb/scans',      nbOwner, require('./routes/netbox/scans'));
+  app.use('/api/nb/netbox',     nbOwner, require('./routes/netbox/netbox'));
+  app.use('/api/nb/switches',   nbOwner, require('./routes/netbox/switches'));
+  app.use('/api/nb/unmanaged',  nbOwner, require('./routes/netbox/unmanaged'));
+  app.use('/api/nb/connectors', nbOwner, require('./routes/netbox/connectors'));
+  logger.info({ event: 'router.loaded', router: 'netbox', prefix: '/api/nb' },
+    'NetBox routers loaded');
+} catch (err) {
+  logger.warn({ event: 'router.load_failed', router: 'netbox', err: err.message },
+    'NetBox routers not loaded');
+}
+
 // Demo tenant-mat — a prototype dataset for the /demo/topology UI.
 //
 // Gated like mock_routes, and for a stronger reason than "it's only demo

@@ -248,3 +248,7 @@ client/coverage/
 # app actually ships is client/public/racktrack-bot.glb - greyscaled to the app
 # theme and resized for mobile, 0.9 MB. Keep the original out of the tree.
 cute+robot+3d+model_Clone1.glb
+
+# RackTrack for NetBox — scans, uploads, switch credentials and their
+# encryption key. Created by server/lib/netbox at first load. Never commit.
+server/data/netbox/
