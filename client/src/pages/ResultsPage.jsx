@@ -4850,6 +4850,28 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       {/* ── Action sheet ── */}
       <div className={styles.sheet}>
 
+        {/* What next. After seeing the rack a person does one of two things:
+            reads its switches — the Network step of the chain — or looks at
+            one port. Both offered here, first, in those words. */}
+        {!ticketMode && phase !== 'all' && (
+          <div className={styles.stepChoices}>
+            <button
+              type="button"
+              className={`${styles.stepChoice} ${styles.stepChoicePrimary}`}
+              onClick={() => navigate(`/results/${encodeURIComponent(rackId)}/network`)}
+            >
+              Go to Network
+            </button>
+            <button
+              type="button"
+              className={`${styles.stepChoice} ${styles.stepChoiceSecondary}`}
+              onClick={() => setDeviceListOpen(true)}
+            >
+              Select a port
+            </button>
+          </div>
+        )}
+
         {/* Manual-mode device dropdown — alternative to tapping the hero
             rectangle (mobile-friendly). Hidden in ticket-mode and when the
             all-devices view is up. */}

@@ -30,8 +30,12 @@ export function networkState(rackId) {
   return rackId ? (getJSON(NETWORK_STATE(rackId), null) || null) : null;
 }
 
+// Which downstream steps have a page yet. Flipped as each lands; a step
+// without one shows locked with "Coming next" rather than a broken link.
+export const STEPS_READY = { report: false, export: false };
+
 export function chainSteps(rackId, location, opts = {}) {
-  const { reviewReady = false, exportReady = false, reportTo = null } = opts;
+  const { reportReady = STEPS_READY.report, exportReady = STEPS_READY.export } = opts;
   const base = `/results/${encodeURIComponent(rackId)}`;
   const path = location?.pathname || '';
   const net = networkState(rackId);
@@ -40,6 +44,9 @@ export function chainSteps(rackId, location, opts = {}) {
   const at = (p) => path === p;
   const stateFor = (p, done) => (at(p) ? 'current' : done ? 'done' : 'todo');
 
+  // Scan → Physical → Network → Report → Export. Compare and Review return to
+  // the chain when they are built; until then they would only be locked
+  // entries between steps that work, which is noise.
   return [
     { key: 'scan', label: 'Scan', to: '/scan', state: 'done',
       hint: 'Photographed' },
@@ -47,16 +54,12 @@ export function chainSteps(rackId, location, opts = {}) {
       hint: 'What the camera saw' },
     { key: 'network', label: 'Network', to: `${base}/network`, state: stateFor(`${base}/network`, netDone),
       hint: netDone ? `${net.read} read · ${net.up} up` : 'Read the switches' },
-    { key: 'compare', label: 'Compare', to: null, state: 'locked',
-      hint: 'Next: against NetBox' },
-    { key: 'review', label: 'Review', to: reviewReady ? `${base}/review` : null,
-      state: reviewReady ? stateFor(`${base}/review`, false) : 'locked',
-      hint: reviewReady ? 'Settle what disagrees' : 'Coming next' },
+    { key: 'report', label: 'Report', to: reportReady ? `${base}/report` : null,
+      state: reportReady ? stateFor(`${base}/report`, false) : 'locked',
+      hint: reportReady ? 'Rack + network, one page' : 'Coming next' },
     { key: 'export', label: 'Export', to: exportReady ? `${base}/export` : null,
       state: exportReady ? stateFor(`${base}/export`, false) : 'locked',
-      hint: exportReady ? 'Preview, then push' : 'Coming next' },
-    { key: 'report', label: 'Report', to: reportTo, state: reportTo ? 'todo' : 'locked',
-      hint: reportTo ? 'The rack report' : 'Coming next' },
+      hint: exportReady ? 'To NetBox' : 'Coming next' },
   ];
 }
 
@@ -83,10 +86,10 @@ export const Mark = ({ state, n }) => {
  * return true to say "handled" (the Overview tab case); otherwise the step
  * navigates to its route.
  */
-export default function RackChain({ rackId, onStep, reviewReady, exportReady, reportTo, className = '' }) {
+export default function RackChain({ rackId, onStep, reportReady, exportReady, className = '' }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const steps = chainSteps(rackId, location, { reviewReady, exportReady, reportTo });
+  const steps = chainSteps(rackId, location, { reportReady, exportReady });
   const done = steps.filter((s) => s.state === 'done').length;
 
   const go = (s) => {

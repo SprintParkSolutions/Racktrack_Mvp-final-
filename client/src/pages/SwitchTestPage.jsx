@@ -194,14 +194,8 @@ export default function SwitchTestPage() {
       </header>
 
       <div className={styles.scroll}>
-      <div className={styles.intro}>
-        <p>
-          Your switches, read <strong>directly from this phone</strong> over SNMP.
-          Every value comes from the switch itself — nothing is guessed.
-        </p>
-      </div>
-
-      {/* One line that says how the rack's network stands, before any detail. */}
+      {/* One line that says how the rack's network stands, before any detail.
+          No introduction above it: the numbers are the introduction. */}
       {switches.length > 0 && (() => {
         const read = switches.filter((s) => results[s.id]?.kind === 'full');
         const ports = read.reduce((n, s) => n + (results[s.id].counts?.ports || 0), 0);
@@ -220,7 +214,7 @@ export default function SwitchTestPage() {
 
       {switches.length === 0 && !form && (
         <div className={styles.empty}>
-          <p>No switches yet.</p>
+          <p>No switches on this rack yet. Add one and read it — every value comes from the switch itself.</p>
           <button type="button" className={styles.primary} onClick={() => setForm(BLANK)}>
             Add a switch
           </button>
@@ -333,7 +327,9 @@ export default function SwitchTestPage() {
                     </span>
                   </div>
 
-                  {r.sysDescr && <p className={styles.descr}>{r.sysDescr}</p>}
+                  {/* The description is only worth the space when it is the
+                      only identity the switch gave. */}
+                  {!r.model && r.sysDescr && <p className={styles.descr}>{r.sysDescr}</p>}
 
                   {r.kind === 'full' && (
                     <>
