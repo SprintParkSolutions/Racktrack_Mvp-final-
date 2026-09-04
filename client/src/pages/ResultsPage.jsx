@@ -1229,6 +1229,16 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   // tab change pushes the previous tab onto this stack.
   const tabHistoryRef = useRef([]);
   const handleTabChange = (newTab) => {
+    // Network is the live switches, read from this phone over SNMP. It is a
+    // page of its own rather than a tab of this one, because reading a switch
+    // is work with its own state — credentials, a reading, where it sits in
+    // the rack — not another view of the photograph.
+    if (newTab === 'network' || newTab === 'report') {
+      // urlRackId first: it is the id in the address bar and is set before the
+      // scan result has loaded, whereas `rackId` comes out of that result.
+      navigate(`/results/${encodeURIComponent(urlRackId || rackId || scanId)}/${newTab}`);
+      return;
+    }
     setTab(prev => {
       if (prev !== newTab) tabHistoryRef.current.push(prev);
       return newTab;
@@ -4860,7 +4870,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
             <button
               type="button"
               className={`${styles.stepChoice} ${styles.stepChoicePrimary}`}
-              onClick={() => navigate(`/results/${encodeURIComponent(rackId)}/network`)}
+              onClick={() => navigate(`/results/${encodeURIComponent(urlRackId || rackId)}/network`)}
             >
               Go to Network
             </button>
@@ -5182,11 +5192,6 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       )}
 
       {/* ── Tab: Network ── */}
-      {tab === 'network' && (
-        <div className={styles.tabContent}>
-          <NetdiscoContent rackId={rackId || scanId} />
-        </div>
-      )}
 
       {/* ── Tab: Switches ── */}
       {tab === 'switches' && (

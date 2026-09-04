@@ -1,23 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './ScanTabBar.module.css';
 
-// The rack's tab bar on a phone: Overview, Topology, Drift, and More.
+// The rack's tab bar on a phone: Overview, Network, Topology, Drift, More.
 //
-// Ports is gone — the Network step reads the switches themselves over SNMP,
-// which is what Ports was trying to do over SSH from a server that could never
-// reach them. Network and Report are not tabs of this page: they are their own
-// screens, reached from the buttons under the rack (Go to Network) and from
-// Network's own footer, so the order of the work stays visible where the work
-// is rather than as a menu to be decoded.
+// Ports is gone. Network IS the live switches now — read from this phone over
+// SNMP — which is what Ports was trying to do over SSH from a server that
+// could never reach them, and what the Netdisco "Discovery" view only ever
+// showed second-hand. Network and Report open their own screens; the page
+// handles that in onTabChange.
 const PRIMARY_TABS = [
   { key: 'overview',  label: 'Overview',  icon: <IconRack /> },
+  { key: 'network',   label: 'Network',   icon: <IconNetwork /> },
   { key: 'topology',  label: 'Topology',  icon: <IconTopology /> },
   { key: 'drift',     label: 'Drift',     icon: <IconDrift /> },
 ];
 
 const MORE_TABS = [
+  { key: 'report',    label: 'Report',    icon: <IconReport /> },
   { key: 'switches',  label: 'Switches',  icon: <IconSwitch /> },
-  { key: 'network',   label: 'Discovery', icon: <IconNetwork /> },
 ];
 
 export default function ScanTabBar({ activeTab, onTabChange, badges = {} }) {
@@ -148,6 +148,15 @@ function IconSwitch() {
       <circle cx="18" cy="5.5" r="1.2" fill="currentColor" stroke="none"/>
       <circle cx="18" cy="12.5" r="1.2" fill="currentColor" stroke="none"/>
       <circle cx="18" cy="19.5" r="1.2" fill="currentColor" stroke="none"/>
+    </svg>
+  );
+}
+
+function IconReport() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>
     </svg>
   );
 }
