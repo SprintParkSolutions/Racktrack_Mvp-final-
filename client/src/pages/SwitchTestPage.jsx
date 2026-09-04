@@ -64,13 +64,18 @@ export default function SwitchTestPage() {
     setJSON(STORE, next);
   }, []);
 
-  const add = () => {
+  // Add and edit share one form. Editing exists because a DHCP lease moves:
+  // the TP-Links went from .101/.102 to .11/.12 between one week and the next,
+  // and "remove it and type everything again" is the wrong answer to that.
+  const openEdit = (sw) => setForm({ ...BLANK, ...sw });
+
+  const save = () => {
     const host = String(form.host || '').trim();
     if (!host) return;
     const version = form.version === 'v3' ? 'v3' : 'v2c';
     if (version === 'v3' && !String(form.username || '').trim()) return;
     const entry = {
-      id: `sw_${Date.now()}`,
+      id: form.id || `sw_${Date.now()}`,
       label: String(form.label || '').trim() || host,
       host,
       port: Number(form.port) || 161,
@@ -79,7 +84,12 @@ export default function SwitchTestPage() {
       username: version === 'v3' ? String(form.username).trim() : undefined,
       securityLevel: version === 'v3' ? 'noAuthNoPriv' : undefined,
     };
-    persist([...switches, entry]);
+    if (form.id) {
+      persist(switches.map((x) => (x.id === form.id ? entry : x)));
+      clearFor(form.id);                // what it said before is about the old address
+    } else {
+      persist([...switches, entry]);
+    }
     setForm(null);
   };
 
@@ -187,14 +197,26 @@ export default function SwitchTestPage() {
                   <h2>{sw.label}</h2>
                   <p>{sw.host}:{sw.port} · {dialect(sw)}</p>
                 </div>
-                <button
-                  type="button"
-                  className={styles.del}
-                  onClick={() => remove(sw)}
-                  aria-label={`Remove ${sw.label}`}
-                >
-                  Remove
-                </button>
+                <div className={styles.cardTools}>
+                  <button
+                    type="button"
+                    className={styles.del}
+                    disabled={working}
+                    onClick={() => openEdit(sw)}
+                    aria-label={`Edit ${sw.label}`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.del}
+                    disabled={working}
+                    onClick={() => remove(sw)}
+                    aria-label={`Remove ${sw.label}`}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
 
               <div className={styles.actions}>
@@ -318,7 +340,7 @@ export default function SwitchTestPage() {
       {/* ── Add ── */}
       {form ? (
         <section className={styles.form}>
-          <h2>Add a switch</h2>
+          <h2>{form.id ? `Edit ${form.label || 'switch'}` : 'Add a switch'}</h2>
 
           <label className={styles.field}>
             <span>Name it</span>
@@ -418,7 +440,7 @@ export default function SwitchTestPage() {
             <button type="button" className={styles.secondary} onClick={() => setForm(null)}>
               Cancel
             </button>
-            <button type="button" className={styles.primary} onClick={add}>
+            <button type="button" className={styles.primary} onClick={save}>
               Save
             </button>
           </div>

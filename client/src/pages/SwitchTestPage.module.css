@@ -87,12 +87,14 @@
   margin: 2px 0 0; font-size: 12.5px; color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+.cardTools { flex: none; display: flex; gap: 12px; align-items: baseline; }
 .del {
   flex: none;
   background: none; border: 0; padding: 4px 2px;
   color: var(--muted); font-size: 12.5px; cursor: pointer;
   text-decoration: underline; text-underline-offset: 2px;
 }
+.del:disabled { opacity: .45; cursor: default; }
 
 /* ── Buttons ── */
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
