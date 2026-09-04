@@ -283,3 +283,9 @@
 :global([data-theme='light']) .fluid::-webkit-scrollbar-thumb {
   background: rgba(0,0,0,0.18);
 }
+
+/* Chain steps in the sidebar: the same four states as the phone bar. */
+.chainMark { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; border: 1.5px solid currentColor; opacity: .85; flex: none; }
+.chainDone .chainMark { background: #0f7b4f; border-color: #0f7b4f; color: #fff; opacity: 1; }
+.chainLocked { opacity: .5; cursor: default; }
+.chainLocked .chainMark { border-style: dashed; }

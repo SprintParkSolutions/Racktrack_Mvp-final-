@@ -446,6 +446,12 @@ export default function App() {
             <Route path="/switch-test" element={
               <ProtectedRoute><ResponsiveLayout withBottomNav><SwitchTestPage /></ResponsiveLayout></ProtectedRoute>
             } />
+            {/* The Network step of a rack's chain: the same page, scoped to one
+                rack. Its switches are filed against the rack, and what it read
+                lights the step up in the chain. */}
+            <Route path="/results/:rackId/network" element={
+              <ProtectedRoute><ResponsiveLayout withBottomNav><SwitchTestPage /></ResponsiveLayout></ProtectedRoute>
+            } />
             {/* Ground Truth — technicians verify what the model detected.
                 Owner-only for now (OwnerRoute); the page also refuses non-owners
                 and the server API is requireRole('owner'). */}

@@ -5,6 +5,7 @@ import styles from './DesktopShell.module.css';
 import ThemeToggle from './ThemeToggle.jsx';
 import { useAuth } from '../AuthContext';
 import { usePrimaryNav, GroundTruthIcon } from '../nav/navLinks.jsx';
+import { chainSteps, Mark as ChainMark } from './RackChain.jsx';
 import { ShellHeaderContext } from './ShellHeader.jsx';
 
 // Persistent record of the last rack the user opened. Once an image has
@@ -228,12 +229,14 @@ export default function DesktopShell({ children }) {
   // ?group, so they stay single everywhere.
   const groupParam = new URLSearchParams(location.search).get('group');
   const gq = groupParam ? `?group=${encodeURIComponent(groupParam)}` : '';
+  // The views that are not steps of the chain — things you look at rather than
+  // complete. Overview is the chain's Physical step and Ports is superseded by
+  // its Network step, so neither is listed here; Netdisco is Discovery now,
+  // because the chain's own Network step took the word.
   const rackLinks = rackId ? [
-    { to: `/results/${rackId}${gq}`,           label: 'Overview', icon: <OverviewIcon />, end: true,  active: onRackRoot && !isDriftView },
-    { to: `/results/${rackId}/ports${gq}`,     label: 'Ports',    icon: <PortsIcon />,    end: false },
-    { to: `/results/${rackId}/topology${gq}`,  label: 'Topology', icon: <TopologyIcon />, end: false },
-    { to: `/results/${rackId}/netdisco${gq}`,  label: 'Network',  icon: <NetworkIcon />,  end: false },
-    { to: `/switch-info/${rackId}${gq}`,       label: 'Switches', icon: <SwitchesIcon />, end: false },
+    { to: `/results/${rackId}/topology${gq}`,  label: 'Topology',  icon: <TopologyIcon />, end: false },
+    { to: `/switch-info/${rackId}${gq}`,       label: 'Switches',  icon: <SwitchesIcon />, end: false },
+    { to: `/results/${rackId}/netdisco${gq}`,  label: 'Discovery', icon: <NetworkIcon />,  end: false },
     // Drift has no separate route today — it's a sub-view inside ResultsPage
     // activated by the #drift hash; its active state comes from that hash.
     { to: `/results/${rackId}${gq}#drift`,     label: 'Drift',    icon: <DriftIcon />,    end: false, active: isDriftView },
@@ -262,6 +265,35 @@ export default function DesktopShell({ children }) {
             </li>
           ))}
         </ul>
+
+        {/* The chain: the rack as one job with steps, same definition as the
+            phone's bottom bar (RackChain.chainSteps) so the two cannot drift.
+            Physical is the Overview; a locked step says why it is locked. */}
+        {rackId && (
+          <>
+            <div className={styles.navSection}>Workflow · {rackId}</div>
+            <ol className={styles.navLinks}>
+              {chainSteps(rackId, location).map((s, i) => (
+                <li key={s.key}>
+                  {s.state === 'locked' || !s.to ? (
+                    <span className={`${styles.navLink} ${styles.chainLocked}`} title={`${s.label} — ${s.hint}`} aria-disabled="true">
+                      <span className={styles.chainMark}><ChainMark state="locked" n={i + 1} /></span>{s.label}
+                    </span>
+                  ) : (
+                    <NavLink
+                      end
+                      to={s.to}
+                      title={s.hint}
+                      className={() => `${styles.navLink} ${s.state === 'current' ? styles.active : ''} ${s.state === 'done' ? styles.chainDone : ''}`}
+                    >
+                      <span className={styles.chainMark}><ChainMark state={s.state} n={i + 1} /></span>{s.label}
+                    </NavLink>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
 
         {rackLinks.length > 0 && (
           <>

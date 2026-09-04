@@ -4668,8 +4668,11 @@ app.get('/api/ocr/labels/:rackId', (req, res) => {
     });
     for (const group of byBase.values()) {
       if (group.length < 2) continue;
-      // Order by Y (top-down) so suffix /1 is always physically highest.
-      group.sort((a, b) => (dum.devices[a.device_index]?.box?.[1] ?? 0) - (dum.devices[b.device_index]?.box?.[1] ?? 0));
+      // Order bottom-up so suffix /1 is the LOWEST member in the rack. Racks
+      // are numbered from the base (U1 at the bottom) and so is a stack; it
+      // used to sort top-down, which put /1 on the highest member and read as
+      // wrong to anyone standing in front of the rack.
+      group.sort((a, b) => (dum.devices[b.device_index]?.box?.[1] ?? 0) - (dum.devices[a.device_index]?.box?.[1] ?? 0));
       group.forEach((d, i) => {
         // Keep an explicit /N already set (from "STACK MEMBER N" text), otherwise
         // assign by Y-order.

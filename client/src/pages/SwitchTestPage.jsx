@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import { getJSON, setJSON } from '../utils/safeStorage';
 import { testLogin, readSwitch } from '../utils/snmpClient';
@@ -25,7 +25,25 @@ import styles from './SwitchTestPage.module.css';
 // somebody's real infrastructure; storing them on the server would mean asking
 // permission we have not asked for.
 
-const STORE = 'rt_snmp_test_switches';
+// Switches are filed against a rack when the page is opened as a rack's
+// Network step (/results/:rackId/network); the rack-less menu entry keeps the
+// original list. A rack that has none yet inherits the rack-less list once, so
+// the switches someone already typed in show up where the chain needs them.
+const LEGACY_STORE = 'rt_snmp_test_switches';
+const storeKey = (rackId) => (rackId ? `rt_snmp_switches_${rackId}` : LEGACY_STORE);
+const NETWORK_STATE = (rackId) => `rt_network_state_${rackId}`;
+
+/** What the chain shows for this rack's Network step: how much has been read. */
+function saveNetworkState(rackId, resultsMap) {
+  if (!rackId) return;
+  const full = Object.values(resultsMap).filter((r) => r && r.kind === 'full');
+  setJSON(NETWORK_STATE(rackId), {
+    read: full.length,
+    ports: full.reduce((n, r) => n + (r.counts?.ports || 0), 0),
+    up: full.reduce((n, r) => n + (r.counts?.up || 0), 0),
+    at: new Date().toISOString(),
+  });
+}
 
 const BLANK = {
   label: '', host: '', port: 161,
@@ -49,6 +67,8 @@ function uptimeText(ticks) {
 
 export default function SwitchTestPage() {
   const navigate = useNavigate();
+  const { rackId } = useParams();
+  const STORE = storeKey(rackId);
 
   const [switches, setSwitches] = useState([]);
   const [form, setForm] = useState(null);        // null, or the switch being added
@@ -57,12 +77,21 @@ export default function SwitchTestPage() {
   const [results, setResults] = useState({});    // id -> what came back
   const [errors, setErrors] = useState({});      // id -> what went wrong
 
-  useEffect(() => { setSwitches(getJSON(STORE, []) || []); }, []);
+  useEffect(() => {
+    let list = getJSON(STORE, []) || [];
+    if (rackId && list.length === 0) {
+      const inherited = getJSON(LEGACY_STORE, []) || [];
+      if (inherited.length) { list = inherited; setJSON(STORE, list); }
+    }
+    setSwitches(list);
+    setResults({});
+    setErrors({});
+  }, [STORE, rackId]);
 
   const persist = useCallback((next) => {
     setSwitches(next);
     setJSON(STORE, next);
-  }, []);
+  }, [STORE]);
 
   // Add and edit share one form. Editing exists because a DHCP lease moves:
   // the TP-Links went from .101/.102 to .11/.12 between one week and the next,
@@ -123,7 +152,11 @@ export default function SwitchTestPage() {
     setBusy(sw.id); setStep('Starting'); clearFor(sw.id);
     try {
       const data = await readSwitch(sw, setStep);
-      setResults((m) => ({ ...m, [sw.id]: { kind: 'full', ...data } }));
+      setResults((m) => {
+        const next = { ...m, [sw.id]: { kind: 'full', ...data } };
+        saveNetworkState(rackId, next);   // lights the Network step in the chain
+        return next;
+      });
     } catch (e) {
       setErrors((m) => ({ ...m, [sw.id]: { message: e.message, hint: e.hint } }));
     } finally {

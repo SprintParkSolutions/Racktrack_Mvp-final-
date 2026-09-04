@@ -1,21 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './ScanTabBar.module.css';
+import RackChain from './RackChain.jsx';
 
-// Top-level tabs shown directly in the bar.
-const PRIMARY_TABS = [
-  { key: 'overview',  label: 'Overview',  icon: <IconRack /> },
-  { key: 'switches',  label: 'Switches',  icon: <IconSwitch /> },
-  { key: 'ports',     label: 'Ports',     icon: <IconPorts /> },
-  { key: 'topology',  label: 'Topology',  icon: <IconTopology /> },
-];
+// The rack's bottom bar on a phone.
+//
+// It used to be four equal tabs (Overview, Switches, Ports, Topology) with the
+// rest behind More — where Network and Drift lived, and testers reported not
+// knowing they existed. Now the bar IS the chain: Scan → Physical → Network →
+// Compare → Review → Export → Report, each step showing whether it has run.
+// The views that are not steps — things you look at rather than complete —
+// sit behind More: Topology, Switches, Discovery, Drift, and the old Ports.
+//
+// Physical is the one step that is an in-page tab (the Overview) rather than a
+// route, so it switches the tab through onTabChange; everything else navigates.
 
-// Hidden behind the More tab — opens a small sheet above the bar.
 const MORE_TABS = [
-  { key: 'network',   label: 'Network',   icon: <IconNetwork /> },
+  { key: 'topology',  label: 'Topology',  icon: <IconTopology /> },
+  { key: 'switches',  label: 'Switches',  icon: <IconSwitch /> },
+  { key: 'network',   label: 'Discovery', icon: <IconNetwork /> },
   { key: 'drift',     label: 'Drift',     icon: <IconDrift /> },
+  { key: 'ports',     label: 'Ports',     icon: <IconPorts /> },
 ];
 
-export default function ScanTabBar({ activeTab, onTabChange, badges = {} }) {
+export default function ScanTabBar({ rackId, activeTab, onTabChange }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef(null);
 
@@ -36,47 +43,34 @@ export default function ScanTabBar({ activeTab, onTabChange, badges = {} }) {
     };
   }, [moreOpen]);
 
-  const moreActive = MORE_TABS.some(t => t.key === activeTab);
+  const moreActive = MORE_TABS.some((t) => t.key === activeTab);
 
   const selectTab = (key) => {
     onTabChange(key);
     setMoreOpen(false);
   };
 
+  // Physical = the Overview tab of the page we are already on.
+  const onStep = (step) => {
+    if (step.key === 'physical') { selectTab('overview'); return true; }
+    return false;
+  };
+
   return (
-    <nav className={styles.tabBar} role="tablist" aria-label="Scan results tabs">
+    <nav className={styles.tabBar} role="navigation" aria-label="Rack workflow">
       <div className={styles.bar}>
-        {PRIMARY_TABS.map(tab => {
-          const isActive = activeTab === tab.key;
-          const badge = badges[tab.key];
-          return (
-            <button
-              key={tab.key}
-              role="tab"
-              aria-selected={isActive}
-              className={`${styles.tab} ${isActive ? styles.tabActive : ''}`}
-              onClick={() => selectTab(tab.key)}
-              type="button"
-            >
-              <span className={styles.tabIcon}>{tab.icon}</span>
-              <span className={styles.tabLabel}>{tab.label}</span>
-              {badge != null && badge > 0 && (
-                <span className={styles.tabBadge}>{badge}</span>
-              )}
-            </button>
-          );
-        })}
+        <div className={styles.chainWrap}>
+          <RackChain rackId={rackId} onStep={onStep} className={styles.chainInBar} />
+        </div>
 
         {/* More — opens a sheet anchored above this button */}
         <div className={styles.moreWrap} ref={moreRef}>
           <button
-            role="tab"
-            aria-selected={moreActive}
+            type="button"
             aria-haspopup="menu"
             aria-expanded={moreOpen}
             className={`${styles.tab} ${moreActive ? styles.tabActive : ''}`}
-            onClick={() => setMoreOpen(o => !o)}
-            type="button"
+            onClick={() => setMoreOpen((o) => !o)}
           >
             <span className={styles.tabIcon}><IconMore /></span>
             <span className={styles.tabLabel}>More</span>
@@ -84,7 +78,7 @@ export default function ScanTabBar({ activeTab, onTabChange, badges = {} }) {
 
           {moreOpen && (
             <div className={styles.moreSheet} role="menu">
-              {MORE_TABS.map(tab => {
+              {MORE_TABS.map((tab) => {
                 const isActive = activeTab === tab.key;
                 return (
                   <button
@@ -107,19 +101,7 @@ export default function ScanTabBar({ activeTab, onTabChange, badges = {} }) {
   );
 }
 
-// ── Tab icons (20×20, clean stroke style) ───────────────────────
-
-function IconRack() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="2" width="16" height="20" rx="2"/>
-      <line x1="8" y1="6" x2="16" y2="6"/>
-      <line x1="8" y1="10" x2="16" y2="10"/>
-      <line x1="8" y1="14" x2="16" y2="14"/>
-      <line x1="8" y1="18" x2="16" y2="18"/>
-    </svg>
-  );
-}
+// ── Icons (20×20, clean stroke style) ───────────────────────────
 
 function IconPorts() {
   return (

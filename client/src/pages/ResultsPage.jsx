@@ -73,22 +73,41 @@ function formatUnitsRange(units = []) {
   ).join(' ');
 }
 
+// The lowest U a device occupies, for ordering. Units arrive as "u14"; a
+// device with none sorts by its pixel position instead (larger y = lower in
+// the photo = lower in the rack), and after every device that has units.
+function lowestUnit(dev) {
+  const nums = (dev.units || []).map(u => parseInt(String(u).replace(/\D/g, ''), 10)).filter(Number.isFinite);
+  if (nums.length) return Math.min(...nums);
+  const y = Array.isArray(dev.box) ? dev.box[3] : 0;
+  return 10000 - y;   // no unit: rank below every unit-bearing device, bottom first
+}
+
 function buildDeviceLabels(devices, unitsDetected = [], pattern = null) {
   const counts = {};
   const padding = pattern?.padding || 2;
-  return devices.map(dev => {
+  // Number from the BOTTOM of the rack, as racks themselves are numbered (U1
+  // at the base): the lowest switch is SW01, the one above it SW02. The
+  // devices array stays in photo order (top-down) because the picture is drawn
+  // from it; only the sequence each device gets is decided bottom-up.
+  const order = devices.map((dev, idx) => idx)
+    .sort((a, b) => lowestUnit(devices[a]) - lowestUnit(devices[b]));
+  const out = new Array(devices.length);
+  for (const idx of order) {
+    const dev = devices[idx];
     const code = CLASS_CODE[dev.class_name] || dev.class_name.replace(/\s+/g, '').slice(0, 4).toUpperCase();
     counts[code] = (counts[code] || 0) + 1;
     const seq = String(counts[code]).padStart(padding, '0');
     // When OCR detected a real label on this rack, mint matching names for
     // the rest (e.g. RVEW-CORE-SW01 → RVEW-CORE-PDU01) instead of falling
     // back to the unit-prefixed scheme.
-    if (pattern) return `${pattern.prefix}${pattern.sep}${code}${seq}`;
+    if (pattern) { out[idx] = `${pattern.prefix}${pattern.sep}${code}${seq}`; continue; }
     const labelUnits = dev.units?.length ? dev.units : unitsDetected.length ? [unitsDetected[0]] : [];
     const formatted = formatUnitsRange(labelUnits) || 'U01';
     const primaryLabel = formatted.split(' ')[0];
-    return `${primaryLabel}-${code}${seq}`;
-  });
+    out[idx] = `${primaryLabel}-${code}${seq}`;
+  }
+  return out;
 }
 
 function buildPortLabel(deviceLabel, className, portNum) {
@@ -4520,7 +4539,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
             tab === 'switches' ? 'Switches'
             : tab === 'ports'    ? 'Ports'
             : tab === 'topology' ? 'Topology'
-            : tab === 'network'  ? 'Network'
+            : tab === 'network'  ? 'Discovery'
             : tab === 'drift'    ? 'Port History & Drift'
             :                       'Scan Results'
           }</h2>
@@ -4539,6 +4558,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
 
       {!isDesktop && !embeddedProp && (
         <ScanTabBar
+          rackId={rackId}
           activeTab={tab}
           onTabChange={handleTabChange}
           badges={{
