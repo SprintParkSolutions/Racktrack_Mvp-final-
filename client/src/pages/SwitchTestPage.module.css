@@ -1,0 +1,232 @@
+/* Switch test — the phone talking to a switch over SNMP.
+   A throwaway screen for one build, so it borrows the shared tokens from
+   index.css and adds nothing to the design system. Full device width, like
+   every other page. */
+
+.page {
+  position: relative;
+  display: flex; flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+}
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: center; gap: 10px;
+  padding: max(20px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px 4px;
+}
+.backBtn {
+  width: 38px; height: 38px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: #121212; border: 1px solid #121212; color: #ffffff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.title {
+  flex: 1; margin: 0;
+  font-size: 20px; font-weight: 650; letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* ── Intro ── */
+.intro {
+  margin: 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  border-radius: 12px;
+  background: var(--card2);
+}
+.intro p { margin: 0 0 8px; font-size: 14px; line-height: 1.55; color: var(--text); }
+.intro p:last-child { margin-bottom: 0; }
+.introNote { color: var(--muted) !important; }
+
+/* ── Empty ── */
+.empty {
+  margin: 0 16px; padding: 28px 16px;
+  text-align: center;
+  border: 1px dashed var(--border, rgba(0,0,0,.18));
+  border-radius: 12px;
+}
+.empty p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+
+/* ── Cards ── */
+.list { display: flex; flex-direction: column; gap: 14px; padding: 0 16px; }
+
+.card {
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  border-radius: 14px;
+  background: var(--card);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.cardHead { display: flex; align-items: flex-start; gap: 10px; }
+.who { flex: 1; min-width: 0; }
+.who h2 {
+  margin: 0; font-size: 16px; font-weight: 650; color: var(--text);
+  overflow-wrap: anywhere;
+}
+.who p {
+  margin: 2px 0 0; font-size: 12.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.del {
+  flex: none;
+  background: none; border: 0; padding: 4px 2px;
+  color: var(--muted); font-size: 12.5px; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+
+/* ── Buttons ── */
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.primary, .secondary, .addMore {
+  flex: 1 1 auto; min-height: 44px;
+  border-radius: 10px; font-size: 14.5px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  padding: 0 16px;
+}
+.primary { background: #121212; border: 1px solid #121212; color: #fff; }
+.secondary { background: transparent; border: 1px solid var(--border, rgba(0,0,0,.22)); color: var(--text); }
+.primary:disabled, .secondary:disabled { opacity: .5; cursor: default; }
+.addMore { margin: 0 16px; background: transparent; border: 1px dashed var(--border, rgba(0,0,0,.25)); color: var(--text); }
+
+/* ── Working ── */
+.working {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0; font-size: 13.5px; color: var(--muted);
+}
+.spinner {
+  width: 14px; height: 14px; flex: none;
+  border: 2px solid var(--border, rgba(0,0,0,.2));
+  border-top-color: #121212;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* ── Outcomes ── */
+.good, .bad {
+  border-radius: 11px; padding: 12px 13px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.good { background: rgba(15,123,79,.07); border: 1px solid rgba(15,123,79,.28); }
+.bad  { background: rgba(192,57,43,.07); border: 1px solid rgba(192,57,43,.28); }
+.good h3 { margin: 0; font-size: 14px; font-weight: 650; color: #0f7b4f; }
+.bad h3  { margin: 0; font-size: 14px; font-weight: 650; color: #c0392b; }
+.bad p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
+.hint { color: var(--muted) !important; }
+
+.facts { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.facts > div { display: flex; gap: 10px; align-items: baseline; }
+.facts dt {
+  flex: 0 0 84px; margin: 0;
+  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted);
+}
+.facts dd {
+  flex: 1; margin: 0; min-width: 0;
+  font-size: 14px; font-weight: 600; color: var(--text);
+  overflow-wrap: anywhere;
+}
+.facts dd em { font-weight: 400; font-style: normal; color: var(--muted); }
+
+.descr {
+  margin: 0; padding: 9px 10px;
+  background: var(--bg2); border-radius: 8px;
+  font-size: 12.5px; line-height: 1.5; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.counts { display: flex; gap: 16px; flex-wrap: wrap; }
+.counts span { font-size: 13px; color: var(--muted); }
+.counts b {
+  font-size: 17px; color: var(--text); margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Port faceplate. Scrolls inside itself; the page never scrolls sideways. */
+.ports {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  max-height: 168px; overflow-y: auto;
+}
+.port {
+  font-size: 11px; padding: 3px 6px; border-radius: 5px;
+  background: var(--bg2); color: var(--muted);
+  border: 1px solid transparent;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.portUp {
+  background: rgba(15,123,79,.14); color: #0f7b4f;
+  border-color: rgba(15,123,79,.3); font-weight: 600;
+}
+
+.neighbours { margin: 0; padding-left: 18px; }
+.neighbours li { font-size: 13px; color: var(--text); margin-bottom: 4px; overflow-wrap: anywhere; }
+
+.gaps { border-top: 1px dashed var(--border, rgba(0,0,0,.2)); padding-top: 10px; }
+.gaps h4 {
+  margin: 0 0 6px; font-size: 11.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.gaps ul { margin: 0; padding-left: 18px; }
+.gaps li { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin-bottom: 5px; }
+
+.copy {
+  align-self: flex-start;
+  background: transparent; border: 1px solid var(--border, rgba(0,0,0,.25));
+  color: var(--text); border-radius: 8px;
+  min-height: 38px; padding: 0 14px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+
+/* ── Add form ── */
+.form {
+  margin: 0 16px;
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  border-radius: 14px; background: var(--card);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.form h2 { margin: 0; font-size: 16px; font-weight: 650; color: var(--text); }
+.field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+.field span {
+  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.field input {
+  min-height: 46px; padding: 0 12px;
+  border: 1px solid var(--border, rgba(0,0,0,.22));
+  border-radius: 10px;
+  background: var(--bg); color: var(--text);
+  font-size: 16px;   /* 16px or iOS zooms the page on focus */
+  width: 100%;
+}
+.pair { display: flex; gap: 10px; }
+
+/* v2c | v3. A pill pair rather than a select: two choices, and the second
+   line under each says what it will ask for, which is the actual question. */
+.seg {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  padding: 4px; border-radius: 12px;
+  background: var(--bg2); border: 1px solid var(--border, rgba(0,0,0,.14));
+}
+.segBtn {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  min-height: 46px; padding: 6px 8px;
+  border: 1px solid transparent; border-radius: 9px;
+  background: transparent; color: var(--muted);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.segBtn b { font-size: 14px; font-weight: 650; color: inherit; }
+.segBtn small { font-size: 11px; letter-spacing: .01em; }
+.segOn { background: var(--card); color: var(--text); border-color: var(--border, rgba(0,0,0,.18)); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.fieldNote { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.fieldNote code {
+  background: var(--bg2); padding: 1px 5px; border-radius: 4px;
+  font-size: 12px;
+}

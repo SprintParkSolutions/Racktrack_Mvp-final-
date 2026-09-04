@@ -55,6 +55,9 @@ export const HelpIcon = () => (
 export const ContactIcon = () => (
   <svg {...s}><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>
 );
+export const SwitchTestIcon = () => (
+  <svg {...s}><rect x="2" y="8" width="20" height="8" rx="2"/><path d="M6 12h.01M10 12h.01M14 12h.01"/><path d="M18 3v3M16.5 4.5h3"/></svg>
+);
 export const MoreIcon = () => (
   <svg {...s}><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
 );
@@ -103,6 +106,13 @@ export function usePrimaryNav() {
       hint: 'Connect ServiceNow, NetBox and others' }] : []),
     ...(isAdmin ? [{ to: '/marketplace', label: 'Marketplace', icon: <MarketIcon />, end: false,
       hint: 'Buy and sell hardware' }] : []),
+    // Switch test — TEMPORARY, for one build. The phone talks SNMP straight to
+    // a switch instead of asking the server to, which it has never been able to
+    // do from outside a customer's network. Everyone gets it because the whole
+    // point is putting it in front of testers standing next to real switches.
+    // Remove this entry once the question is answered either way.
+    { to: '/switch-test',    label: 'Switch test',  icon: <SwitchTestIcon />,  end: false,
+      hint: 'Read a switch from this phone' },
     { to: '/help',           label: 'Ask DOT',      icon: <HelpIcon />,        end: false,
       hint: 'Answers from verified documentation' },
     // Contact support — reachable directly (not only via DOT's hand-off).

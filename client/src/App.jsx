@@ -16,6 +16,7 @@ import RackResultsRoute from './pages/RackResultsRoute.jsx';
 import { RackSwitchesRoute, RackNetworkRoute, RackPortsRoute } from './pages/SideBySideRacks.jsx';
 import RackTopologyRoute from './pages/RackTopologyRoute.jsx';
 import PortsPage from './pages/PortsPage.jsx';
+import SwitchTestPage from './pages/SwitchTestPage.jsx';
 import TopologyPage from './pages/TopologyPage.jsx';
 import NetdiscoPage from './pages/NetdiscoPage.jsx';
 import HistoryPage from './pages/HistoryPage.jsx';
@@ -436,6 +437,14 @@ export default function App() {
             <Route path="/logs" element={<Navigate to="/dashboard" replace />} />
             <Route path="/connections" element={
               <AdminRoute><ResponsiveLayout><ConnectionsPage /></ResponsiveLayout></AdminRoute>
+            } />
+            {/* Switch test — the phone talking SNMP to a switch directly,
+                instead of asking the server to (which cannot reach a switch
+                inside a customer's network). One build, one question. Open to
+                any signed-in tester: the whole point is getting it in front of
+                people standing next to real switches. */}
+            <Route path="/switch-test" element={
+              <ProtectedRoute><ResponsiveLayout withBottomNav><SwitchTestPage /></ResponsiveLayout></ProtectedRoute>
             } />
             {/* Ground Truth — technicians verify what the model detected.
                 Owner-only for now (OwnerRoute); the page also refuses non-owners

@@ -18,42 +18,29 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<!-- Custom scheme for the social sign-in return trip. The OAuth runs in an
-	     SFSafariViewController (Google refuses to authenticate inside an embedded
-	     WebView), and our own server closes the loop by redirecting to
-	     com.racktrack.app://auth/callback#token=… — the OS then hands that to the
-	     running app as an appUrlOpen event, caught by SocialDeepLinkHandler.
-
-	     Note this scheme is never registered with Google/Apple/Facebook. They
-	     only ever see the HTTPS redirect URI pointing at our server; the hop to
-	     the app is strictly between our backend and this device. -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
-			<key>CFBundleURLName</key>
-			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.racktrack.app</string>
 			</array>
 		</dict>
 	</array>
-	<!-- Export compliance. Without this key every upload lands in App Store
-	     Connect with the encryption question unanswered, which holds the build
-	     back from TestFlight until someone clicks through it by hand — builds 18
-	     to 22 were each answered manually, and build 23 sat undistributed
-	     because nobody had yet. The app only uses standard HTTPS/TLS, which is
-	     exempt, so the answer is always the same one already given six times. -->
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>RackTrack uses your camera to scan and photograph your equipment racks.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>RackTrack reads your network switches directly from this phone, over SNMP, so it never has to send their addresses or passwords off your network.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>RackTrack saves annotated rack scans to your photo library when you choose to.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
