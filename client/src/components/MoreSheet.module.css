@@ -104,7 +104,7 @@
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   padding: 4px 10px 4px;
 }
-.group { display: flex; flex-direction: column; flex: 1 1 auto; justify-content: space-evenly; margin-bottom: 2px; }
+.group { display: flex; flex-direction: column; flex: 1 1 auto; justify-content: space-evenly; gap: 4px; margin-bottom: 2px; }
 /* A group with no heading sits under a hairline instead. */
 .group:not(:has(.groupTitle)) { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(12, 20, 32, .08); }
 .groupTitle {
@@ -161,7 +161,7 @@
 .foot {
   border-top: 1px solid rgba(12, 20, 32, .08);
   padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px));
-  display: flex; flex-direction: column; gap: 0;
+  display: flex; flex-direction: column; gap: 4px;
 }
 .footRow {
   display: flex; align-items: center; gap: 12px;
