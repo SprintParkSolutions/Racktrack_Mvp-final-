@@ -100,3 +100,26 @@
 }
 @keyframes donePop { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .done { animation: none; } }
+
+/* The full list behind the tally. */
+.viewAll {
+  align-self: flex-start; margin-top: 6px;
+  border: 0; background: transparent; padding: 4px 0;
+  color: #0f7b4f; font-family: var(--font); font-size: 14px; font-weight: 650; cursor: pointer;
+}
+.all {
+  list-style: none; margin: 4px 0 0; padding: 0;
+  max-height: 40vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  border-top: 1px solid var(--border, rgba(0,0,0,.08));
+}
+.all li {
+  display: grid; grid-template-columns: 84px 1fr auto; gap: 10px; align-items: baseline;
+  padding: 7px 0; border-bottom: 1px solid var(--border, rgba(0,0,0,.06));
+  font-size: 13px;
+}
+.allType { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.allName { color: var(--text); overflow-wrap: anywhere; }
+.allAction { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.act_create { color: #0f7b4f; font-weight: 650; }
+.act_update { color: #b26a00; font-weight: 650; }
+.act_fail { color: #c0392b; font-weight: 650; }

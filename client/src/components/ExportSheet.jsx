@@ -42,6 +42,7 @@ export default function ExportSheet({ scanId, rackId, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [runErr, setRunErr] = useState(null);
   const [comparedAt, setComparedAt] = useState(null);   // when the shown preview was taken
+  const [showAll, setShowAll] = useState(false);        // the full list of objects, not just the tally
   const [written, setWritten] = useState(false);
 
   const panelRef = useModalA11y(onClose, { active: true });
@@ -169,6 +170,28 @@ export default function ExportSheet({ scanId, rackId, onClose }) {
                   </li>
                 ))}
               </ul>
+              {/* Every object by name, so "Push 214" is never a number one has
+                  to take on trust. New and updated first; unchanged after. */}
+              {(report.changes || []).length > 0 && (
+                <button type="button" className={styles.viewAll} onClick={() => setShowAll((v) => !v)}>
+                  {showAll ? 'Hide the list' : `View all ${report.changes.length}`}
+                </button>
+              )}
+              {showAll && (
+                <ul className={styles.all}>
+                  {[...report.changes]
+                    .sort((a, b) => ORDER.findIndex(([k]) => k === a.action) - ORDER.findIndex(([k]) => k === b.action))
+                    .map((ch, i) => (
+                      <li key={`${ch.type}-${ch.uid || ch.name}-${i}`}>
+                        <span className={styles.allType}>{ch.type}</span>
+                        <span className={styles.allName}>{ch.name || ch.uid}</span>
+                        <span className={`${styles.allAction} ${styles[`act_${ch.action}`] || ''}`}>
+                          {(ORDER.find(([k]) => k === ch.action) || [ch.action, ch.action])[1]}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              )}
             </>
           )}
 
