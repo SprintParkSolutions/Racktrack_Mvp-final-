@@ -6,21 +6,21 @@ fabricates a version. The exact-string factory functions below are the
 single source of truth for the literal messages the spec requires, so no
 provider can typo them.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
 
 
-class Confidence(str, Enum):
+class Confidence(str, Enum):  # noqa: UP042 -- StrEnum needs 3.11, runtime is 3.10
     HIGH = "High"
     MEDIUM = "Medium"
     LOW = "Low"
 
 
-class Status(str, Enum):
+class Status(str, Enum):  # noqa: UP042 -- StrEnum needs 3.11, runtime is 3.10
     OK = "ok"
     CANNOT_DETERMINE = "cannot_determine"
     AUTH_REQUIRED = "auth_required"
@@ -38,22 +38,27 @@ MODEL_NOT_FOUND_MESSAGE = "Model not found."
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat()  # noqa: UP017 -- datetime.UTC needs 3.11
 
 
 @dataclass
 class FirmwareResult:
     vendor: str
     model: str
-    current_version: Optional[str]
-    latest_version: Optional[str] = None
-    update_available: Optional[bool] = None
-    source_url: Optional[str] = None
-    confidence: Optional[Confidence] = None
+    current_version: str | None
+    latest_version: str | None = None
+    update_available: bool | None = None
+    source_url: str | None = None
+    confidence: Confidence | None = None
     retrieval_method: str = ""
     last_checked: str = field(default_factory=_now)
     status: Status = Status.CANNOT_DETERMINE
     message: str = ""
+    # Set by providers whose source states them (TP-Link's portal does):
+    # the vendor's publish date of the latest image, ISO yyyy-mm-dd, and
+    # the build stamp that qualifies latest_version ("Build 20260509").
+    release_date: str | None = None
+    build: str | None = None
 
     def to_dict(self) -> dict:
         """Exactly the 8 spec-required keys (plus vendor/model/current_version)."""
@@ -73,19 +78,23 @@ class FirmwareResult:
         d = self.to_dict()
         d["status"] = self.status.value
         d["message"] = self.message
+        d["release_date"] = self.release_date
+        d["build"] = self.build
         return d
 
 
 def ok_result(
     vendor: str,
     model: str,
-    current_version: Optional[str],
+    current_version: str | None,
     latest_version: str,
     source_url: str,
     confidence: Confidence,
     retrieval_method: str,
-    update_available: Optional[bool] = None,
+    update_available: bool | None = None,
     message: str = "",
+    release_date: str | None = None,
+    build: str | None = None,
 ) -> FirmwareResult:
     return FirmwareResult(
         vendor=vendor,
@@ -98,22 +107,25 @@ def ok_result(
         retrieval_method=retrieval_method,
         status=Status.OK,
         message=message,
+        release_date=release_date,
+        build=build,
     )
 
 
 def cannot_determine(
     vendor: str,
     model: str,
-    current_version: Optional[str],
+    current_version: str | None,
     retrieval_method: str,
     reason: str,
-    manual_check_url: Optional[str] = None,
+    manual_check_url: str | None = None,
 ) -> FirmwareResult:
     """`manual_check_url`, when given, is the vendor's own real portal --
     the final-fallback link handed to the user when both the automatic
     public lookup AND (where applicable) login have already been tried
     and neither resolved. Same "never a dead end" pattern as
-    not_implemented()'s manual_check_url."""
+    not_implemented()'s manual_check_url.
+    """
     message = reason
     if manual_check_url:
         message = f"{reason} You can check the current version yourself using the link below."
@@ -129,8 +141,10 @@ def cannot_determine(
 
 
 def auth_required(
-    vendor: str, model: str, current_version: Optional[str],
-    manual_check_url: Optional[str] = None,
+    vendor: str,
+    model: str,
+    current_version: str | None,
+    manual_check_url: str | None = None,
 ) -> FirmwareResult:
     message = AUTH_REQUIRED_MESSAGE
     if manual_check_url:
@@ -150,9 +164,11 @@ def auth_required(
 
 
 def not_implemented(
-    vendor: str, model: str, current_version: Optional[str],
-    manual_check_url: Optional[str] = None,
-    user_reason: Optional[str] = None,
+    vendor: str,
+    model: str,
+    current_version: str | None,
+    manual_check_url: str | None = None,
+    user_reason: str | None = None,
 ) -> FirmwareResult:
     """`manual_check_url`, when given, is a real vendor page a HUMAN can
     open directly -- used for vendors whose site blocks automated
@@ -165,7 +181,8 @@ def not_implemented(
     Network Operating Systems, so no single vendor-tracked firmware
     version exists") -- distinct from a bot-wall, where the page is
     genuinely reachable but was never going to have a version number
-    to find. Takes priority over the generic bot-wall wording below."""
+    to find. Takes priority over the generic bot-wall wording below.
+    """
     message = NOT_IMPLEMENTED_MESSAGE
     if user_reason:
         message = f"Firmware Version: Not Found\nReason: {user_reason}"
@@ -192,9 +209,11 @@ def not_implemented(
 
 
 def model_not_found(
-    vendor: str, model: str, current_version: Optional[str],
+    vendor: str,
+    model: str,
+    current_version: str | None,
     retrieval_method: str = "",
-    manual_check_url: Optional[str] = None,
+    manual_check_url: str | None = None,
 ) -> FirmwareResult:
     message = MODEL_NOT_FOUND_MESSAGE
     if manual_check_url:
@@ -214,12 +233,16 @@ def model_not_found(
 
 
 def ambiguous_model(
-    vendor: str, model: str, current_version: Optional[str],
-    candidates: list[str], retrieval_method: str = "",
+    vendor: str,
+    model: str,
+    current_version: str | None,
+    candidates: list[str],
+    retrieval_method: str = "",
 ) -> FirmwareResult:
     """Distinct from model_not_found: we found MORE THAN ONE equally
     plausible candidate and refused to guess between them, rather than
-    finding zero candidates at all."""
+    finding zero candidates at all.
+    """
     listed = ", ".join(candidates) if candidates else "more than one candidate"
     message = (
         f"Multiple possible models matched '{model}' and none could be "

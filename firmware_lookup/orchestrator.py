@@ -2,6 +2,7 @@
 Top-level entry point: get_latest_firmware(vendor, model, current_version).
 Never raises -- always returns a FirmwareResult.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,9 +19,20 @@ logger = logging.getLogger("firmware_lookup.orchestrator")
 PROVIDERS: dict[str, FirmwareProvider] = build_providers()
 
 
-def get_latest_firmware(vendor: str, model: str, current_version: str) -> FirmwareResult:
+def get_latest_firmware(
+    vendor: str,
+    model: str,
+    current_version: str,
+    hardware_version: str | None = None,
+) -> FirmwareResult:
     """Look up the latest official firmware version for (vendor, model,
-    current_version). Never raises."""
+    current_version). Never raises.
+
+    `hardware_version` (e.g. the "F3" a D-Link switch reports over SNMP)
+    is optional and only handed to providers that declare
+    ACCEPTS_HARDWARE_VERSION -- every other provider keeps its exact
+    three-argument call.
+    """
     normalized = normalize_vendor(vendor)
     provider = PROVIDERS.get(normalized) if normalized else None
 
@@ -29,11 +41,16 @@ def get_latest_firmware(vendor: str, model: str, current_version: str) -> Firmwa
         result = not_implemented(vendor, model, current_version)
     else:
         try:
-            result = provider.get_latest_firmware(normalized, model, current_version)
+            kwargs = {}
+            if hardware_version and getattr(provider, "ACCEPTS_HARDWARE_VERSION", False):
+                kwargs["hardware_version"] = hardware_version
+            result = provider.get_latest_firmware(normalized, model, current_version, **kwargs)
         except Exception as e:
             logger.exception("[%s] provider raised unexpectedly", normalized)
             result = cannot_determine(
-                vendor, model, current_version,
+                vendor,
+                model,
+                current_version,
                 retrieval_method="error",
                 reason=f"Internal error while querying {normalized}: {e}",
             )

@@ -1,0 +1,38 @@
+{
+ "errorCode": 0,
+ "message": "Operate Successfully",
+ "result": [
+  {
+   "name": "SG2428P(UN)_V5.30_5.30.23 Build 20260509",
+   "title": "SG2428P(UN)_V5.30_5.30.23 Build 20260509",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2026/202606/20260605/SG2428P(UN)_V5.30_5.30.23 Build 20260509.zip",
+   "size": "13.96 MB",
+   "language": "English",
+   "publishDate": "06-05-2026",
+   "notes": "",
+   "modificationsAndBugFixes": "Version Info\nFirmware for SG2428P(UN) 5.30 and 5.32, SG2428P(IN) 5.33. Recommended Omada Controller V6.2.0.\n\nNew features\n1. Added support for NAT Traversal.\n2.",
+   "releaseNotesUrl": "https://static.tp-link.com/upload/firmware/2026/202606/20260605/SG2428P(UN)_V5.30_5.30.23_Release Note.pdf",
+   "releaseNotesDocumentId": 125169,
+   "showMore": true,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  },
+  {
+   "name": "SG2428P(UN)_V5.30_5.30.0 Build 20240111",
+   "title": "SG2428P(UN)_V5.30_5.30.0 Build 20240111",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2024/202402/20240202/SG2428P_V5.3_5.30.0 Build 20240111.zip",
+   "size": "9.59 MB",
+   "language": "English",
+   "publishDate": "02-02-2024",
+   "notes": "",
+   "modificationsAndBugFixes": "First Firmware Release.\n\nNotes:\n1. This firmware is fully adapted to Omada SDN Controller v5.9 and above.",
+   "releaseNotesUrl": "",
+   "releaseNotesDocumentId": null,
+   "showMore": false,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  }
+ ],
+ "phraseName": null,
+ "success": true
+}

@@ -1,0 +1,38 @@
+{
+ "errorCode": 0,
+ "message": "Operate Successfully",
+ "result": [
+  {
+   "name": "TL-SG2428P(UN)_V4_4.0.28 Build 20260310",
+   "title": "TL-SG2428P(UN)_V4_4.0.28 Build 20260310",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2026/202604/20260402/TL-SG2428P(UN)_v4.0_4.0.28 Build 20260310.zip",
+   "size": "12.97 MB",
+   "language": "English",
+   "publishDate": "04-02-2026",
+   "notes": "",
+   "modificationsAndBugFixes": "Version Info:&nbsp;\nFirmware for TL-SG2428P(UN) 4.0, TL-SG2428P(UN) 4.6. Recommended Omada Controller V6.1.0.\n\nEnhancements\n1. Optimized client alarm notificati",
+   "releaseNotesUrl": "https://static.tp-link.com/upload/firmware/2026/202604/20260402/TL-SG2428P(UN)_v4.0_4.0.28 Build 20260310.pdf",
+   "releaseNotesDocumentId": 120229,
+   "showMore": true,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  },
+  {
+   "name": "TL-SG2428P(UN)_V4_4.0.3 Build 20220909",
+   "title": "TL-SG2428P(UN)_V4_4.0.3 Build 20220909",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2022/202209/20220913/TL-SG2428P(UN)_v4_4.0.3_20220909.zip",
+   "size": "9.77 MB",
+   "language": "English",
+   "publishDate": "09-13-2022",
+   "notes": "",
+   "modificationsAndBugFixes": "It is recommended to reboot the switch before upgrading, especially if the memory usage exceeds 60%.\n\n&nbsp;\n\nNew Features &amp; Enhancements:\n1. Added support ",
+   "releaseNotesUrl": "",
+   "releaseNotesDocumentId": null,
+   "showMore": false,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  }
+ ],
+ "phraseName": null,
+ "success": true
+}

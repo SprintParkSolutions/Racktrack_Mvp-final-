@@ -1,0 +1,53 @@
+{
+ "errorCode": 0,
+ "message": "Operate Successfully",
+ "result": [
+  {
+   "name": "SG2428P(UN)_V5.20_5.20.27 Build 20260509",
+   "title": "SG2428P(UN)_V5.20_5.20.27 Build 20260509",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2026/202606/20260609/SG2428P(UN)_V5.20_5.20.27 Build 20260509.zip",
+   "size": "13.96 MB",
+   "language": "English",
+   "publishDate": "06-09-2026",
+   "notes": "",
+   "modificationsAndBugFixes": "Version Info\nFirmware for SG2428P(UN) 5.20 and 5.26. Recommended Omada Controller V6.2.0.\n\nNew features\n1. Added support for NAT Traversal.\n2. Added compatibili",
+   "releaseNotesUrl": "https://static.tp-link.com/upload/firmware/2026/202606/20260609/SG2428P(UN)_V5.20_5.20.27_Release Note.pdf",
+   "releaseNotesDocumentId": 125371,
+   "showMore": true,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  },
+  {
+   "name": "SG2428P(UN)_V5.20_5.20.22 Build 20260310",
+   "title": "SG2428P(UN)_V5.20_5.20.22 Build 20260310",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2026/202603/20260331/SG2428P(UN)_v5.20_5.20.22 Build 20260310.zip",
+   "size": "12.97 MB",
+   "language": "English",
+   "publishDate": "03-31-2026",
+   "notes": "",
+   "modificationsAndBugFixes": "Version Info:&nbsp;\nFirmware for SG2428P(UN) 5.20, SG2428P(UN) 5.26. Recommended Omada Controller V6.1.0.\n\nEnhancements\n1. Optimized client alarm notifications ",
+   "releaseNotesUrl": "https://static.tp-link.com/upload/firmware/2026/202603/20260331/SG2428P(UN)_v5.20_5.20.22 Build 20260310.pdf",
+   "releaseNotesDocumentId": 120031,
+   "showMore": true,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  },
+  {
+   "name": "SG2428P(UN)_V5.20_5.20.0 Build 20230818",
+   "title": "SG2428P(UN)_V5.20_5.20.0 Build 20230818",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2023/202312/20231227/SG2428P(UN)_v5.20_5.20.0 Build 20230818.zip",
+   "size": "11.17 MB",
+   "language": "English",
+   "publishDate": "12-27-2023",
+   "notes": "",
+   "modificationsAndBugFixes": "This firmware is fully adapted to Omada SDN Controller v5.9 and above.\n\nNotes:\nModify the product name to Omada series and remove &quot;TL-&quot; from the produ",
+   "releaseNotesUrl": "",
+   "releaseNotesDocumentId": null,
+   "showMore": false,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  }
+ ],
+ "phraseName": null,
+ "success": true
+}

@@ -1,0 +1,53 @@
+{
+ "errorCode": 0,
+ "message": "Operate Successfully",
+ "result": [
+  {
+   "name": "TL-SG2428P(UN)_V5_5.20.2 Build 20240115",
+   "title": "TL-SG2428P(UN)_V5_5.20.2 Build 20240115",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2024/202409/20240911/TL-SG2428P(UN)_v5_5.20.2 Build 20240115.zip",
+   "size": "10.23 MB",
+   "language": "English",
+   "publishDate": "09-11-2024",
+   "notes": "",
+   "modificationsAndBugFixes": "Bug Fixed:\n1. Fixed the bug that the MTU size of packets sent from the device itself could not be automatically modified by icmp fragmentation needed.\n2. Fixed ",
+   "releaseNotesUrl": "",
+   "releaseNotesDocumentId": null,
+   "showMore": false,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  },
+  {
+   "name": "TL-SG2428P(UN)_V5_5.0.5 Build 20230602",
+   "title": "TL-SG2428P(UN)_V5_5.0.5 Build 20230602",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2023/202306/20230616/TL-SG2428P(UN)_5.0.5 Build 20230602.zip",
+   "size": "10.04 MB",
+   "language": "English",
+   "publishDate": "06-16-2023",
+   "notes": "",
+   "modificationsAndBugFixes": "Fully adapted to Omada Controller v5.9",
+   "releaseNotesUrl": "https://static.tp-link.com/upload/firmware/2023/202306/20230616/TL-SG2428P(UN)_5.0.5 Build 20230602 Release Note.pdf",
+   "releaseNotesDocumentId": 8177,
+   "showMore": true,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  },
+  {
+   "name": "TL-SG2428P(UN)_V5_5.0.0 Build 20220228",
+   "title": "TL-SG2428P(UN)_V5_5.0.0 Build 20220228",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2022/202208/20220819/TL-SG2428P(UN)_v5_5.0.0_20220228.zip",
+   "size": "8.82 MB",
+   "language": "English",
+   "publishDate": "08-19-2022",
+   "notes": "",
+   "modificationsAndBugFixes": "New Feature/Enhancement:\n1. First firmware for TL-SG2428P(UN) 5.0\n&nbsp;\nNotes:\n1. For TL-SG2428P(UN) 5.0 only.\n2. This firmware is applied to Omada SDN Control",
+   "releaseNotesUrl": "",
+   "releaseNotesDocumentId": null,
+   "showMore": false,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  }
+ ],
+ "phraseName": null,
+ "success": true
+}

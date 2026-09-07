@@ -1,0 +1,38 @@
+{
+ "errorCode": 0,
+ "message": "Operate Successfully",
+ "result": [
+  {
+   "name": "SG2428P(UN)_V5.40_5.40.6 Build 20260509",
+   "title": "SG2428P(UN)_V5.40_5.40.6 Build 20260509",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2026/202606/20260609/SG2428P(UN)_V5.40_5.40.6 Build 20260509.zip",
+   "size": "13.96 MB",
+   "language": "English",
+   "publishDate": "06-09-2026",
+   "notes": "",
+   "modificationsAndBugFixes": "Version Info\nFirmware for SG2428P(UN) 5.40 and 5.46, SG2428P(IN) 5.48, SG2428P(EU) 5.46. Recommended Omada Controller V6.2.0.\n\nNew features\n1. Added support for",
+   "releaseNotesUrl": "https://static.tp-link.com/upload/firmware/2026/202606/20260609/SG2428P(UN)_V5.40_5.40.6_Release Note.pdf",
+   "releaseNotesDocumentId": 125383,
+   "showMore": true,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  },
+  {
+   "name": "SG2428P(UN)_V5.40_5.40.0 Build 20251225",
+   "title": "SG2428P(UN)_V5.40_5.40.0 Build 20251225",
+   "awsUrl": "https://static.tp-link.com/upload/firmware/2026/202602/20260227/SG2428P(UN)_V5.40_5.40.0 Build 20251225.zip",
+   "size": "12.14 MB",
+   "language": "English",
+   "publishDate": "01-12-2026",
+   "notes": "",
+   "modificationsAndBugFixes": "Version info\nFirst firmware for SG2428P(UN) 5.40 and 5.46, SG2428P(EU) 5.46, SG2428P(IN) 5.48.&nbsp;",
+   "releaseNotesUrl": "https://static.tp-link.com/upload/firmware/2026/202602/20260227/SG2428P(UN)_V5.40_5.40.0_Release Note.pdf",
+   "releaseNotesDocumentId": 114099,
+   "showMore": true,
+   "userGuideUrl": "",
+   "userGuideDocumentId": null
+  }
+ ],
+ "phraseName": null,
+ "success": true
+}

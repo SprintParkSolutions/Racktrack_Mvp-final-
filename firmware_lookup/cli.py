@@ -4,6 +4,7 @@ Manual-testing CLI:
     python -m firmware_lookup lookup <vendor> "<model>" <current_version>
     python -m firmware_lookup login <vendor>          # e.g. Cisco, Juniper, Arista, ...
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,9 +30,16 @@ def build_parser() -> argparse.ArgumentParser:
     lookup.add_argument("current_version")
     lookup.add_argument("--json", action="store_true", help="print the result as JSON")
     lookup.add_argument("--verbose", action="store_true", help="include status/message fields")
+    lookup.add_argument(
+        "--hardware-version",
+        default=None,
+        help="hardware revision the device reports (e.g. F3); used by providers "
+        "whose firmware is published per hardware revision, such as D-Link",
+    )
 
     login = sub.add_parser(
-        "login", aliases=["register"],
+        "login",
+        aliases=["register"],
         help="Browser-assisted login for a login-gated vendor",
     )
     login.add_argument("vendor")
@@ -65,8 +73,7 @@ def _run_login(vendor_raw: str) -> int:
     provider = PROVIDERS.get(normalized) if normalized else None
     if not isinstance(provider, BrowserAuthenticatedProvider):
         implemented = sorted(
-            name for name, p in PROVIDERS.items()
-            if isinstance(p, BrowserAuthenticatedProvider)
+            name for name, p in PROVIDERS.items() if isinstance(p, BrowserAuthenticatedProvider)
         )
         print(
             f"Browser-assisted login is not implemented for "
@@ -107,7 +114,12 @@ def main(argv=None) -> int:
         build_parser().print_help()
         return 1
 
-    result = get_latest_firmware(args.vendor, args.model, args.current_version)
+    result = get_latest_firmware(
+        args.vendor,
+        args.model,
+        args.current_version,
+        hardware_version=args.hardware_version,
+    )
     if args.json:
         d = result.to_full_dict() if args.verbose else result.to_dict()
         print(json.dumps(d, indent=2, default=str))

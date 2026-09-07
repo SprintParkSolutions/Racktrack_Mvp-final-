@@ -1,4 +1,6 @@
+# ruff: noqa: S101 -- pytest asserts
 from firmware_lookup.orchestrator import get_latest_firmware
+from firmware_lookup.providers.unimplemented import MANUAL_CHECK_URLS
 
 
 def test_unrecognized_vendor_never_raises():
@@ -11,6 +13,7 @@ def test_provider_exception_becomes_cannot_determine(monkeypatch):
 
     class ExplodingProvider:
         http = None
+
         def get_latest_firmware(self, vendor, model, current_version):
             raise RuntimeError("boom")
 
@@ -28,7 +31,10 @@ def test_known_dead_end_vendor_returns_not_implemented(monkeypatch):
     # this test stays fast/deterministic with zero live network calls,
     # same rule as everywhere else in this suite.
     import firmware_lookup.http_client as http_client_mod
-    monkeypatch.setattr(http_client_mod.FirmwareHttpClient, "get_text", lambda self, url, **kw: None)
+
+    monkeypatch.setattr(
+        http_client_mod.FirmwareHttpClient, "get_text", lambda self, url, **kw: None
+    )
 
     r = get_latest_firmware("Teltonika", "RUTX50", "1.0")
     assert r.status.value == "not_implemented"
@@ -37,4 +43,4 @@ def test_known_dead_end_vendor_returns_not_implemented(monkeypatch):
     # providers/unimplemented.py's MANUAL_CHECK_URLS) instead of a dead
     # end, so this checks the prefix rather than an exact match.
     assert r.message.startswith("Provider not implemented.")
-    assert r.source_url == "https://wiki.teltonika-networks.com"
+    assert r.source_url == MANUAL_CHECK_URLS["Teltonika"]

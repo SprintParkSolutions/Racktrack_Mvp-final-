@@ -80,18 +80,18 @@ product pages' download sections are client-side-JS-rendered, invisible
 to a plain fetch -- but render fine in an ordinary headless Chromium,
 no stealth flags even required. Moved to a real provider
 (providers/antaira.py); its entries below are removed.
+
+D-Link, 2026-09-07: dlink.com still does not answer from this network,
+but D-Link's official FTP mirror (ftp.dlink.ru, a plain Apache index
+per model under /pub/Switch/<MODEL>/Firmware/) does. Moved to a real
+provider (providers/dlink.py); its entries below are removed.
 """
+
 from __future__ import annotations
 
 from firmware_lookup.providers.base import FirmwareProvider, UnimplementedProvider
 
 NOT_IMPLEMENTED_REASONS: dict[str, str] = {
-    "D-Link": (
-        "dlink.com/en/support and product-search URLs consistently redirect "
-        "to a regional portal (service.dlink.co.in) rather than a global "
-        "site, with no stable per-model URL pattern discoverable in the "
-        "time available. (verified 2026-07-13)"
-    ),
     "Teltonika": (
         "wiki.teltonika-networks.com returns a real, ACTIVE Cloudflare "
         "'Just a moment...' bot challenge on every automated request "
@@ -515,7 +515,6 @@ USER_FACING_REASONS: dict[str, str] = {
 # own automated access is blocked. See NOT_IMPLEMENTED_REASONS above
 # for exactly what was checked for each.
 MANUAL_CHECK_URLS: dict[str, str] = {
-    "D-Link": "https://www.dlink.com/en/support",
     "Teltonika": "https://wiki.teltonika-networks.com/view/Downloads",
     "Korenix": "https://www.korenixstore.com/Korenix_Marine_Managed_Unmanaged_Ethernet_Switches_s/271.htm",
     "StarTech": "https://www.startech.com/en-us/support/drivers-and-downloads",
@@ -559,7 +558,9 @@ MANUAL_CHECK_URLS: dict[str, str] = {
 def build_unimplemented_providers() -> dict[str, FirmwareProvider]:
     return {
         vendor: UnimplementedProvider(
-            vendor, reason, MANUAL_CHECK_URLS.get(vendor, ""),
+            vendor,
+            reason,
+            MANUAL_CHECK_URLS.get(vendor, ""),
             user_reason=USER_FACING_REASONS.get(vendor, ""),
         )
         for vendor, reason in NOT_IMPLEMENTED_REASONS.items()
