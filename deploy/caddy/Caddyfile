@@ -21,6 +21,15 @@ demo.racktrack.ai {
 	# a slow CPU scan needs. Do not add `transport http { read_timeout ... }`
 	# here — those are not valid subdirectives, and Caddy refuses to start on
 	# a bad Caddyfile, taking the whole site down rather than just the tweak.
+	# NetBox, viewable under the demo domain (no separate hostname). Its pages
+	# ask for scripts and styles at /netbox/static/, which the container serves
+	# at /static/ — so that prefix is stripped on the way through.
+	handle /netbox* {
+		@static path /netbox/static/*
+		uri @static strip_prefix /netbox
+		reverse_proxy netbox:8080
+	}
+
 	reverse_proxy racktrack:3001
 
 	log {
