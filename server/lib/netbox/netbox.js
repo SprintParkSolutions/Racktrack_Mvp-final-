@@ -103,7 +103,47 @@ class NetBox {
    * for if:R1:SW01:1 would also return :10 through :19. Only rows whose uid
    * is exactly the one asked for count.
    */
+  /**
+   * Fetch, in a few pages, every object on an endpoint whose racktrack_uid
+   * matches a filter, and remember them by uid so findByUid answers from
+   * memory. Preview used to ask NetBox one GET per object — six hundred round
+   * trips for a full rack, each one a tunnel hop — and a person watched a
+   * spinner for minutes to be told nothing had changed. One paginated list
+   * per object type answers the same question in a dozen requests.
+   *
+   * A preload that fails is not an error: findByUid simply goes back to asking
+   * one at a time, which is slower and still right.
+   */
+  async preloadByUid(endpoint, params = {}) {
+    if (!this._uidCache) this._uidCache = new Map();
+    let rows;
+    try { rows = await this.paginate(endpoint, params); }
+    catch { return 0; }
+    const byUid = this._uidCache.get(endpoint) || new Map();
+    for (const r of rows) {
+      const uid = (r.custom_fields || {})[UID_FIELD];
+      if (!uid) continue;
+      // Two objects with one uid is the same refusal findByUid makes below;
+      // remembered as a marker so the lookup still refuses rather than guesses.
+      byUid.set(uid, byUid.has(uid) ? 'ambiguous' : r);
+    }
+    this._uidCache.set(endpoint, byUid);
+    return rows.length;
+  }
+
   async findByUid(endpoint, uid) {
+    const cached = this._uidCache?.get(endpoint);
+    if (cached && cached.has(uid)) {
+      const hit = cached.get(uid);
+      if (hit === 'ambiguous') {
+        throw new NetBoxError(409,
+          `more than one object shares ${UID_FIELD}=${uid}, so this refuses to guess which to update`, endpoint);
+      }
+      return hit;
+    }
+    // A preload that ran and did not see this uid has answered "not there"
+    // for everything it covered; only endpoints never preloaded go to NetBox.
+    if (cached && this._uidPreloadedAll?.has(endpoint)) return null;
     const res = await this.get(endpoint, { [`cf_${UID_FIELD}`]: uid });
     const hits = (res.results || []).filter((h) => (h.custom_fields || {})[UID_FIELD] === uid);
     if (hits.length > 1) {

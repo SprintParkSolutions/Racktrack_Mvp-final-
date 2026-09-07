@@ -91,6 +91,20 @@ async function walk(snapshot, client, apply, report) {
 
   const bump = (k) => { counts[k] = (counts[k] || 0) + 1; };
 
+  // Ask NetBox for this rack's objects once per type, up front, instead of
+  // once per object inside the loop below. Every uid this snapshot writes
+  // carries the rack id (rack:RK-…, dev:RK-…:u16, if:dev:RK-…), so a single
+  // "contains RK-…" filter on the custom field brings back everything of ours
+  // on that endpoint. Shared objects — manufacturers, device types, roles —
+  // carry no rack id and still resolve one at a time; there are a handful.
+  const rackKey = String(snapshot.rackUid || '').replace(/^rack:/, '');
+  if (rackKey && typeof client.preloadByUid === 'function') {
+    const endpoints = [...new Set(orderedSpecs().map((s) => s.endpoint))];
+    for (const ep of endpoints) {
+      await client.preloadByUid(ep, { [`cf_${UID_FIELD}__ic`]: rackKey });
+    }
+  }
+
   for (const spec of orderedSpecs()) {
     for (const obj of snapshot[spec.field] || []) {
       const misses = [];
