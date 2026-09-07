@@ -162,6 +162,34 @@ function humanizeEvent(e) {
       return `${e.field} changed`;
   }
 }
+/** One change, as a person would say it. */
+function describeEvent(e) {
+  const f = String(e.field || '');
+  const from = e.from_val ?? null;
+  const to = e.to_val ?? null;
+  if (f === 'oper') return to === 'up' ? 'came up' : to === 'down' ? 'went down' : `link ${from ?? '?'} → ${to ?? '?'}`;
+  if (f === 'admin') return to === 'disabled' ? 'was switched off' : to === 'enabled' ? 'was switched on' : `admin ${from} → ${to}`;
+  if (f === 'speed_mbps') return `${fmtSpeed(Number(from))} → ${fmtSpeed(Number(to))}`;
+  if (f === 'duplex') return `${from || '?'} → ${to || '?'} duplex`;
+  if (f === 'lldp_system' || f === 'lldp_chassis') {
+    if (!from && to) return `neighbour appeared: ${to}`;
+    if (from && !to) return `neighbour gone: ${from}`;
+    return `neighbour ${from} → ${to}`;
+  }
+  if (f === 'lldp_port') return `neighbour port ${from || '—'} → ${to || '—'}`;
+  if (f === 'descr') return `renamed “${from || ''}” → “${to || ''}”`;
+  return `${f}: ${from ?? '—'} → ${to ?? '—'}`;
+}
+
+function agoShort(iso) {
+  if (!iso) return '';
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return 'now';
+  if (m < 60) return `${m}m`;
+  const h = Math.round(m / 60);
+  return h < 48 ? `${h}h` : `${Math.round(h / 24)}d`;
+}
+
 function operClass(oper) {
   if (oper === 'up')   return styles.up;
   if (oper === 'down') return styles.down;
@@ -263,6 +291,27 @@ function PortHistoryInner({ embedded, rackId = null }) {
   const [overview, setOverview] = useState(null);
   const [overviewErr, setOverviewErr] = useState(null);
   const [selectedPort, setSelectedPort] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [showAllEvents, setShowAllEvents] = useState(false);
+
+  // The change log for the chosen switch — what this page is for. Refreshed
+  // on the same cadence as the overview so a port going down shows up here
+  // as soon as it shows up there.
+  useEffect(() => {
+    if (!selectedId) { setEvents([]); return undefined; }
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const r = await authFetch(apiUrl(`/api/ports/${selectedId}/events?limit=300`));
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!cancelled) setEvents(Array.isArray(data.events) ? data.events : []);
+      } catch { /* the overview above still stands */ }
+    };
+    tick();
+    const id = setInterval(tick, OVERVIEW_REFRESH_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [selectedId]);
 
   // Which switches this view is about.
   //
@@ -358,151 +407,120 @@ function PortHistoryInner({ embedded, rackId = null }) {
         </div>
       )}
 
-      {/* ── Switch identity hero ────────────────────────────── */}
-      <section className={styles.switchHero}>
+      {/* ── The switch, as a band: what it is, when it was last read ── */}
+      <section className={styles.band}>
         {loadErr && <div className={styles.errorLine}>{loadErr}</div>}
-
         {!device ? (
-          <div className={styles.muted}>
+          <p className={styles.muted}>
             {rackId && devices.length === 0 && !loadErr
               ? 'No switch reading has reached the server for this rack yet. Read one on the Network step and it appears here.'
-              : 'Waiting for first poll…'}
-          </div>
-        ) : (
-          <>
-            <div className={styles.switchHeroGlow} aria-hidden />
-            <div className={styles.switchHeroRow}>
-              <div className={styles.switchHeroIcon} aria-hidden>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="7" width="20" height="10" rx="2" />
-                  <path d="M6 11h.01M9 11h.01M12 11h.01M15 11h.01M18 11h.01" />
-                  <path d="M6 14h12" />
-                </svg>
-              </div>
-              <div className={styles.switchHeroBody}>
-                <div className={styles.switchHeroTitleRow}>
-                  <h2 className={styles.switchHeroName}>
-                    {device.display_name || device.model || 'Switch'}
-                  </h2>
-                  {/* A switch the phone reads is not a paused poller. The
-                      server has no route to a private address inside somebody's
-                      building — that is the whole reason the phone does the
-                      reading — so "Paused" described our polling and read as a
-                      fault in theirs. */}
-                  {(() => {
-                    const fromPhone = device.vendor === 'snmp' || device.ssh_port === 0;
-                    const [cls, text] = device.enabled
-                      ? [styles.switchStatusOk, 'Streaming']
-                      : fromPhone
-                        ? [styles.switchStatusOk, 'Read from the phone']
-                        : [styles.switchStatusOff, 'Paused'];
-                    return (
-                      <span className={[styles.switchStatus, cls].join(' ')}>
-                        <span className={styles.switchStatusDot} />
-                        {text}
-                      </span>
-                    );
-                  })()}
+              : 'Waiting for the first reading…'}
+          </p>
+        ) : (() => {
+          const ago = (iso) => {
+            if (!iso) return null;
+            const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+            if (m < 1) return 'just now';
+            if (m < 60) return `${m} min ago`;
+            const h = Math.round(m / 60);
+            return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`;
+          };
+          const when = ago(device.last_polled_at || device.last_success_at);
+          const ports = overview?.ports || [];
+          const up = ports.filter((p) => p.oper === 'up').length;
+          const down = ports.filter((p) => p.oper === 'down').length;
+          const unknown = ports.length - up - down;
+          const ident = [device.model, device.serial ? `serial ${device.serial}` : null,
+            device.sw_version ? `firmware ${String(device.sw_version).split(' ')[0]}` : null].filter(Boolean).join(' · ');
+          return (
+            <>
+              <div className={styles.bandTop}>
+                <div className={styles.bandWho}>
+                  <h2 className={styles.bandName}>{device.display_name || device.model || 'Switch'}</h2>
+                  {ident && <p className={styles.bandIdent}>{ident}</p>}
+                  <p className={styles.bandWhen}>
+                    {when ? `Last read ${when}` : 'Not read yet'}
+                    {device.system_name && device.system_name !== device.display_name ? ` · ${device.system_name}` : ''}
+                  </p>
                 </div>
-                {device.system_description && (
-                  <p className={styles.switchHeroSub}>{device.system_description}</p>
-                )}
-                <div className={styles.switchHeroFacts}>
-                  {device.model && device.model !== device.display_name && (
-                    <span className={styles.heroFact}>{device.model}</span>
-                  )}
-                  {device.serial && (
-                    <span className={styles.heroFact}>
-                      <span className={styles.heroFactKey}>SN</span>
-                      <span className={styles.heroFactVal}>{device.serial}</span>
-                    </span>
-                  )}
-                  {device.sw_version && (
-                    <span className={styles.heroFact}>
-                      <span className={styles.heroFactKey}>FW</span>
-                      <span className={styles.heroFactVal}>{device.sw_version.split(' ')[0]}</span>
-                    </span>
-                  )}
-                </div>
+                <button type="button" className={styles.readBtn} onClick={triggerPoll} aria-label="Read again">
+                  Read again
+                </button>
               </div>
-              <button
-                type="button"
-                className={styles.pollBtn}
-                onClick={triggerPoll}
-                title="Poll now"
-                aria-label="Poll now"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M3 12a9 9 0 0 1 15.6-6.1L21 8" />
-                  <path d="M21 3v5h-5" />
-                  <path d="M21 12a9 9 0 0 1-15.6 6.1L3 16" />
-                  <path d="M3 21v-5h5" />
-                </svg>
-              </button>
-            </div>
-          </>
-        )}
+
+              {ports.length > 0 && (
+                <div className={styles.counts}>
+                  <div><b>{ports.length}</b><span>ports</span></div>
+                  <div><b className={styles.upNum}>{up}</b><span>up</span></div>
+                  <div><b>{down}</b><span>down</span></div>
+                  {unknown > 0 && <div><b>{unknown}</b><span>unknown</span></div>}
+                </div>
+              )}
+            </>
+          );
+        })()}
       </section>
 
-      {/* ── Port grid ─────────────────────────────────────────── */}
-      {selectedId && (
-        <section className={styles.card}>
-          <div className={styles.cardHead}>
-            <h2 className={styles.cardTitle}>Interface inventory</h2>
-            {overview && <span className={styles.muted}>{overview.ports.length} ports</span>}
-          </div>
-
+      {/* ── The faceplate ── */}
+      {selectedId && overview && overview.ports.length > 0 && (
+        <section className={styles.band}>
+          <div className={styles.bandHead}><h3>Ports</h3><span>tap one for its history</span></div>
           {overviewErr && <div className={styles.errorLine}>{overviewErr}</div>}
+          <div
+            className={styles.portGrid}
+            style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.ceil(overview.ports.length / 2))}, minmax(0, 1fr))` }}
+          >
+            {[...overview.ports].sort((a, b) => {
+              const num = (x) => { const m = String(x).match(/(\d+)\s*$/); return m ? Number(m[1]) : Number.POSITIVE_INFINITY; };
+              return num(a.port) - num(b.port);
+            }).map((p) => (
+              <button
+                key={p.port}
+                className={[styles.portCell, operClass(p.oper), selectedPort === p.port ? styles.portCellActive : '',
+                  p.admin === 'disabled' ? styles.portDisabled : ''].join(' ')}
+                onClick={() => setSelectedPort(p.port === selectedPort ? null : p.port)}
+                title={`${p.port} · ${p.oper} · ${fmtSpeed(p.speed_mbps)}`}
+              >
+                <span className={styles.portName}>{portNum(p.port)}</span>
+              </button>
+            ))}
+          </div>
+          <p className={styles.key}>
+            <i className={styles.keyUp} /> up <i className={styles.keyDown} /> down <i className={styles.keyUnknown} /> not answered
+          </p>
+        </section>
+      )}
+      {selectedId && overview && overview.ports.length === 0 && (
+        <section className={styles.band}>
+          <p className={styles.muted}>No port data has arrived for this switch yet.</p>
+        </section>
+      )}
 
-          {!overview ? (
-            <div className={styles.muted}>Loading…</div>
-          ) : overview.ports.length === 0 ? (
-            <div className={styles.muted}>
-              No port data yet. The poller runs once per minute - first
-              snapshot lands shortly after the switch becomes reachable.
-            </div>
+      {/* ── What changed — the point of the page ── */}
+      {selectedId && (
+        <section className={styles.band}>
+          <div className={styles.bandHead}>
+            <h3>What changed</h3>
+            <span>{events.length ? `${events.length} change${events.length === 1 ? '' : 's'}` : ''}</span>
+          </div>
+          {events.length === 0 ? (
+            <p className={styles.muted}>Nothing has changed between readings.</p>
           ) : (
             <>
-              <div className={styles.legend}>
-                <span className={[styles.dot, styles.up].join(' ')} /> link up
-                <span className={[styles.dot, styles.down].join(' ')} /> link down
-                <span className={[styles.dot, styles.unknown].join(' ')} /> unknown
-              </div>
-              <div
-                className={styles.portGrid}
-                style={{
-                  // Two rows, the shape of the front of the box, fitted to
-                  // whatever width there is — the same faceplate the Network
-                  // page draws. Capping the columns at 12 wrapped a 52-port
-                  // switch into five ragged rows that looked like nothing.
-                  gridTemplateColumns: `repeat(${Math.max(1, Math.ceil(overview.ports.length / 2))}, minmax(0, 1fr))`,
-                }}
-              >
-                {[...overview.ports].sort((a, b) => {
-                  // Sort by the trailing numeric index in the port name
-                  // (e.g. Gi1/0/2 < Gi1/0/10). Server returns lexicographic
-                  // order which puts "10" before "2".
-                  const num = (s) => {
-                    const m = String(s).match(/(\d+)\s*$/);
-                    return m ? Number(m[1]) : Number.POSITIVE_INFINITY;
-                  };
-                  return num(a.port) - num(b.port);
-                }).map((p) => (
-                  <button
-                    key={p.port}
-                    className={[
-                      styles.portCell,
-                      operClass(p.oper),
-                      selectedPort === p.port ? styles.portCellActive : '',
-                      p.admin === 'disabled' ? styles.portDisabled : '',
-                    ].join(' ')}
-                    onClick={() => setSelectedPort(p.port === selectedPort ? null : p.port)}
-                    title={`${p.port} · ${p.oper} · ${fmtSpeed(p.speed_mbps)}`}
-                  >
-                    <span className={styles.portName}>{portNum(p.port)}</span>
-                  </button>
+              <ul className={styles.evts}>
+                {(showAllEvents ? events : events.slice(0, 12)).map((e) => (
+                  <li key={e.id || `${e.port}-${e.field}-${e.at}`} className={styles.evt}>
+                    <button type="button" className={styles.evtPort} onClick={() => setSelectedPort(e.port)}>{e.port}</button>
+                    <span className={styles.evtWhat}>{describeEvent(e)}</span>
+                    <span className={styles.evtWhen}>{agoShort(e.at)}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
+              {events.length > 12 && (
+                <button type="button" className={styles.viewAll} onClick={() => setShowAllEvents((v) => !v)}>
+                  {showAllEvents ? 'Show fewer' : `View all ${events.length}`}
+                </button>
+              )}
             </>
           )}
         </section>
