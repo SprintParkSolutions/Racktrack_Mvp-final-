@@ -5,6 +5,8 @@ import { BackIcon } from '../components/BackButton.jsx';
 import { apiUrl, authFetch } from '../utils/api';
 import ExportSheet from '../components/ExportSheet.jsx';
 import ShareSheet from '../components/ShareSheet.jsx';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 import { downloadExport } from '../utils/exportApi';
 import { getJSON } from '../utils/safeStorage';
 import { useSmartBack } from '../hooks/useSmartBack';
@@ -206,7 +208,30 @@ export default function ReportPage() {
   // somebody.
   const [scanId, setScanId] = useState(null);
   const [exporting, setExporting] = useState(false);
-  const [sharing, setSharing] = useState(false);
+  const [sharing, setSharing] = useState(null);   // null | 'teams' | 'outlook' | 'link'
+  const [menu, setMenu] = useState(null);         // which of the three is open
+
+  /**
+   * The PDF the server already renders for this rack. It needs a short-lived
+   * report token in the URL because a download cannot carry a header; on the
+   * phone the WebView ignores downloads, so the URL goes to the system
+   * browser, which saves it.
+   */
+  const openPdf = async () => {
+    setFileBusy('pdf'); setNote(null);
+    try {
+      const r = await authFetch(apiUrl(`/api/scan/${encodeURIComponent(rackId)}/report-token`));
+      if (!r.ok) throw new Error('The server would not authorise the PDF.');
+      const { token } = await r.json();
+      const url = apiUrl(`/api/scan/${encodeURIComponent(rackId)}/report?format=pdf&download=1&t=${encodeURIComponent(token)}`);
+      if (Capacitor.isNativePlatform()) await Browser.open({ url });
+      else window.open(url, '_blank', 'noopener');
+    } catch (e) {
+      setNote({ tone: 'bad', text: e.message || 'The PDF could not be made.' });
+    } finally {
+      setFileBusy(null);
+    }
+  };
   const [fileBusy, setFileBusy] = useState(null);   // 'csv' | 'json' | 'share'
   const [note, setNote] = useState(null);           // { tone, text }
 
@@ -267,30 +292,54 @@ export default function ReportPage() {
         <ThemeToggle />
       </header>
 
-      {/* What this report is for, at the top of it. Four things: keep it, send
-          it, put it in the system of record. They were at the foot of the page,
-          past every device, which is not where anyone looks for the verb. */}
+      {/* What this report is for, at the top of it: three verbs, each with
+          its choices underneath. Four flat buttons (CSV, JSON, Send, NetBox)
+          put file formats and destinations on the same row as if they were
+          the same kind of thing. */}
       <div className={styles.actions}>
-        <button type="button" className={styles.action} disabled={!doc || scanId === null || fileBusy !== null}
-          onClick={() => getFile('csv')}>
-          <IconDownload />
-          <span>{fileBusy === 'csv' ? '…' : 'CSV'}</span>
-        </button>
-        <button type="button" className={styles.action} disabled={!doc || scanId === null || fileBusy !== null}
-          onClick={() => getFile('json')}>
-          <IconDownload />
-          <span>{fileBusy === 'json' ? '…' : 'JSON'}</span>
-        </button>
-        <button type="button" className={styles.action} disabled={!doc}
-          onClick={() => setSharing(true)}>
-          <IconSend />
-          <span>Send</span>
-        </button>
-        <button type="button" className={`${styles.action} ${styles.actionStrong}`}
-          disabled={!doc || scanId === null} onClick={() => setExporting(true)}>
-          <IconExport />
-          <span>NetBox</span>
-        </button>
+        {[
+          ['download', 'Download', <IconDownload key="i" />, [
+            ['CSV', () => getFile('csv'), fileBusy === 'csv'],
+            ['JSON', () => getFile('json'), fileBusy === 'json'],
+            ['PDF', openPdf, fileBusy === 'pdf'],
+          ]],
+          ['export', 'Export', <IconExport key="i" />, [
+            ['NetBox', () => setExporting(true), false],
+          ]],
+          ['share', 'Share', <IconSend key="i" />, [
+            ['Teams', () => setSharing('teams'), false],
+            ['Email', () => setSharing('outlook'), false],
+            ['Link', () => setSharing('link'), false],
+          ]],
+        ].map(([key, label, icon, items]) => (
+          <div key={key} className={styles.menuWrap}>
+            <button
+              type="button"
+              className={`${styles.action} ${menu === key ? styles.actionOpen : ''}`}
+              aria-haspopup="menu"
+              aria-expanded={menu === key}
+              disabled={!doc || (key !== 'share' && scanId === null)}
+              onClick={() => setMenu(menu === key ? null : key)}
+            >
+              {icon}
+              <span>{label}</span>
+              <i className={styles.caret} aria-hidden="true" />
+            </button>
+            {menu === key && (
+              <>
+                <button type="button" tabIndex={-1} aria-hidden="true" className={styles.menuScrim} onClick={() => setMenu(null)} />
+                <div className={styles.menu} role="menu">
+                  {items.map(([text, run, busy]) => (
+                    <button key={text} type="button" role="menuitem" disabled={busy || fileBusy !== null}
+                      onClick={() => { setMenu(null); run(); }}>
+                      {busy ? `${text}…` : text}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
       </div>
       {note && <p className={note.tone === 'bad' ? styles.noteBad : styles.noteOk}>{note.text}</p>}
 
@@ -493,7 +542,7 @@ export default function ReportPage() {
       {exporting && scanId !== null && (
         <ExportSheet scanId={scanId} onClose={() => setExporting(false)} />
       )}
-      {sharing && <ShareSheet rackId={rackId} onClose={() => setSharing(false)} />}
+      {sharing && <ShareSheet rackId={rackId} initial={sharing} onClose={() => setSharing(null)} />}
     </div>
   );
 }

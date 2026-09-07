@@ -78,9 +78,13 @@ export default function MoreSheet({ links, onClose }) {
               strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
           <span className={styles.avatar} aria-hidden="true">{initials(user)}</span>
-          <span className={styles.name}>{user?.username || user?.name || 'Signed in'}</span>
-          {user?.role && <span className={styles.role}>{user.role}</span>}
-          <span className={styles.mail}>{user?.email || ''}</span>
+          <span className={styles.who}>
+            <span className={styles.nameRow}>
+              <span className={styles.name}>{user?.username || user?.name || 'Signed in'}</span>
+              {user?.role && <span className={styles.role}>{user.role}</span>}
+            </span>
+            <span className={styles.mail}>{user?.email || ''}</span>
+          </span>
         </header>
 
         <div className={styles.scroll}>

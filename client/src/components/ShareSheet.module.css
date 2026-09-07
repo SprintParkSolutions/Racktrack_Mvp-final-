@@ -61,3 +61,7 @@
 
 .good { margin: 0; font-size: 13px; color: #0f7b4f; }
 .bad { margin: 0; font-size: 13px; color: #c0392b; }
+
+/* The way that was chosen from the Share menu. */
+.wayOn { background: rgba(15,123,79,.06); }
+.wayOn .wayIcon { background: #0f7b4f; color: #ffffff; }

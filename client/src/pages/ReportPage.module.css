@@ -285,5 +285,31 @@
 }
 .action:disabled { opacity: .4; cursor: default; }
 .action:active { background: var(--bg2, rgba(0,0,0,.04)); }
-.actionStrong { background: #121212; border-color: #121212; color: #ffffff; }
-.actionStrong:active { background: #2a2a2a; }
+.actionOpen { background: #121212; border-color: #121212; color: #ffffff; }
+.menuWrap { position: relative; flex: 1 1 0; min-width: 0; display: flex; }
+.menuWrap .action { flex: 1; }
+.caret {
+  width: 6px; height: 6px; margin-top: 1px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg); opacity: .6;
+}
+/* Catches the tap that closes the menu, without a visible layer. */
+.menuScrim { position: fixed; inset: 0; z-index: 40; border: 0; background: transparent; cursor: default; }
+.menu {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 41;
+  display: flex; flex-direction: column;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  box-shadow: 0 8px 28px -12px rgba(0,0,0,.35);
+}
+.menu button {
+  padding: 11px 12px;
+  border: 0; border-radius: 8px;
+  background: transparent; color: var(--text);
+  font-family: var(--font); font-size: 14px; font-weight: 600;
+  text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.menu button:active { background: var(--bg2, rgba(0,0,0,.05)); }
+.menu button:disabled { opacity: .5; cursor: default; }

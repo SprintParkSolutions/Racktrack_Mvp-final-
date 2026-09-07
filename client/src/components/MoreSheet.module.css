@@ -31,14 +31,15 @@
    address arrive a beat apart as the drawer settles. */
 .head {
   position: relative;
-  display: flex; flex-direction: column; align-items: flex-start;
-  padding: 22px 18px 18px;
+  display: flex; flex-direction: row; align-items: center; gap: 14px;
+  padding: 22px 56px 18px 18px;   /* room on the right for the close button */
   background: #ffffff;
   border-bottom: 1px solid rgba(12, 20, 32, .08);
 }
 :global([data-theme='dark']) .head { background: var(--bg, #0c1420); border-bottom-color: rgba(255,255,255,.08); }
 
 .avatar {
+  flex: none;
   width: 46px; height: 46px;
   border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -48,8 +49,10 @@
   font-size: 16px; font-weight: 700; letter-spacing: .04em;
   animation: rise 320ms cubic-bezier(.2,.8,.3,1) both;
 }
+.who { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 3px; }
+.nameRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .name {
-  margin-top: 12px;
+  margin-top: 0;
   font-size: 17px; font-weight: 700; letter-spacing: -.01em;
   color: #0c1420;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -57,7 +60,7 @@
 }
 :global([data-theme='dark']) .name { color: var(--text, #fff); }
 .role {
-  margin-top: 6px;
+  margin-top: 0; flex: none;
   padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid rgba(12, 20, 32, .14);
@@ -66,7 +69,7 @@
   animation: rise 320ms cubic-bezier(.2,.8,.3,1) 100ms both;
 }
 .mail {
-  margin-top: 8px;
+  margin-top: 0;
   font-size: 12.5px; color: #7b8794;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   animation: rise 320ms cubic-bezier(.2,.8,.3,1) 140ms both;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useModalA11y from '../hooks/useModalA11y.js';
 import { apiUrl, authFetch, publicOrigin } from '../utils/api';
@@ -19,7 +19,7 @@ import styles from './ShareSheet.module.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function ShareSheet({ rackId, onClose }) {
+export default function ShareSheet({ rackId, onClose, initial = null }) {
   const [to, setTo] = useState('');
   const [busy, setBusy] = useState(null);      // 'teams' | 'outlook' | 'link'
   const [note, setNote] = useState(null);      // { tone, text }
@@ -47,6 +47,9 @@ export default function ShareSheet({ rackId, onClose }) {
       setBusy(null);
     }
   };
+
+  // Opened from "Share → Link": no address is needed, so do it straight away.
+  useEffect(() => { if (initial === 'link') link(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const link = async () => {
     setBusy('link'); setNote(null);
@@ -91,7 +94,7 @@ export default function ShareSheet({ rackId, onClose }) {
         </label>
 
         <div className={styles.ways}>
-          <button type="button" className={styles.way} disabled={busy !== null} onClick={() => send('teams')}>
+          <button type="button" className={`${styles.way} ${initial === 'teams' ? styles.wayOn : ''}`} disabled={busy !== null} onClick={() => send('teams')}>
             <span className={styles.wayIcon} aria-hidden="true">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
@@ -103,7 +106,7 @@ export default function ShareSheet({ rackId, onClose }) {
             </span>
           </button>
 
-          <button type="button" className={styles.way} disabled={busy !== null} onClick={() => send('outlook')}>
+          <button type="button" className={`${styles.way} ${initial === 'outlook' ? styles.wayOn : ''}`} disabled={busy !== null} onClick={() => send('outlook')}>
             <span className={styles.wayIcon} aria-hidden="true">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="2" y="4" width="20" height="16" rx="2" /><polyline points="22,6 12,13 2,6" />
