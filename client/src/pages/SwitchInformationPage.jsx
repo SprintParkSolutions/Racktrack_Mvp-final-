@@ -331,7 +331,7 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
   // failed on *either* field, not just both.
   const identIncomplete = !awaitingLabel && !identMissing && (!effectiveMake || !effectiveModel);
 
-  const loadDetails = async (overrideVersion) => {
+  const loadDetails = async (overrideVersion, { firmwareOnly = false } = {}) => {
     if (!displayVendor || !lookupModel) {
       setSpecsStatus('skipped');
       setFirmwareStatus('skipped');
@@ -343,20 +343,25 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
 
     // Check the prefetch cache first — if scanPrefetch already populated
     // this (vendor, model) pair, render synchronously and skip the network.
-    const specsCached = rackId ? getCached(cacheKey.specs(rackId, displayVendor, lookupModel)) : null;
+    const specsCached = (rackId && !firmwareOnly) ? getCached(cacheKey.specs(rackId, displayVendor, lookupModel)) : null;
     if (specsCached) {
       setSpecs(specsCached);
       setSpecsStatus(specsCached.ok ? 'ready' : 'error');
-    } else {
+    } else if (!firmwareOnly) {
       setSpecsStatus(prev => prev === 'ready' ? prev : 'loading');
     }
 
-    const firmwareCached = (rackId && versionForLookup)
-      ? getCached(cacheKey.firmware(rackId, displayVendor, lookupModel, versionForLookup))
+    // A firmware payload with ok:true is a finished check whatever its
+    // status says (up to date, behind a vendor sign-in, model not listed).
+    // Only ok:false means the server itself could not run the check, and
+    // that is the one outcome that gets a "Try again".
+    const fwKey = (rackId && versionForLookup)
+      ? cacheKey.firmware(rackId, displayVendor, lookupModel, versionForLookup)
       : null;
+    const firmwareCached = fwKey ? getCached(fwKey) : null;
     if (firmwareCached) {
-      if (firmwareCached.ok) { setFirmware(firmwareCached); setFirmwareStatus('ready'); }
-      else { setFirmwareStatus('error'); }
+      setFirmware(firmwareCached.ok ? firmwareCached : null);
+      setFirmwareStatus(firmwareCached.ok ? 'ready' : 'error');
     } else {
       setFirmwareStatus(versionForLookup ? 'loading' : 'skipped');
     }
@@ -367,7 +372,7 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
     // save a Python spawn.
     const fromOcr = !!sw._fromOcr && !modelIsUserSupplied;
 
-    if (!specsCached && specsStatus !== 'ready') {
+    if (!firmwareOnly && !specsCached && specsStatus !== 'ready') {
       authFetch(apiUrl('/api/specs'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -396,12 +401,24 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
         try { data = text ? JSON.parse(text) : null; } catch {}
         if (data && data.ok) {
           setFirmware(data); setFirmwareStatus('ready');
-          if (rackId) setCached(cacheKey.firmware(rackId, displayVendor, lookupModel, versionForLookup), data);
+          if (fwKey) setCached(fwKey, data);
         } else {
-          setFirmwareStatus('error');
+          setFirmware(null); setFirmwareStatus('error');
         }
-      }).catch(() => setFirmwareStatus('error'));
+      }).catch(() => { setFirmware(null); setFirmwareStatus('error'); });
     }
+  };
+
+  // "Try again" after the server failed the check. Drops whatever the
+  // prefetcher or an earlier visit cached for this exact (vendor, model,
+  // version) so the fetch really goes to the server again.
+  const retryFirmware = () => {
+    if (rackId && lookupVersion) {
+      setCached(cacheKey.firmware(rackId, displayVendor, lookupModel, lookupVersion), null);
+    }
+    setFirmware(null);
+    setFirmwareStatus('loading');
+    loadDetails(undefined, { firmwareOnly: true });
   };
 
   // Auto-fire details on mount (rather than waiting for expand) — the
@@ -533,30 +550,35 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
     setFirmwareStatus('idle');
   };
 
+  // What the check found. The status names the outcome (the source's word
+  // for it); the version comparison only means anything when the status is
+  // 'ok'. A payload from an older server carries no status, so infer one
+  // from whether a latest version came back at all.
+  const fwStatus = firmware
+    ? (firmware.status || firmware.statusValue || (firmware.latestVersion ? 'ok' : 'cannot_determine'))
+    : null;
+  // A verified outcome needs the version it was verified against. A status
+  // of 'ok' without one is not something the server sends; if it ever did,
+  // it reads as "latest not verified" rather than as a comparison.
+  const fwVerified = fwStatus === 'ok' && !!firmware?.latestVersion;
   const fwTone =
-    firmware?.upToDate === true ? 'ok'
-    : firmware?.upToDate === false ? 'warn'
+    fwVerified && firmware?.upToDate === true ? 'ok'
+    : fwVerified && firmware?.upToDate === false ? 'warn'
     : 'neutral';
-  // Headline. When the vendor scrape couldn't confirm the latest version
-  // (upToDate === null), the agent often still surfaces a recommended min
-  // version or a portal pointer — use those instead of dead-ending with
-  // "couldn't reach vendor right now".
   let fwHeadline;
-  if (firmware?.upToDate === true) {
-    fwHeadline = 'Up to date';
-  } else if (firmware?.upToDate === false) {
-    fwHeadline = 'Upgrade available';
-  } else if (firmware?.recommendedMinVersion) {
-    fwHeadline = `Recommended min: ${firmware.recommendedMinVersion}`;
-  } else if (firmware?.releaseNotesGated || firmware?.portalUrl) {
-    fwHeadline = 'Check vendor portal';
-  } else if (firmware?.releaseNotesUrl) {
-    fwHeadline = "Couldn't read latest - check vendor";
+  if (fwVerified) {
+    fwHeadline = firmware.upToDate === true ? 'Up to date'
+      : firmware.upToDate === false ? 'Update available'
+      : `Latest ${firmware.latestVersion}`;
+  } else if (fwStatus === 'auth_required') {
+    fwHeadline = 'Check vendor site';
+  } else if (fwStatus === 'model_not_found' || fwStatus === 'ambiguous_model') {
+    fwHeadline = 'Model not listed';
   } else {
-    fwHeadline = 'Latest version unknown';
+    fwHeadline = 'Latest not verified';
   }
   const fwColor =
-    fwTone === 'ok' ? '#1c1c1c' : fwTone === 'critical' ? '#1c1c1c'
+    fwTone === 'ok' ? '#1c1c1c'
     : fwTone === 'warn' ? '#474747' : lt ? '#474747' : 'rgba(0,0,0,0.7)';
 
   // Accent: indigo (light) / cyan (dark) for CMDB; amber for OCR
@@ -982,12 +1004,22 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
             {firmwareStatus === 'skipped' && !lookupModel && (
               <StatusLine color={statusColor}>Add a model to check for updates.</StatusLine>
             )}
-            {firmwareStatus === 'error'   && <StatusLine color={statusColor}>Couldn't check for updates right now.</StatusLine>}
+            {firmwareStatus === 'error' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <StatusLine color={statusColor}>Couldn't check for updates right now.</StatusLine>
+                <button
+                  type="button"
+                  onClick={retryFirmware}
+                  style={{
+                    background: 'transparent', border: 0, padding: 0,
+                    color: linkColor, fontSize: '.78rem', fontWeight: 700, cursor: 'pointer',
+                  }}
+                >Try again</button>
+              </div>
+            )}
             {firmwareStatus === 'ready' && firmware && (() => {
-              // When the agent didn't have a verified latest version, the
-              // "Latest" cell becomes a direct link to the vendor's official
-              // download page instead of showing a dead em-dash. The same
-              // VENDOR_FW_URL map is reused for the explanatory block below.
+              // Fallback download page per vendor, used when the server did
+              // not send a portal link for this outcome.
               const VENDOR_FW_URL = {
                 mikrotik: 'https://mikrotik.com/download',
                 cisco:    'https://software.cisco.com/download/home',
@@ -1008,60 +1040,84 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
               };
               const norm = String(displayVendor || effectiveMake || '')
                 .toLowerCase().replace(/[^a-z0-9]/g, '');
-              let fwUrl = null;
+              let vendorPage = null;
               for (const k of Object.keys(VENDOR_FW_URL)) {
-                if (norm.includes(k)) { fwUrl = VENDOR_FW_URL[k]; break; }
+                if (norm.includes(k)) { vendorPage = VENDOR_FW_URL[k]; break; }
               }
-              const latestUnknown = firmware.latestVersion == null;
+              const vendorName = effectiveMake || firmware.vendor || displayVendor || 'The vendor';
+              const modelName  = firmware.model || lookupModel || effectiveModel || 'this model';
+              const vendorUrl  = firmware.portalUrl || vendorPage;
+              // The link sits inside the sentence so the sentence says where
+              // it goes. Without any URL the words stay as plain text.
+              const vendorLink = (text) => vendorUrl ? (
+                <a href={vendorUrl} target="_blank" rel="noreferrer noopener"
+                  style={{ color: linkColor, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  {text} <span aria-hidden="true">↗</span>
+                </a>
+              ) : text;
+
+              let note = null;
+              if (fwStatus === 'auth_required') {
+                note = (<>
+                  {vendorName} keeps firmware downloads behind a sign-in.
+                  {' '}Check {modelName} on the {vendorLink(`${vendorName} support site`)}
+                </>);
+              } else if (fwStatus === 'model_not_found' || fwStatus === 'ambiguous_model') {
+                note = (<>
+                  {vendorName}'s release list does not list {modelName} as read.
+                  {' '}Check the {vendorLink(`${vendorName} download page`)}
+                </>);
+              } else if (!fwVerified) {
+                note = (<>
+                  No verified release list for {vendorName} {modelName}.
+                  {' '}Check the {vendorLink(`${vendorName} download page`)}
+                </>);
+              }
+
+              const changelog = (fwVerified && Array.isArray(firmware.changelog))
+                ? firmware.changelog.filter(c => c && c.text)
+                : [];
+              const showMin = fwVerified && firmware.recommendedMinVersion
+                && firmware.recommendedMinVersion !== firmware.latestVersion;
+
               return (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
                   <MiniField label="Current" value={firmware.currentVersion} accent={accent} fieldBg={fieldBg} fieldBorder={fieldBorder} valueColor={valueColor} />
-                  {latestUnknown && fwUrl ? (
-                    <a href={fwUrl} target="_blank" rel="noreferrer noopener"
-                      style={{
-                        display: 'flex', flexDirection: 'column', gap: 2,
-                        padding: '8px 10px', borderRadius: 8,
-                        background: fieldBg,
-                        border: `1px solid ${fieldBorder}`,
-                        textDecoration: 'none',
-                      }}>
-                      <span style={{ fontSize: '.55rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.10em', color: accent }}>
-                        Latest
-                      </span>
-                      <span style={{ fontSize: '.78rem', fontWeight: 700, color: linkColor }}>
-                        Check site ↗
-                      </span>
-                    </a>
-                  ) : (
-                    <MiniField label="Latest" value={firmware.latestVersion || '-'} accent={accent} fieldBg={fieldBg} fieldBorder={fieldBorder} valueColor={valueColor} />
+                  {fwVerified && firmware.latestVersion && (
+                    <MiniField label="Latest" value={firmware.latestVersion} accent={accent} fieldBg={fieldBg} fieldBorder={fieldBorder} valueColor={valueColor} />
                   )}
-                  {firmware.recommendedMinVersion && firmware.recommendedMinVersion !== firmware.latestVersion && (
+                  {showMin && (
                     <MiniField label="Min safe" value={firmware.recommendedMinVersion} accent={'#474747'} fieldBg={fieldBg} fieldBorder={fieldBorder} valueColor={valueColor} />
                   )}
-                  {firmware.releaseNotesUrl && (
-                    <a href={firmware.releaseNotesUrl} target="_blank" rel="noreferrer noopener"
-                      style={{ display: 'flex', alignItems: 'center', fontSize: '.72rem', color: linkColor, textDecoration: 'none' }}>
-                      Release notes ↗
-                    </a>
-                  )}
-                  {!firmware.releaseNotesUrl && firmware.portalUrl && (
-                    <a href={firmware.portalUrl} target="_blank" rel="noreferrer noopener"
-                      style={{ display: 'flex', alignItems: 'center', fontSize: '.72rem', color: linkColor, textDecoration: 'none' }}>
-                      Vendor portal ↗
-                    </a>
-                  )}
                 </div>
-                {/* Explanatory note below the cells — when latest is unknown,
-                    surface either the agent's diagnostic or a clear "DB
-                    doesn't cover this vendor" message. The clickable Latest
-                    cell above already gives the user a one-tap route to the
-                    vendor's download page, so this is just plain text. */}
-                {latestUnknown && (
-                  <div style={{ marginTop: 10, fontSize: '.72rem', color: statusColor, lineHeight: 1.5 }}>
-                    {firmware.advisoryMessage ||
-                      `Couldn't find a verified latest firmware for ${effectiveMake || displayVendor || 'this vendor'} ${effectiveModel || ''} in our database. Tap "Check site ↗" above to see the current release on the manufacturer's official site.`}
+                {fwVerified && firmware.releaseNotesUrl && (
+                  <div style={{ marginTop: 10 }}>
+                    <a href={firmware.releaseNotesUrl} target="_blank" rel="noreferrer noopener"
+                      style={{ fontSize: '.76rem', fontWeight: 700, color: linkColor, textDecoration: 'none' }}>
+                      Release notes <span aria-hidden="true">↗</span>
+                    </a>
                   </div>
+                )}
+                {changelog.length > 0 && (
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {changelog.map((c, i) => (
+                      <div key={`${c.section || ''}-${c.version || ''}-${i}`}
+                        style={{ padding: '8px 10px', borderRadius: 8, background: fieldBg, border: `1px solid ${fieldBorder}` }}>
+                        <span style={{ display: 'block', fontSize: '.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: accent, marginBottom: 3 }}>
+                          {c.section || (c.version ? `Changes in ${c.version}` : 'Changes')}
+                        </span>
+                        <span style={{ display: 'block', fontSize: '.76rem', color: valueColor, lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                          {c.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {note && (
+                  <p style={{ margin: '10px 0 0', fontSize: '.78rem', color: statusColor, lineHeight: 1.55, overflowWrap: 'anywhere' }}>
+                    {note}
+                  </p>
                 )}
               </>
               );

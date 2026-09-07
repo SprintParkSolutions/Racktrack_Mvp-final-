@@ -176,7 +176,7 @@ function _prefetchSpecs(rackId, vendor, model, scan) {
 
 function _prefetchFirmware(rackId, vendor, model, version, scan) {
   if (!vendor || !model || !version) return;
-  const key = _key(rackId, 'firmware', vendor, model, version);
+  const key = _key(rackId, 'firmware.v2', vendor, model, version);
   if (scan.cache.has(key)) return;
   const p = _fetchJson('/api/firmware', {
     method: 'POST',
@@ -264,6 +264,9 @@ export const cacheKey = {
   ocrDevices: (rackId) => _key(rackId, 'ocrDevices'),
   cmdb:       (rackId) => _key(rackId, 'cmdb'),
   specs:      (rackId, vendor, model) => _key(rackId, 'specs', vendor, model),
-  firmware:   (rackId, vendor, model, version) => _key(rackId, 'firmware', vendor, model, version),
+  // 'firmware.v2': the old namespace held ok:false payloads for outcomes
+  // the server now reports as ok:true with a status. Renaming it retires
+  // those entries instead of showing them as errors.
+  firmware:   (rackId, vendor, model, version) => _key(rackId, 'firmware.v2', vendor, model, version),
   sfp:        (rackId, vendor, model, ifaces) => _key(rackId, 'sfp', vendor, model, (ifaces || []).join(',')),
 };
