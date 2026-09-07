@@ -1121,20 +1121,28 @@ export default function SwitchTestPage() {
 
         {/* Save the places, then go on to the report. Only once something has
             been read and the rack has boxes to put it in. */}
-        {!form && places?.devices?.length > 0 && Object.values(results).some((x) => x?.kind === 'full') && (
+        {/* The way on is always there once a switch has been read. Save places
+            needs boxes to put the switches in; Go to report does not — it
+            waited on the rack's places loading, and when that call was slow or
+            failed the page had no way forward at all. */}
+        {!form && Object.values(results).some((x) => x?.kind === 'full') && (
           <div className={styles.finish}>
             {matchNote && (
               <p className={matchNote.ok ? styles.finishOk : styles.finishBad}>{matchNote.text}</p>
             )}
             <div className={styles.actions}>
-              <button type="button" className={styles.secondary} disabled={savingMatch} onClick={savePlaces}>
-                {savingMatch ? 'Saving…' : 'Save places'}
-              </button>
+              {places?.devices?.length > 0 && (
+                <button type="button" className={styles.secondary} disabled={savingMatch} onClick={savePlaces}>
+                  {savingMatch ? 'Saving…' : 'Save places'}
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.primary}
                 disabled={savingMatch}
-                onClick={async () => { if (await savePlaces()) navigate(`/results/${encodeURIComponent(rackId)}/report`); }}
+                onClick={async () => {
+                  if (!places?.devices?.length || await savePlaces()) navigate(`/results/${encodeURIComponent(rackId)}/report`);
+                }}
               >
                 Go to report
               </button>

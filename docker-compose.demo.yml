@@ -60,7 +60,12 @@ services:
       #
       # Going beyond 2 means a bigger plan, not a bigger number: KVM 4 for 3,
       # KVM 8 for 5.
-      - RACKTRACK_WORKERS=2
+      # One worker on this box. Each worker holds every model plus the OCR
+      # reader (3-4 GB resident); two of them alongside NetBox pushed the
+      # 7.8 GB VPS into OOM kills mid-scan, which is what "the rack takes
+      # forever" was. One worker answers a scan in one pass instead.
+      - RACKTRACK_WORKERS=1
+      - OMP_NUM_THREADS=2
       # app.js reads this exact name (not CORS_ORIGINS). It must match the
       # browser's origin or every API call from the demo site is refused.
       - CORS_ALLOWED_ORIGINS=https://demo.racktrack.ai
