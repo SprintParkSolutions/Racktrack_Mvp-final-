@@ -24,7 +24,34 @@ Output (stdout, single line of JSON):
 
 import argparse
 import json
+import re
 import sys
+
+# The unit segment of a rack label — "SW-U10", "SP-RI-U15-SW04" — is two
+# digits after a U, and EasyOCR reads those digits as the letters that look
+# like them: 1 as I or l, 5 as S, 0 as O, 8 as B, 2 as Z, 6 as G. One label in
+# the office rack came back "SP-RI-UIS-SW04" for U15. The fix is applied only
+# where the token can be nothing but a unit: a U with exactly two such
+# characters after it, hyphenated on at least one side (or already holding a
+# digit), so "USB" and "UPS" are left alone.
+_CONFUSABLE = str.maketrans(
+    {"I": "1", "l": "1", "|": "1", "S": "5", "O": "0", "Q": "0", "B": "8", "Z": "2", "G": "6"}
+)
+_UNIT_SEG = re.compile(r"(?P<pre>^|-)U(?P<seg>[0-9IlSOQBZG|]{2})(?=$|-)")
+
+
+def fix_unit_confusables(text: str) -> str:
+    """Repair a unit segment: "SP-RI-UIS-SW04" -> "SP-RI-U15-SW04"; "USB" stays as read."""
+
+    def _sub(m: re.Match) -> str:
+        seg = m.group("seg")
+        hyphen_after = text[m.end() : m.end() + 1] == "-"
+        if m.group("pre") == "" and not hyphen_after and not any(ch.isdigit() for ch in seg):
+            return m.group(0)
+        return f"{m.group('pre')}U{seg.translate(_CONFUSABLE)}"
+
+    return _UNIT_SEG.sub(_sub, text)
+
 
 # Built on first use and kept. Constructing an easyocr.Reader loads two neural
 # networks off disk — several seconds — and the old code did it on every call,
@@ -54,9 +81,10 @@ def extract_labels(image_path: str, min_conf: float = 0.25) -> dict:
 
     labels = []
     for pts, text, conf in results:
-        text = (text or "").strip()
-        if len(text) < 2 or float(conf) < min_conf:
+        raw = (text or "").strip()
+        if len(raw) < 2 or float(conf) < min_conf:
             continue
+        text = fix_unit_confusables(raw)
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
         x1 = max(0, int(min(xs)))
@@ -68,6 +96,7 @@ def extract_labels(image_path: str, min_conf: float = 0.25) -> dict:
         labels.append(
             {
                 "text": text,
+                **({"raw": raw} if raw != text else {}),
                 "conf": round(float(conf), 3),
                 "bbox": {
                     "x": x1,

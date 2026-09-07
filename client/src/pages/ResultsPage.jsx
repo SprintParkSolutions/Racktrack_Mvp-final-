@@ -5067,13 +5067,17 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
 
         {selectedDevice && !isPdu(selectedDevice) && (
           <div className={styles.portCard} style={{ '--accent': selColor }}>
+            {/* One line says everything: what to type and how many there are.
+                The instruction that used to sit in its own box, and the single
+                port-type pill, are folded into it — on a phone the card was
+                taller than the photo it points at. */}
             <div className={styles.portCardTop}>
               <div>
-                <p className={styles.portCardTitle}>Port number</p>
+                <p className={styles.portCardTitle}>Find a port</p>
                 <p className={styles.portCardSub}>
-                  {selPortMax > 0
-                    ? `Enter port number · ${selPortMax} detected`
-                    : 'Enter the port number'}
+                  {portMaxLimit > 0
+                    ? `Type 1 to ${portMaxLimit}${portCatsToShow.length === 1 ? ` · ${portCatsToShow[0].label}` : ''}`
+                    : 'Confirm how many ports this device has first'}
                 </p>
               </div>
               {portLabel && (
@@ -5082,26 +5086,10 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                 </span>
               )}
             </div>
-            {/* What to do next, once a device is chosen and no port has been
-                located yet.
-                The guided tour covers this step, but it runs once for a
-                first-time user and never again — so outside it the app went
-                silent at exactly the point testers reported being stuck:
-                "after pick a device the bot is not giving any of the
-                information so here user get confused what to do next".
-                A standing line costs nothing and answers it every time, for
-                every user, whether or not they ever saw the tour. It clears
-                itself the moment a port is found. */}
-            {!portInfo && !loading && (
-              <p className={styles.prNextStep}>
-                {portMaxLimit > 0
-                  ? `Now type a port number between 1 and ${portMaxLimit}, then tap Find Port to locate it on the photo.`
-                  : 'Now confirm how many ports this device has, then pick a port to locate it on the photo.'}
-              </p>
-            )}
-            {/* Port type — RJ45 / SFP / Console / USB. Only the categories this
-                device actually has are shown (with their counts). Sent as
-                port_category so the pipeline highlights the right port set. */}
+            {/* Port type — RJ45 / SFP / Console / USB — only when there is a
+                choice to make. Sent as port_category so the pipeline
+                highlights the right port set. */}
+            {portCatsToShow.length > 1 && (
             <div className={styles.portTypeRow}>
               {portCatsToShow.map(opt => {
                 const on = portCategory === opt.k;
@@ -5118,6 +5106,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
                 );
               })}
             </div>
+            )}
             <div className={styles.portInputRow} data-tour="port-input-row">
               <input
                 className={`input ${styles.portInput}`}

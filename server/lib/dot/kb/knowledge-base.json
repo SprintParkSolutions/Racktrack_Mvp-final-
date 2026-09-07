@@ -2450,13 +2450,13 @@
     },
     {
       "question": "Everything in the phone app fails to load even though my phone has good signal. Nothing works at all.",
-      "answer": "This usually means the app is pointed at a server address that no longer exists, rather than your phone being offline. Test builds of the RackTrack app (the TestFlight IPA and the shared APK) have the server's public web address compiled in at build time. On the standard Windows test setup the server is published through a temporary Cloudflare tunnel, which generates a brand-new random address every time the server is restarted — so an app built against yesterday's address keeps calling a host that is gone, and every screen fails. Quick check: if the web version works in a phone browser but the installed app doesn't, this is the cause. Ask your administrator for the current address (on the server it is written to current-url.txt each time start.ps1 runs) and for a rebuilt app pointed at it — they run update-apk-url.ps1 to update the address and rebuild the web bundle, then produce the new APK in Android Studio. Note this applies to tunnel-based test deployments; if your server is reached over a fixed LAN or public address instead, there is no current-url.txt and the cause is something else.",
+      "answer": "This usually means the app is pointed at a server address that no longer exists, rather than your phone being offline. Test builds of the RackTrack app (the TestFlight IPA and the shared APK) have the server's public web address compiled in at build time. On the standard Windows test setup the server is published through a temporary Cloudflare tunnel, which generates a brand-new random address every time the server is restarted — so an app built against yesterday's address keeps calling a host that is gone, and every screen fails. Quick check: if the web version works in a phone browser but the installed app doesn't, this is the cause. Ask your administrator for the current address (on the server it is written to current-url.txt each time deploy/legacy-windows/start.ps1 runs) and for a rebuilt app pointed at it — they run deploy/legacy-windows/update-apk-url.ps1 to update the address and rebuild the web bundle, then produce the new APK in Android Studio. Note this applies to tunnel-based test deployments; if your server is reached over a fixed LAN or public address instead, there is no current-url.txt and the cause is something else.",
       "symptoms": [
         "Every screen fails on the phone app but the browser version works",
         "Sign-in fails with no obvious error",
         "App worked yesterday, broken today after a server restart"
       ],
-      "rootCause": "VITE_API_BASE is compiled into the client bundle. start.ps1 launches a Cloudflare quick tunnel and writes the generated https://<random>.trycloudflare.com to current-url.txt; update-apk-url.ps1 rewrites client/.env.production and rebuilds. A restarted tunnel yields a new hostname, orphaning previously-built APKs/IPAs.",
+      "rootCause": "VITE_API_BASE is compiled into the client bundle. deploy/legacy-windows/start.ps1 launches a Cloudflare quick tunnel and writes the generated https://<random>.trycloudflare.com to current-url.txt; deploy/legacy-windows/update-apk-url.ps1 rewrites client/.env.production and rebuilds. A restarted tunnel yields a new hostname, orphaning previously-built APKs/IPAs.",
       "evidence": [
         {
           "file": "/Volumes/Racktrack/dark_mobile/client/src/utils/api.js",
@@ -2464,12 +2464,12 @@
           "snippet": "// In the APK build, we set VITE_API_BASE=https://<public-host> so the WebView\n// can reach the real backend instead of its own (non-existent) origin.\nlet API_BASE = import.meta.env.VITE_API_BASE || '';"
         },
         {
-          "file": "/Volumes/Racktrack/dark_mobile/start.ps1",
+          "file": "/Volumes/Racktrack/dark_mobile/deploy/legacy-windows/start.ps1",
           "lines": "44-49",
           "snippet": "if ($content -match \"https://[a-z0-9-]+\\.trycloudflare\\.com\") {\n            ...\n            $url | Set-Content \"$ProjectRoot\\current-url.txt\""
         },
         {
-          "file": "/Volumes/Racktrack/dark_mobile/update-apk-url.ps1",
+          "file": "/Volumes/Racktrack/dark_mobile/deploy/legacy-windows/update-apk-url.ps1",
           "lines": "15-27",
           "snippet": "$content = $content -replace \"VITE_API_BASE=.*\", \"VITE_API_BASE=$url\"\n    $content | Set-Content $envFile\n}\n\n# Rebuild client\nSet-Location \"$ProjectRoot\\client\"\nnpm run build\nnpx cap sync android"
         }
@@ -3110,7 +3110,7 @@
         {
           "file": "MAC-IPA-SETUP.md",
           "lines": "172",
-          "snippet": "**The Windows box must be on with `start.ps1` running, or none of this works.**"
+          "snippet": "**The Windows box must be on with `deploy/legacy-windows/start.ps1` running, or none of this works.**"
         }
       ],
       "userCanSelfFix": false,
@@ -3132,10 +3132,10 @@
         "all requests fail",
         "no data on any screen after a period of working"
       ],
-      "rootCause": "start.ps1 opens a `cloudflared tunnel --url` quick tunnel whose https://<random>.trycloudflare.com hostname changes on every restart, and that hostname is baked into the shipped bundle. The mobile build guard explicitly warns about this.",
+      "rootCause": "deploy/legacy-windows/start.ps1 opens a `cloudflared tunnel --url` quick tunnel whose https://<random>.trycloudflare.com hostname changes on every restart, and that hostname is baked into the shipped bundle. The mobile build guard explicitly warns about this.",
       "evidence": [
         {
-          "file": "start.ps1",
+          "file": "deploy/legacy-windows/start.ps1",
           "lines": "37-49",
           "snippet": "Start-Process \"$ProjectRoot\\cloudflared.exe\" -ArgumentList \"tunnel --url http://localhost:3001\" ...\nif ($content -match \"https://[a-z0-9-]+\\.trycloudflare\\.com\") { ... $url | Set-Content \"$ProjectRoot\\current-url.txt\" }"
         },
@@ -4173,7 +4173,7 @@
         "Whole tester group cannot sign in after a server restart",
         "App worked yesterday, broken today with no change to the account"
       ],
-      "rootCause": "VITE_API_BASE is compiled into the mobile bundle (apiUrl prefixes every call with it). Quick Cloudflare tunnels mint a new https://<random>.trycloudflare.com on each start.ps1 run and write it to current-url.txt; the packaged app keeps pointing at the previous one until rebuilt. check-api-base.mjs explicitly warns about this at build time.",
+      "rootCause": "VITE_API_BASE is compiled into the mobile bundle (apiUrl prefixes every call with it). Quick Cloudflare tunnels mint a new https://<random>.trycloudflare.com on each deploy/legacy-windows/start.ps1 run and write it to current-url.txt; the packaged app keeps pointing at the previous one until rebuilt. check-api-base.mjs explicitly warns about this at build time.",
       "evidence": [
         {
           "file": "/Volumes/Racktrack/dark_mobile/client/src/utils/api.js",
@@ -4186,12 +4186,12 @@
           "snippet": "if (/trycloudflare\\.com/i.test(url)) {\n  console.warn(`\\n⚠ Warning: \"${url}\" is a TEMPORARY Cloudflare quick-tunnel.`);\n  console.warn('  Its URL changes on every restart — the shipped app will break and need a rebuild.');"
         },
         {
-          "file": "/Volumes/Racktrack/dark_mobile/start.ps1",
+          "file": "/Volumes/Racktrack/dark_mobile/deploy/legacy-windows/start.ps1",
           "lines": "44-49",
           "snippet": "if ($content -match \"https://[a-z0-9-]+\\.trycloudflare\\.com\") { ... $url | Set-Content \"$ProjectRoot\\current-url.txt\" }"
         },
         {
-          "file": "/Volumes/Racktrack/dark_mobile/update-apk-url.ps1",
+          "file": "/Volumes/Racktrack/dark_mobile/deploy/legacy-windows/update-apk-url.ps1",
           "lines": "14-27",
           "snippet": "$content = $content -replace \"VITE_API_BASE=.*\", \"VITE_API_BASE=$url\"\n$content | Set-Content $envFile\n# Rebuild client\nSet-Location \"$ProjectRoot\\client\"\nnpm run build\nnpx cap sync android"
         }
@@ -10746,7 +10746,7 @@
     },
     {
       "question": "The APK/IPA built fine but points at the wrong server. How is the backend URL set?",
-      "answer": "Admin/internal. The backend URL is compiled into the JS bundle at build time from VITE_API_BASE (client/src/utils/api.js:4 reads import.meta.env.VITE_API_BASE). There is no runtime setting and no in-app way to change it — a wrong URL means rebuild.\n\nAndroid, two paths:\n- Tunnel path: run start.ps1 first (start.ps1:49 writes the tunnel URL to current-url.txt), then update-apk-url.ps1 (lines 11-27) rewrites client/.env.production to `VITE_API_BASE=<url>`, runs `npm run build` and `npx cap sync android`. Build the APK in Android Studio afterwards. This path uses a plain `vite build`, so it is the unguarded one.\n- Guarded path: client/ship-apk.sh takes the backend from $VITE_API_BASE (falling back to a hardcoded ngrok host at line 15) and exports it into `npm run build:mobile` at line 44, then cap copy + gradlew assembleDebug.\n\niOS: client/make-ipa.sh takes the URL as its second argument (`./make-ipa.sh <TEAM_ID> [https://backend]`), falling back to /tmp/cf_url.txt if omitted; it is never read from .env. Line 17 runs `VITE_API_BASE=\"$API\" npm run build:mobile`.\n\nTwo traps:\n1. client/.env.production is currently empty on purpose (`VITE_API_BASE=` → same-origin), but client/.env.production.local contains `VITE_API_BASE=http://localhost:3001`, and Vite's .local file overrides .env.production. That is the misbuild documented as blocker #1 in docs/notes/delivery/testflight-readiness.html (lines 79-80). It only bites `npm run build`: the ship-*/make-ipa scripts export VITE_API_BASE in the shell, and a real environment variable beats any .env file, so build:mobile's guard (client/scripts/check-api-base.mjs — rejects empty, localhost/127.0.0.1/0.0.0.0, and non-https; warns on trycloudflare quick tunnels) sees the right value.\n2. api.js lines 7-22 self-heal only the web dist: if API_BASE is a localhost URL AND window.location.hostname is not localhost, it drops to same-origin. A packaged app is served from capacitor://localhost, so the guard deliberately does not fire — every call fails with \"Load failed\".",
+      "answer": "Admin/internal. The backend URL is compiled into the JS bundle at build time from VITE_API_BASE (client/src/utils/api.js:4 reads import.meta.env.VITE_API_BASE). There is no runtime setting and no in-app way to change it — a wrong URL means rebuild.\n\nAndroid, two paths:\n- Tunnel path: run deploy/legacy-windows/start.ps1 first (deploy/legacy-windows/start.ps1:49 writes the tunnel URL to current-url.txt), then deploy/legacy-windows/update-apk-url.ps1 (lines 11-27) rewrites client/.env.production to `VITE_API_BASE=<url>`, runs `npm run build` and `npx cap sync android`. Build the APK in Android Studio afterwards. This path uses a plain `vite build`, so it is the unguarded one.\n- Guarded path: client/ship-apk.sh takes the backend from $VITE_API_BASE (falling back to a hardcoded ngrok host at line 15) and exports it into `npm run build:mobile` at line 44, then cap copy + gradlew assembleDebug.\n\niOS: client/make-ipa.sh takes the URL as its second argument (`./make-ipa.sh <TEAM_ID> [https://backend]`), falling back to /tmp/cf_url.txt if omitted; it is never read from .env. Line 17 runs `VITE_API_BASE=\"$API\" npm run build:mobile`.\n\nTwo traps:\n1. client/.env.production is currently empty on purpose (`VITE_API_BASE=` → same-origin), but client/.env.production.local contains `VITE_API_BASE=http://localhost:3001`, and Vite's .local file overrides .env.production. That is the misbuild documented as blocker #1 in docs/notes/delivery/testflight-readiness.html (lines 79-80). It only bites `npm run build`: the ship-*/make-ipa scripts export VITE_API_BASE in the shell, and a real environment variable beats any .env file, so build:mobile's guard (client/scripts/check-api-base.mjs — rejects empty, localhost/127.0.0.1/0.0.0.0, and non-https; warns on trycloudflare quick tunnels) sees the right value.\n2. api.js lines 7-22 self-heal only the web dist: if API_BASE is a localhost URL AND window.location.hostname is not localhost, it drops to same-origin. A packaged app is served from capacitor://localhost, so the guard deliberately does not fire — every call fails with \"Load failed\".",
       "symptoms": [
         "app points at localhost",
         "app calls the wrong server",
@@ -10756,7 +10756,7 @@
       "rootCause": "VITE_API_BASE is an import.meta.env value inlined at build time. .env.production.local (localhost:3001) overrides .env.production in a plain vite build.",
       "evidence": [
         {
-          "file": "update-apk-url.ps1",
+          "file": "deploy/legacy-windows/update-apk-url.ps1",
           "lines": "11-27",
           "snippet": "$url = (Get-Content $urlFile).Trim()\n...\n$content = $content -replace \"VITE_API_BASE=.*\", \"VITE_API_BASE=$url\"\n...\nnpm run build\nnpx cap sync android"
         },

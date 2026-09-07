@@ -22,9 +22,12 @@ import { useAuth } from '../AuthContext.jsx';
  */
 
 const SECTIONS = [
-  { key: 'work', title: 'Racks', match: ['/scan', '/multi-rack/new', '/history', '/results'] },
+  { key: 'work', title: 'Racks', match: ['/scan', '/multi-rack/new', '/results'] },
   { key: 'manage', title: 'Manage', match: ['/organizations', '/dashboard', '/lab', '/connections', '/marketplace'] },
   { key: 'help', title: 'Support', match: ['/help', '/contact'] },
+  // History sits under Support, on its own, with no heading: it is the one
+  // place to go back to, not a kind of work.
+  { key: 'past', title: null, match: ['/history'] },
 ];
 
 /** Which section a destination belongs to; anything unmatched goes last. */
@@ -90,7 +93,7 @@ export default function MoreSheet({ links, onClose }) {
         <div className={styles.scroll}>
           {grouped.map((section) => (
             <nav key={section.key} className={styles.group} aria-label={section.title}>
-              <p className={styles.groupTitle}>{section.title}</p>
+              {section.title && <p className={styles.groupTitle}>{section.title}</p>}
               {section.items.map((l) => (
                 <NavLink
                   key={l.to}

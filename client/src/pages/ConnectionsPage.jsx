@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styles from './ConnectionsPage.module.css';
 import { useConnections } from '../ConnectionsContext.jsx';
 import { TYPE_INFO } from '../utils/connectionsApi';
+import { apiUrl, authFetch } from '../utils/api';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 
 const DEFAULT_TYPE = 'servicenow';
@@ -34,6 +35,18 @@ export default function ConnectionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError]   = useState(null);
   const [openMenuFor, setOpenMenuFor] = useState(null);
+  // The server can carry one NetBox for everybody (its own env). When it does
+  // and this organisation has not added its own, the page says so, so nobody
+  // wonders where the export is going.
+  const [serverNetbox, setServerNetbox] = useState(null);
+  useEffect(() => {
+    let dead = false;
+    authFetch(apiUrl('/api/nb/netbox/health'))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((h) => { if (!dead && h && h.source === 'server-env') setServerNetbox(h); })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, []);
 
   // Close the ⋯ menu on any outside tap or Escape. Without this it stayed open
   // until something else happened to close it, so the Edit/Delete panel sat
@@ -157,13 +170,23 @@ export default function ConnectionsPage() {
       {/* One list. The connection in use is first and says so; the others
           are one tap from becoming it. No cards, no dots, no menus: a name,
           what kind of thing it is, and the two or three verbs that apply. */}
-      {profiles.length === 0 ? (
+      {profiles.length === 0 && !serverNetbox ? (
         <div className={styles.empty}>
           <p>No connections yet.</p>
           <p className={styles.emptySub}>Add your CMDB or NetBox once and every screen uses it.</p>
         </div>
       ) : (
         <ul className={styles.rows}>
+          {serverNetbox && !profiles.some((p) => p.type === 'netbox') && (
+            <li className={`${styles.row} ${styles.rowActive}`}>
+              <div className={styles.rowMain}>
+                <span className={styles.rowName}>RackTrack NetBox</span>
+                <span className={styles.rowType}>
+                  NetBox · in use · provided for every account{serverNetbox.reachable === false ? ' · not reachable right now' : ''}
+                </span>
+              </div>
+            </li>
+          )}
           {(orgScoped ? profiles : [...(active ? [active] : []), ...inactive]).map((p) => {
             // The organisation keeps one connection in use per kind; a person
             // keeps one in use overall. Either way, the row says which it is.

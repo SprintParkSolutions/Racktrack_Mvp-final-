@@ -32,7 +32,7 @@
 .head {
   position: relative;
   display: flex; flex-direction: row; align-items: center; gap: 14px;
-  padding: 22px 56px 18px 18px;   /* room on the right for the close button */
+  padding: 16px 56px 14px 16px;   /* room on the right for the close button */
   background: #ffffff;
   border-bottom: 1px solid rgba(12, 20, 32, .08);
 }
@@ -40,7 +40,7 @@
 
 .avatar {
   flex: none;
-  width: 46px; height: 46px;
+  width: 40px; height: 40px;
   border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
   background: #f1f3f5;
@@ -53,7 +53,7 @@
 .nameRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .name {
   margin-top: 0;
-  font-size: 17px; font-weight: 700; letter-spacing: -.01em;
+  font-size: 16px; font-weight: 700; letter-spacing: -.01em;
   color: #0c1420;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   animation: rise 320ms cubic-bezier(.2,.8,.3,1) 60ms both;
@@ -70,7 +70,7 @@
 }
 .mail {
   margin-top: 0;
-  font-size: 12.5px; color: #7b8794;
+  font-size: 12px; color: #7b8794;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   animation: rise 320ms cubic-bezier(.2,.8,.3,1) 140ms both;
 }
@@ -98,19 +98,21 @@
 .scroll {
   flex: 1; min-height: 0;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: 8px 10px 4px;
+  padding: 4px 10px 4px;
 }
-.group { display: flex; flex-direction: column; margin-bottom: 6px; }
+.group { display: flex; flex-direction: column; margin-bottom: 2px; }
+/* A group with no heading sits under a hairline instead. */
+.group:not(:has(.groupTitle)) { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(12, 20, 32, .08); }
 .groupTitle {
-  margin: 12px 8px 4px;
+  margin: 10px 8px 2px;
   font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
   color: #9aa5b1;
 }
 
 .row {
   display: flex; align-items: center; gap: 12px;
-  padding: 11px 10px;
-  border-radius: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
   color: #0c1420; text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -140,14 +142,14 @@
 /* ── Account and the way out ── */
 .foot {
   border-top: 1px solid rgba(12, 20, 32, .08);
-  padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
-  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 0;
 }
 .footRow {
   display: flex; align-items: center; gap: 12px;
   width: 100%;
-  padding: 12px 10px;
-  border: 0; border-radius: 12px;
+  padding: 9px 10px;
+  border: 0; border-radius: 10px;
   background: transparent; color: #0c1420;
   font-size: 14.5px; font-weight: 600; text-align: left;
   text-decoration: none; cursor: pointer;
@@ -164,4 +166,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .backdrop, .drawer { animation: none; }
+}
+
+/* The whole drawer must fit a phone without scrolling. The one-line hints are
+   the wordy part; below a tall-tablet height they go, and the rows tighten.
+   On the shortest phones the group headings go too. */
+@media (max-height: 899px) {
+  .hint { display: none; }
+  .label { font-size: 14.5px; }
+}
+@media (max-height: 700px) {
+  .groupTitle { display: none; }
+  .row { padding: 6px 10px; }
+  .head { padding: 12px 56px 10px 16px; }
+  .footRow { padding: 7px 10px; }
 }

@@ -707,9 +707,9 @@
   flex-shrink: 0;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 18px;
-  padding: 14px 16px;
-  display: flex; flex-direction: column; gap: 10px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
   animation: riseUp .2s ease both;
   backdrop-filter: blur(12px);
   box-shadow: 0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
@@ -740,8 +740,9 @@
 .portInputRow { display: flex; gap: 8px; align-items: stretch; }
 .portInput {
   flex: 1;
-  padding: 12px 14px !important;
-  border-radius: 12px !important;
+  min-width: 0;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
   font-size: 16px !important;
   font-family: var(--mono) !important;
 }
@@ -752,9 +753,9 @@
 .findBtn {
   flex-shrink: 0;
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 12px 16px !important;
-  border-radius: 12px !important;
-  font-size: .84rem !important;
+  padding: 10px 14px !important;
+  border-radius: 10px !important;
+  font-size: .82rem !important;
   font-weight: 600 !important;
   white-space: nowrap;
   background: #000000 !important;
@@ -4750,8 +4751,8 @@
 .portTypeRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 .portTypeBtn {
   flex: 0 1 auto;
