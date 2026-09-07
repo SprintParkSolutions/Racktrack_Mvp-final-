@@ -8,5 +8,10 @@
   },
   "ios": {
     "overrideUserAgent": "RackTrack/1.0 (native app; iOS)"
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "native"
+    }
   }
 }

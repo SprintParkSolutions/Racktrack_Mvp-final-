@@ -25,6 +25,7 @@
     "@capacitor/camera": "^6.1.0",
     "@capacitor/core": "^6.2.1",
     "@capacitor/ios": "^6.2.1",
+    "@capacitor/keyboard": "^6.0.4",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "@react-three/xr": "^6.6.29",
