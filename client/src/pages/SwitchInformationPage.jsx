@@ -683,37 +683,42 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
         </svg>
       </button>
 
-      {/* ── Fields grid ──
-          Vendor and Model are already in the header title, so we drop them
-          here to avoid the previously-flagged duplication. Firmware DOES
-          get its own tile (with an em-dash placeholder when unknown) so
-          the user always knows where the firmware version lives and can
-          add one via the expanded Firmware section. Serial / MAC / IP
-          appear when populated. */}
-      {(displayVersion || sw.port_count || sw.serial_number || sw.mac_address || sw.ip_address) && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(0, 1fr))', gap: 1, borderTop: `1px solid ${divider}` }}>
-          {[
-            ['Firmware',     displayVersion
-                              ? (versionIsUserSupplied ? `${displayVersion} · entered` : displayVersion)
-                              : '-'],
-            // Counted by the detector, so it is on screen with the first
-            // render — no waiting on the label pass or a vendor lookup.
-            sw.port_count    && ['Ports',  String(sw.port_count)],
-            sw.serial_number && ['Serial', sw.serial_number],
-            sw.mac_address   && ['MAC',    sw.mac_address],
-            sw.ip_address    && ['IP',     sw.ip_address],
-          ].filter(Boolean).map(([label, value]) => (
-            <div key={label} style={{ padding: '10px 16px', background: fieldBg }}>
-              <span style={{ display: 'block', fontSize: '.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: accent, marginBottom: 3 }}>
-                {label}
-              </span>
-              <span style={{ display: 'block', fontSize: '.82rem', fontWeight: 600, color: valueColor }}>
-                {value}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* ── The facts, as rows ──
+          Four columns of tiles clipped the serial to "222B0K40(" and broke a
+          firmware string over four lines. A label and a value on one line
+          each, the firmware's version first and its build underneath in
+          smaller type, and nothing is cut off however long it is. */}
+      {(displayVersion || sw.port_count || sw.serial_number || sw.mac_address || sw.ip_address) && (() => {
+        const [ver, ...build] = String(displayVersion || '').trim().split(/\s+/);
+        const rows = [
+          displayVersion && ['Firmware', ver + (versionIsUserSupplied ? ' · entered' : ''), build.join(' ')],
+          sw.serial_number && ['Serial', sw.serial_number],
+          sw.ip_address && ['Address', sw.ip_address],
+          sw.mac_address && ['MAC', sw.mac_address],
+          sw.port_count && ['Ports', String(sw.port_count)],
+        ].filter(Boolean);
+        return (
+          <dl style={{ margin: 0, padding: '6px 16px 10px', borderTop: `1px solid ${divider}`, background: fieldBg }}>
+            {rows.map(([label, value, sub]) => (
+              <div key={label} style={{ display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr)', gap: 12, alignItems: 'baseline', padding: '6px 0' }}>
+                <dt style={{ margin: 0, fontSize: '.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: accent }}>
+                  {label}
+                </dt>
+                <dd style={{ margin: 0, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: '.86rem', fontWeight: 650, color: valueColor, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>
+                    {value}
+                  </span>
+                  {sub && (
+                    <span style={{ display: 'block', fontSize: '.72rem', color: '#717171', marginTop: 1, overflowWrap: 'anywhere' }}>
+                      {sub}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        );
+      })()}
 
       {/* ── Expanded: firmware + specs ── */}
       {expanded && (
@@ -1606,6 +1611,11 @@ function useSwitchData(rackId) {
             sysName: sw.sysName || '',
             host: sw.host || '',
             label: sw.label || '',
+            // The switch's own count of its sockets. The camera counted 24
+            // RJ45 on a box whose spec sheet says 28 — it cannot see the four
+            // SFP cages as ports — and the card showed 24 above a table
+            // saying 28. The box knows.
+            ports: Number(sw.ports) || 0,
           };
         }
         if (!cancelled) setLiveByU(byU);
@@ -1667,7 +1677,7 @@ function useSwitchData(rackId) {
       _fromSwitch: Boolean(live),
       ocr_conf: d.match_conf,
       raw_text: d.raw_text || '',
-      port_count: d.port_count,
+      port_count: live?.ports || d.port_count,
       sfp_count: sfpCount,
       _fromOcr: true,
       // True while this card is a scan-detected switch whose label hasn't
