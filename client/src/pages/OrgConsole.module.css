@@ -126,27 +126,20 @@
 }
 
 /* ── Dashboard stats ── */
+/* Eight numbers in a row or two, not eight cards in four. Number over word,
+   four to a row on a phone and all eight across on a desktop; no icon block
+   and no black hero card, which were what made each one 80px tall. */
 .stats {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px; margin: 0 0 4px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px; margin: 0 0 4px;
 }
+@media (min-width: 900px) { .stats { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
 .stat {
-  position: relative; display: flex; align-items: center; gap: 13px;
-  padding: 14px 15px; border-radius: 14px;
+  position: relative; display: flex; align-items: center; gap: 0; min-width: 0;
+  padding: 10px 10px 9px; border-radius: 10px;
   border: 1px solid #eee; background: #fff;
-  transition: border-color .18s, box-shadow .18s;
 }
-.stat:hover { border-color: #ddd; box-shadow: 0 6px 18px rgba(0, 0, 0,.05); }
-/* First card carries the single black focal accent. */
-.stat:first-child { background: #000000; border-color: #000000; }
-.stat:first-child .statValue { color: #fff; }
-.stat:first-child .statLabel { color: rgba(255,255,255,.55); }
-.stat:first-child .statIcon { background: rgba(255,255,255,.13); color: #fff; }
-.statIcon {
-  flex-shrink: 0; width: 38px; height: 38px; border-radius: 11px;
-  display: flex; align-items: center; justify-content: center;
-  background: #f4f4f4; color: #000000;
-}
+.statIcon { display: none; }
 .statIcon :global(.appIcon) {
   font-size: 21px;
   font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
@@ -278,17 +271,15 @@
   .headActions { flex-basis: 100%; }
   .title { font-size: 1.55rem; }
   .headActions { justify-content: flex-start; }
-  .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .stat { padding: 12px 13px; gap: 11px; border-radius: 13px; }
-  .statIcon { width: 34px; height: 34px; border-radius: 10px; }
-  .statIcon :global(.appIcon) { font-size: 19px; }
-  .statValue { font-size: 1.45rem; }
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .stat { padding: 9px 8px 8px; border-radius: 9px; }
+  .statValue { font-size: 1.15rem; }
   .grid { grid-template-columns: 1fr; }
   .sectionHead { flex-wrap: wrap; }
   .row { padding: 11px 13px; }
 }
 @media (max-width: 360px) {
-  .stats { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .title { font-size: 1.45rem; }
 }
 

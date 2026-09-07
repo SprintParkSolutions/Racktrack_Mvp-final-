@@ -1,6 +1,6 @@
 {
   "models": {
-    "devices_seg": "Models/master_best.pt",
+    "devices_seg": "Models/devices_seg.pt",
     "ports_typed": "Models/ports_9.pt",
     "ports_status": "Models/port_count.pt",
     "pdu_ports": "Models/pdu_ports_v1_det_best.pt",

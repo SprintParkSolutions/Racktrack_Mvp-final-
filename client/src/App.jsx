@@ -7,15 +7,14 @@ import { parseAuthFragment, isAuthCallbackUrl } from './utils/socialSession';
 import BottomNav from './components/BottomNav.jsx';
 import DesktopShell from './components/DesktopShell.jsx';
 import PointerGlow from './components/PointerGlow.jsx';
+import Splash from './components/Splash.jsx';
 import RouteBoundary from './components/RouteBoundary.jsx';
 import { useHasSidebar } from './hooks/useIsDesktop';
-import HomePage from './pages/HomePage.jsx';
 import ScanPage from './pages/ScanPage.jsx';
 import ResultsPage from './pages/ResultsPage.jsx';
 import RackResultsRoute from './pages/RackResultsRoute.jsx';
 import { RackSwitchesRoute, RackNetworkRoute } from './pages/SideBySideRacks.jsx';
 import RackTopologyRoute from './pages/RackTopologyRoute.jsx';
-import PortsPage from './pages/PortsPage.jsx';
 import SwitchTestPage from './pages/SwitchTestPage.jsx';
 import TopologyPage from './pages/TopologyPage.jsx';
 import NetdiscoPage from './pages/NetdiscoPage.jsx';
@@ -23,9 +22,7 @@ import HistoryPage from './pages/HistoryPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import HelpPage from './pages/HelpPage.jsx';
 import ContactPage from './pages/ContactPage.jsx';
-import LogoCompare from './pages/LogoCompare.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-import SignupPage from './pages/SignupPage.jsx';
 import AcceptInvitePage from './pages/AcceptInvitePage.jsx';
 import PendingApprovalPage from './pages/PendingApprovalPage.jsx';
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
@@ -57,7 +54,6 @@ const MarketplacePartnerAccountsPage = lazy(() => import('./pages/MarketplacePar
 // Marketplace: most sessions never reach them and they should not sit in
 // front of the login.
 const ReviewPage = lazy(() => import('./pages/ReviewPage.jsx'));
-const ExportPage = lazy(() => import('./pages/ExportPage.jsx'));
 const ReportPage = lazy(() => import('./pages/ReportPage.jsx'));
 import OrgConsolePage from './pages/OrgConsolePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
@@ -361,6 +357,11 @@ export default function App() {
         <AuthProvider>
           <ConnectionsProvider>
           <ShutterProvider>
+            {/* The opening: mark and name, over everything, then gone. It is
+                mounted here rather than per-route so it covers the first paint
+                — including the moment the session is being restored, which is
+                when a route would otherwise flash past. */}
+            <Splash />
             <AndroidBackHandler />
             <SocialDeepLinkHandler />
             <PendingScanResumer />
@@ -383,12 +384,17 @@ export default function App() {
             <RouteBoundary>
             <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
             <Routes>
-            {/* HomePage has its own desktop branch (HomeDesktop) via
-                useIsDesktop, so DesktopShell is bypassed for "/" —
-                otherwise we'd double-render the chrome. */}
-            <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+            {/* There is no Home. The app opens on the work: scanning a rack.
+                "/" is kept only as a redirect so every old link, the sidebar
+                brand and the post-login landing all arrive somewhere real. */}
+            <Route path="/" element={<ProtectedRoute><Navigate to="/scan" replace /></ProtectedRoute>} />
             <Route path="/login"  element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
+            {/* No self-signup. RackTrack is given out by an administrator, so
+                the only ways in are a login you were issued and an invite link
+                (/invite/:code, below). The page still exists for the invite
+                flow's own use; the public route sends people to the login,
+                which tells them who to write to. */}
+            <Route path="/signup" element={<Navigate to="/login" replace />} />
             <Route path="/invite/:code" element={<AcceptInvitePage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             {/* Where the server drops the browser after a social sign-in.
@@ -455,15 +461,12 @@ export default function App() {
             <Route path="/results/:rackId/network" element={
               <ProtectedRoute><ResponsiveLayout withBottomNav><SwitchTestPage /></ResponsiveLayout></ProtectedRoute>
             } />
-            {/* Report: rack and network on one page, with the Export button. */}
+            {/* Report: rack and network on one page, and the end of the chain —
+                download, share and the NetBox export all happen on it. */}
             <Route path="/results/:rackId/report" element={
               <ProtectedRoute><ResponsiveLayout withBottomNav><ReportPage /></ResponsiveLayout></ProtectedRoute>
             } />
-            {/* Export: preview, then push this rack to NetBox — reached from the
-                Report page's button. Review is reachable but not a step. */}
-            <Route path="/results/:rackId/export" element={
-              <ProtectedRoute><ResponsiveLayout withBottomNav><ExportPage /></ResponsiveLayout></ProtectedRoute>
-            } />
+            {/* Review is reachable but not a step. */}
             <Route path="/results/:rackId/review" element={
               <ProtectedRoute><ResponsiveLayout withBottomNav><ReviewPage /></ResponsiveLayout></ProtectedRoute>
             } />
@@ -538,7 +541,6 @@ export default function App() {
             <Route path="/lab" element={
               <ProtectedRoute><ResponsiveLayout withBottomNav><LabPage /></ResponsiveLayout></ProtectedRoute>
             } />
-            <Route path="/compare" element={<LogoCompare />} />
             {/* Demo: unified tenant rack-layout view. No auth — backed by
                 server/data/demo_tenant.json, isolated from real scan data. */}
             <Route path="/demo/topology" element={<TenantMatPage />} />

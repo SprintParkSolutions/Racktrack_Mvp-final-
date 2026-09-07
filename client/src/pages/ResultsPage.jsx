@@ -5,6 +5,7 @@ import styles from './ResultsPage.module.css';
 import { apiUrl, authFetch, bustUrl } from '../utils/api';
 import { getItem, getJSON, setItem, setJSON } from '../utils/safeStorage';
 import CmdbApprovalModal from '../components/CmdbApprovalModal.jsx';
+import BackButton from '../components/BackButton.jsx';
 import ScanTabBar from '../components/ScanTabBar.jsx';
 import { useIsDesktop } from '../hooks/useIsDesktop';
 import RackTabs from '../components/RackTabs.jsx';
@@ -1126,10 +1127,10 @@ export function AllDevicesView({ devices, labels, rackId, scanId, originalExt, o
 // ── Main page ─────────────────────────────────────────────────
 export default function ResultsPage({ rackId: propRackId = null, embedded: embeddedProp = false } = {}) {
   const navigate = useNavigate();
-  // Back from a rack goes Home. The rack was reached from a scan, and walking
-  // back into the camera is not where anyone wants to land once they have the
-  // result — Home is, with the rack still in the history if they want it.
-  const exitRack = () => navigate('/');
+  // Back from a rack leaves the rack. There is no Home any more, so it lands
+  // on Scan — the start of the next job, which is what someone who has
+  // finished with this rack is about to do.
+  const exitRack = () => navigate('/scan');
   // Null outside TourProvider (this page is also rendered embedded), so read
   // through optional chaining rather than destructuring.
   const tour = useTour();
@@ -1365,6 +1366,9 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   // <select>, so the open/closed state is ours to hold — see the note where it
   // is rendered.
   const [deviceListOpen, setDeviceListOpen] = useState(false);
+  // Which of the two things the person chose to do with this rack. Until they
+  // choose, the page is the photograph and the choice — nothing else.
+  const [portMode, setPortMode] = useState(false);
   const [shareStatus, setShareStatus] = useState('idle'); // 'idle' | 'sending' | 'sent' | 'error'
   const [shareMsg, setShareMsg] = useState(null);
   const [shareChannel, setShareChannel] = useState(null); // 'slack' | 'teams' | 'outlook'
@@ -4535,18 +4539,21 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
   return (
     <div className={`page page-full ${styles.results}`} data-tab={tab}
          data-embedded={embeddedProp ? 'true' : undefined}
-         data-device={selectedIdx ? 'sel' : 'none'}>
+         data-device={selectedIdx ? 'sel' : 'none'}
+         /* No tab bar yet → no space reserved for one. Same condition the bar
+            itself renders on, so the two can never disagree. */
+         data-tabs={(!isDesktop && !embeddedProp && (tab !== 'overview' || portMode)) ? 'some' : 'none'}>
       <div className={styles.amb} />
 
       {!embeddedProp && (
       <header className={styles.header}>
-        <button className="btn btn-ghost btn-icon"
+        {/* The one back control the app has: a filled 38px square, same mark,
+            same place. This header used the global ghost icon button, which is
+            a circle — two different back buttons on adjacent screens. */}
+        <BackButton
+          onBack={handleHeaderBack}
           data-tour-bypass={tourActive ? 'true' : undefined}
-          onClick={handleHeaderBack}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-          </svg>
-        </button>
+        />
         <div className={styles.headerCenter}>
           <h2 className={styles.headerTitle}>{
             tab === 'switches' ? 'Switches'
@@ -4568,7 +4575,12 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       {/* Rack-tab strip — only renders when this rack is part of a multi-rack scan */}
       {!embeddedProp && <RackTabs rackId={rackId || scanId} />}
 
-      {!isDesktop && !embeddedProp && (
+      {/* The rack's tabs appear once there is a job in progress, not before.
+          Straight after a scan the page is the photograph and one question —
+          read the switches, or look at a port — and a row of tabs under it
+          would be five more answers to a question nobody asked yet. Choosing
+          either one brings the tabs in, and they stay for the rest of the rack. */}
+      {!isDesktop && !embeddedProp && (tab !== 'overview' || portMode) && (
         <ScanTabBar
           rackId={rackId}
           activeTab={tab}
@@ -4862,32 +4874,47 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
       {/* ── Action sheet ── */}
       <div className={styles.sheet}>
 
-        {/* What next. After seeing the rack a person does one of two things:
-            reads its switches — the Network step of the chain — or looks at
-            one port. Both offered here, first, in those words. */}
-        {!ticketMode && phase !== 'all' && (
+        {/* What next. After seeing the rack there are two things to do: read
+            its switches, or look at one port. Nothing else is on screen until
+            one of them is chosen — the picker used to sit here open at the
+            same time, which made the choice above it meaningless. */}
+        {/* The photograph, and the two ways on. Nothing else: the rack is on
+            screen above, so a tally of it and a list of what is in it were
+            both saying again what the picture already says. */}
+        {!ticketMode && phase !== 'all' && !portMode && (
           <div className={styles.stepChoices}>
             <button
               type="button"
               className={`${styles.stepChoice} ${styles.stepChoicePrimary}`}
               onClick={() => navigate(`/results/${encodeURIComponent(urlRackId || rackId)}/network`)}
             >
-              Go to Network
+              Analyse the network
             </button>
             <button
               type="button"
               className={`${styles.stepChoice} ${styles.stepChoiceSecondary}`}
-              onClick={() => setDeviceListOpen(true)}
+              onClick={() => { setPortMode(true); setDeviceListOpen(true); }}
             >
-              Select a port
+              Look up a port
             </button>
           </div>
+        )}
+
+        {/* Chosen "Select a port": the picker, and the way back to the choice. */}
+        {!ticketMode && phase !== 'all' && portMode && (
+          <button
+            type="button"
+            className={styles.stepBack}
+            onClick={() => { setPortMode(false); setDeviceListOpen(false); setSelectedIdx(null); }}
+          >
+            ← Back
+          </button>
         )}
 
         {/* Manual-mode device dropdown — alternative to tapping the hero
             rectangle (mobile-friendly). Hidden in ticket-mode and when the
             all-devices view is up. */}
-        {!ticketMode && phase !== 'all' && (() => {
+        {!ticketMode && phase !== 'all' && portMode && (() => {
           const pickables = effectiveDevices
             .map((dev, i) => ({ dev, idx: i + 1, label: labels[i] || `Device ${i + 1}` }))
             .filter(({ dev }) => isDevicePickable(dev));
@@ -5219,7 +5246,7 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
           }}>
             Live port state, VLAN and link-flap tracking across this rack.
           </p>
-          <PortHistoryContent />
+          <PortHistoryContent rackId={urlRackId || rackId || scanId} />
         </div>
       )}
 

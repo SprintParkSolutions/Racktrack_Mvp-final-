@@ -64,6 +64,9 @@ function cameraDevices(snapshot) {
       name: d.name,
       position: d.position,
       cvClass: d.provenance?.cvClass || '',
+      // The rectangle on the rack photo, so the Network screen can offer the
+      // picture as a way of choosing rather than only a list of names.
+      box: Array.isArray(d.provenance?.box) ? d.provenance.box : null,
       portCount: (snapshot.interfaces || []).filter((i) => i.deviceUid === d.uid).length,
       model: type?.model || '',
       // The make OCR read off the faceplate, carried on the device's type.
@@ -118,6 +121,9 @@ function scorePair(sw, dev) {
 
 const confidenceOf = (score) => (score >= 160 ? 'high' : score >= 55 ? 'medium' : 'low');
 
+/** One notch up, for a pairing that has no competition. */
+const bump = (c) => (c === 'low' ? 'medium' : 'high');
+
 /**
  * Propose a match for each switch by nearest port count, biggest switch first
  * so a 52-port switch claims the 52-port device before a 28-port one can.
@@ -170,11 +176,27 @@ function suggest(snapshot, sws) {
   const takenDev = new Set();
   const FLOOR = 20; // needs at least a port-count agreement or a make match
 
+  // How many boxes each switch could plausibly be. A switch with exactly one
+  // candidate is not a guess — there is nothing else it could be — and the
+  // camera reading "Unidentified Switch, make unknown" is the normal case, so
+  // scoring alone leaves that pairing looking weak when it is the only one
+  // available. Counted before anything is taken.
+  const plausible = new Map();
+  for (const p of pairs) {
+    if (p.score < FLOOR) continue;
+    plausible.set(p.swId, (plausible.get(p.swId) || 0) + 1);
+  }
+
   for (const p of pairs) {
     if (matches[p.swId] || takenDev.has(p.devUid) || p.score < FLOOR) continue;
     matches[p.swId] = p.devUid;
     takenDev.add(p.devUid);
-    reasons[p.swId] = { confidence: confidenceOf(p.score), why: p.why };
+    const sole = plausible.get(p.swId) === 1;
+    reasons[p.swId] = {
+      deviceUid: p.devUid,
+      confidence: sole ? bump(confidenceOf(p.score)) : confidenceOf(p.score),
+      why: sole ? `${p.why} — the only box it could be` : p.why,
+    };
   }
   return { matches, reasons };
 }
@@ -359,12 +381,29 @@ function reconcile(base, sws, matches) {
  * The whole picture the Review screen needs: the camera's devices, each
  * switch's headline facts, and the current or suggested matching.
  */
+/**
+ * Where the rack's photo can be fetched from, or null when none was kept.
+ *
+ * Adoption stores the absolute path of whatever file was on disk; the served
+ * route is /outputs/<rackId>/<file>, so take the name and rebuild the path.
+ */
+function rackImageUrl(base, rackId) {
+  const stored = (base.racks || [])[0]?.provenance?.image || '';
+  const file = String(stored).split(/[\\/]/).pop();
+  if (!file) return null;
+  return `/outputs/${encodeURIComponent(rackId)}/${encodeURIComponent(file)}`;
+}
+
 function view(base, rackId, storedMatches) {
   const sws = gatherSwitches(rackId);
   const auto = suggest(base, sws);
   const matches = storedMatches || auto.matches;
   const { summary } = reconcile(base, sws, matches);
   return {
+    // The photo the camera read, as a URL this rack's owner may fetch. The
+    // snapshot carries wherever the file sat on disk when it was adopted;
+    // only its name survives into a path the client can ask for.
+    image: rackImageUrl(base, rackId),
     devices: cameraDevices(base),
     switches: sws.map((s) => ({
       id: s.record.id,
@@ -375,6 +414,12 @@ function view(base, rackId, storedMatches) {
       serial: s.reading?.identity?.serial || null,
       vendor: s.reading?.system?.vendor || null,
       sysName: s.reading?.system?.sysName || null,
+      // The maker's own MIB gives these where the standard one is silent —
+      // and the Switches tab wants them, because a firmware version read off
+      // the box beats one read off a photograph of the box.
+      hardware: s.reading?.identity?.hardwareRev || null,
+      firmware: s.reading?.identity?.firmwareRev || null,
+      uptimeSeconds: s.reading?.system?.uptimeSeconds ?? null,
       ports: portsOf(s),
       neighbours: s.reading?.counts?.neighbours ?? 0,
       matchedTo: matches[s.record.id] || null,

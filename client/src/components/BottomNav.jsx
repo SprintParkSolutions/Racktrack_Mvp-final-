@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import styles from './BottomNav.module.css';
 import { useShutter } from '../ShutterContext.jsx';
 import { useAuth } from '../AuthContext.jsx';
 import { usePrimaryNav, MoreIcon } from '../nav/navLinks.jsx';
 import MoreSheet from './MoreSheet.jsx';
+import ScanTabBar from './ScanTabBar.jsx';
 
 /* ──────────────────────────────────────────────────────────────────────
    BottomNav — the phone navigation: HOME / SCAN / MORE / PROFILE.
@@ -16,6 +17,33 @@ import MoreSheet from './MoreSheet.jsx';
    with no tappable route on a phone at all.
    ────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Inside a rack, the bar is the rack's own tabs.
+ *
+ * The results page renders that bar itself; its sub-pages — Network, Report,
+ * Topology and the rest — are separate routes, and they used to fall through
+ * to the app's navigation instead. Tapping Network therefore swapped the whole
+ * bottom bar underneath you, which is exactly the kind of thing that makes an
+ * app feel like several apps. Same bar on every page of a rack.
+ */
+function RackTabs({ rackId, pathname, hash }) {
+  const navigate = useNavigate();
+  const active = pathname.endsWith('/network') ? 'network'
+    : pathname.endsWith('/report') ? 'report'
+      : pathname.endsWith('/topology') ? 'topology'
+        : pathname.startsWith('/switch-info') ? 'switches'
+          : hash === '#drift' ? 'drift'
+            : 'overview';
+  const base = `/results/${encodeURIComponent(rackId)}`;
+  const go = (key) => navigate(
+    key === 'overview' ? base
+      : key === 'drift' ? `${base}#drift`
+        : key === 'switches' ? `/switch-info/${encodeURIComponent(rackId)}`
+          : `${base}/${key}`,
+  );
+  return <ScanTabBar rackId={rackId} activeTab={active} onTabChange={go} />;
+}
+
 export default function BottomNav() {
   const { fn: shutterFn, canShoot } = useShutter();
   const { isAuthed } = useAuth();
@@ -24,6 +52,19 @@ export default function BottomNav() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   if (!isAuthed) return null;
+
+  // A rack's own pages keep the rack's tabs. (/results/:rackId itself draws
+  // them inside the page, so it never reaches here.)
+  const rack = location.pathname.match(/^\/(?:results|switch-info)\/([^/]+)/);
+  if (rack) {
+    return (
+      <RackTabs
+        rackId={decodeURIComponent(rack[1])}
+        pathname={location.pathname}
+        hash={location.hash}
+      />
+    );
+  }
 
   const barLinks = links.filter((l) => l.inBar);
   const overflow = links.filter((l) => !l.inBar);

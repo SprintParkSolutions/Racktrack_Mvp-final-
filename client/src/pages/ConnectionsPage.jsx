@@ -141,140 +141,62 @@ export default function ConnectionsPage() {
         <ThemeToggle />
       </header>
 
-      <p className={styles.intro}>
-        Saved databases this app can pull data from. The <strong>active</strong>
-        {' '}connection is what every screen uses while you're signed in.
-        Switch any time - the data refreshes from the new source.
-      </p>
-
-      {error && <div className={styles.errorBanner}>{error}</div>}
-
+      {error && <p className={styles.bad}>{error}</p>}
       {refreshing && (
-        <div className={styles.refreshBanner}>
+        <p className={styles.note}>
           <span className={styles.refreshSpinner}/>
           Pulling fresh data from {active?.name || 'the new connection'}…
-        </div>
+        </p>
       )}
-
-      {/* ─── Last-refresh outcome ─── */}
       {lastRefresh && !refreshing && (
-        lastRefresh.ok ? (
-          <div className={styles.successBanner}>
-            ✓ Pulled {lastRefresh.count ?? '-'} incident{lastRefresh.count === 1 ? '' : 's'}
-            {' '}from <strong>{lastRefresh.instance}</strong>
-          </div>
-        ) : (
-          <div className={styles.errorBanner}>
-            Refresh failed: {lastRefresh.error}
-          </div>
-        )
+        lastRefresh.ok
+          ? <p className={styles.good}>Pulled {lastRefresh.count ?? '-'} incident{lastRefresh.count === 1 ? '' : 's'} from {lastRefresh.instance}.</p>
+          : <p className={styles.bad}>Refresh failed: {lastRefresh.error}</p>
       )}
 
-      {/* ─── Active connection card ─── */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Active</h2>
-        {active ? (
-          <div className={`${styles.profileCard} ${styles.activeCard}`}>
-            <div className={styles.dot}/>
-            <div className={styles.cardMain}>
-              <p className={styles.cardName}>{active.name}</p>
-              <p className={styles.cardType}>{typeLabel(active.type)}</p>
-            </div>
-            <span className={styles.activeBadge}>Active</span>
-            <button
-              type="button"
-              className={styles.menuBtn}
-              onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === active.id ? null : active.id); }}
-              aria-label="More options">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="5" cy="12" r="2"/>
-                <circle cx="12" cy="12" r="2"/>
-                <circle cx="19" cy="12" r="2"/>
-              </svg>
-            </button>
-            {openMenuFor === active.id && (
-              <div className={styles.menu}>
-                <button type="button" onClick={() => openEditForm(active)}>Edit</button>
-                <button type="button" className={styles.menuDanger}
-                  onClick={() => onDelete(active)}>Delete</button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className={styles.emptyCard}>
-            <p>No active connection.</p>
-            <p className={styles.emptyHint}>
-              Add a connection below to start pulling data from your CMDB.
-            </p>
-          </div>
-        )}
-        {active && active.type === 'servicenow' && (
-          <button
-            type="button"
-            className={styles.refreshBtn}
-            onClick={() => refreshActiveSource().catch(() => { /* error shown in banner */ })}
-            disabled={refreshing}>
-            {refreshing ? 'Refreshing…' : 'Refresh data from this source'}
-          </button>
-        )}
-      </section>
-
-      {/* ─── Other saved connections ─── */}
-      {inactive.length > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Other saved</h2>
-          <ul className={styles.list}>
-            {inactive.map(p => (
-              <li key={p.id} className={styles.profileCard}>
-                <div className={`${styles.dot} ${styles.dotInactive}`}/>
-                <div className={styles.cardMain}>
-                  <p className={styles.cardName}>{p.name}</p>
-                  <p className={styles.cardType}>{typeLabel(p.type)}</p>
+      {/* One list. The connection in use is first and says so; the others
+          are one tap from becoming it. No cards, no dots, no menus: a name,
+          what kind of thing it is, and the two or three verbs that apply. */}
+      {profiles.length === 0 ? (
+        <div className={styles.empty}>
+          <p>No connections yet.</p>
+          <p className={styles.emptySub}>Add your CMDB or NetBox once and every screen uses it.</p>
+        </div>
+      ) : (
+        <ul className={styles.rows}>
+          {[...(active ? [active] : []), ...inactive].map((p) => {
+            const isActive = active && p.id === active.id;
+            return (
+              <li key={p.id} className={`${styles.row} ${isActive ? styles.rowActive : ''}`}>
+                <div className={styles.rowMain}>
+                  <span className={styles.rowName}>{p.name}</span>
+                  <span className={styles.rowType}>
+                    {typeLabel(p.type)}{isActive ? ' · in use' : ''}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  className={styles.useBtn}
-                  onClick={() => onActivate(p.id)}>
-                  Use
-                </button>
-                <button
-                  type="button"
-                  className={styles.menuBtn}
-                  onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === p.id ? null : p.id); }}
-                  aria-label="More options">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="5" cy="12" r="2"/>
-                    <circle cx="12" cy="12" r="2"/>
-                    <circle cx="19" cy="12" r="2"/>
-                  </svg>
-                </button>
-                {openMenuFor === p.id && (
-                  <div className={styles.menu}>
-                    <button type="button" onClick={() => openEditForm(p)}>Edit</button>
-                    <button type="button" className={styles.menuDanger}
-                      onClick={() => onDelete(p)}>Delete</button>
-                  </div>
-                )}
+                <div className={styles.verbs}>
+                  {!isActive && (
+                    <button type="button" onClick={() => onActivate(p.id)}>Use</button>
+                  )}
+                  {isActive && p.type === 'servicenow' && (
+                    <button type="button" disabled={refreshing}
+                      onClick={() => refreshActiveSource().catch(() => { /* shown above */ })}>
+                      {refreshing ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => openEditForm(p)}>Edit</button>
+                  <button type="button" className={styles.verbBad} onClick={() => onDelete(p)}>Delete</button>
+                </div>
               </li>
-            ))}
-          </ul>
-        </section>
+            );
+          })}
+        </ul>
       )}
 
       {/* ─── Add button ─── */}
-      <div className={styles.addRow}>
-        <button
-          type="button"
-          className={styles.addBtn}
-          onClick={openCreateForm}
-          disabled={loading}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-            <line x1="12" y1="5"  x2="12" y2="19"/>
-            <line x1="5"  y1="12" x2="19" y2="12"/>
-          </svg>
-          Add connection
-        </button>
-      </div>
+      <button type="button" className={styles.addMore} onClick={openCreateForm} disabled={loading}>
+        <span aria-hidden="true">+</span> Add a connection
+      </button>
 
       {/* ─── Create / Edit form modal ─── */}
       {formOpen && (
@@ -282,7 +204,7 @@ export default function ConnectionsPage() {
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <header className={styles.modalHead}>
               <h2 className={styles.modalTitle}>
-                {editingId ? 'Edit connection' : 'New connection'}
+                {editingId ? 'Edit connection' : 'Add a connection'}
               </h2>
               <button type="button" className={styles.modalClose}
                 onClick={closeForm} aria-label="Close">

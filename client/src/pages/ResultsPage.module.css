@@ -8,6 +8,13 @@
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
 }
 
+/* …but only while that bar is actually on screen. Straight after a scan there
+   are no tabs yet — the page is the photograph and two buttons — and the
+   reserved 64px sat under them as an empty band. */
+.results[data-tabs="none"] {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* ─── Desktop landscape layout (≥1180px) ───────────────────────────
    The Overview tab gets a 2-column grid (hero LEFT, action sheet RIGHT).
    Other tabs (Drift, Ports, etc.) stay as a normal flex column so their
@@ -276,15 +283,24 @@
    technically — but scrolling a 33px window reads as "the page isn't showing".
    `flex: 0 1` lets the image give ground, and the panel's min-height below
    guarantees it. */
-.results[data-device="none"] .heroWrap { flex: 0 1 74vh; min-height: 0; }
-.results[data-device="none"] .sheet    { flex: 1 1 auto; min-height: 168px; }
+/* Straight after a scan the photograph is evidence, not the subject: the
+   useful thing on screen is WHAT WAS FOUND. So the image takes a third of the
+   screen and the list of devices takes the rest. 74vh left one line of content
+   under it and made a page of real information look like a photo viewer.
+   Picking a device restores the old proportions, because then the picture is
+   what you are working in. */
+.results[data-device="none"] .heroWrap { flex: 1 1 auto; min-height: 0; }
+/* Nothing under the photo but two buttons, so the panel is exactly as tall as
+   they are and every remaining pixel goes to the rack. It used to claim half
+   the screen and hold a row of buttons in the top of it, leaving a white
+   field beneath them. */
+.results[data-device="none"] .sheet    { flex: 0 0 auto; min-height: 0; overflow: visible; }
 .results[data-device="sel"]  .heroWrap { flex: 0 1 44vh; min-height: 0; }
 .results[data-device="sel"]  .sheet    { flex: 1 1 auto; min-height: 200px; }
 
 /* On a short screen the image yields further still — the controls matter more
    than a larger picture you can already pinch-zoom. */
 @media (max-height: 720px) {
-  .results[data-device="none"] .heroWrap { flex: 0 1 58vh; }
   .results[data-device="sel"]  .heroWrap { flex: 0 1 38vh; }
 }
 
@@ -6085,8 +6101,45 @@
   border-radius: 0 8px 8px 0;
 }
 
-/* The two things to do next, above the device picker. */
-.stepChoices { display: flex; gap: 10px; margin: 0 0 12px; }
-.stepChoice { flex: 1 1 0; min-height: 48px; border-radius: 12px; font-size: 14.5px; font-weight: 700; letter-spacing: .005em; cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 0 12px; }
-.stepChoicePrimary { background: #121212; color: #ffffff; border: 1px solid #121212; box-shadow: 0 8px 20px -14px rgba(0,0,0,.6); }
-.stepChoiceSecondary { background: var(--card, #fff); color: var(--text, #111); border: 1px solid var(--border, rgba(0,0,0,.18)); }
+
+/* Back from the port picker to the two choices. */
+.stepBack {
+  align-self: flex-start;
+  margin: 0 0 10px;
+  padding: 8px 12px 8px 8px;
+  border: 0; border-radius: 10px;
+  background: transparent;
+  color: var(--muted, #5c6878);
+  font-size: 13.5px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.stepBack:active { background: rgba(0,0,0,.05); }
+
+/* ── After the scan: what was found, and the two ways on ────────────── */
+
+
+/* Two buttons, side by side, equal. The photograph is the content; these are
+   the only two things to do with it. */
+.stepChoices { display: flex; gap: 10px; margin: 0 0 4px; }
+.stepChoice {
+  flex: 1 1 0; min-height: 52px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
+  text-align: center; text-wrap: balance;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform .1s ease;
+}
+.stepChoice:active { transform: scale(.985); }
+
+.stepChoicePrimary {
+  background: #121212; color: #ffffff; border: 1px solid #121212;
+  box-shadow: 0 10px 22px -16px rgba(0,0,0,.7);
+}
+.stepChoiceSecondary {
+  background: var(--card, #fff); color: var(--text, #111);
+  border: 1px solid var(--border, rgba(0,0,0,.16));
+}
+@media (prefers-reduced-motion: reduce) { .stepChoice { transition: none; } }
+

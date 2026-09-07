@@ -467,6 +467,13 @@ def _labels_for_box(detections: list[dict], box: list[int], pad: int = 2) -> lis
     ]
 
 
+# One reader per process. OCRConfig.accurate() loads its models on
+# construction, and this module used to be spawned fresh for every rack — so
+# every scan paid for the load before it read a single label. In the warm
+# worker the first rack pays and the rest do not.
+_READER = None
+
+
 def _build_reader():
     """Build the switch-ocr reader.
 
@@ -478,10 +485,14 @@ def _build_reader():
     produces a confident, wrong inventory, which is worse than a scan that
     fails loudly and can be retried.
     """
+    global _READER
+    if _READER is not None:
+        return _READER
     from switch_ocr import OCRConfig, SwitchTextReader
 
     print("[ocr_devices] engine: switch-ocr", file=sys.stderr)
-    return SwitchTextReader(OCRConfig.accurate())
+    _READER = SwitchTextReader(OCRConfig.accurate())
+    return _READER
 
 
 def _resolve_image(rack_dir: Path) -> Path | None:
@@ -659,6 +670,11 @@ def run(rack_id: str) -> dict:
         "ok": True,
         "rack_id": rack_id,
         "image": img_path.name,
+        # datetime.UTC landed in 3.11; this venv is 3.10, where it does not
+        # exist — so every run of this module raised AttributeError at the
+        # very end, after doing all the reading, and wrote no file. That is
+        # why make and model never arrived. timezone.utc is the same instant
+        # and has been there since 3.2.
         "generated_at": _dt.datetime.now(_dt.UTC)
         .replace(microsecond=0)
         .isoformat()

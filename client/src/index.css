@@ -805,8 +805,11 @@ textarea {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-/* Wrappers named *field*/*input* keep the legacy flattening only — no fill,
-   no inset, so they stay level with whatever surface they sit on. */
+/* Wrappers whose class name contains "field" or "input" keep the legacy
+   flattening only — no fill, no inset, so they stay level with whatever
+   surface they sit on. (Written with the glob characters before, which closed
+   this comment early and leaked the rest of the sentence into the stylesheet
+   — the "Unexpected input" warning every build printed.) */
 [class*="field"], [class*="Field"],
 [class*="input"], [class*="Input"],
 [class*="select"], [class*="Select"] {

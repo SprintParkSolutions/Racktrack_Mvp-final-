@@ -26,18 +26,31 @@ import argparse
 import json
 import sys
 
+# Built on first use and kept. Constructing an easyocr.Reader loads two neural
+# networks off disk — several seconds — and the old code did it on every call,
+# which in a spawned-per-request script meant every photograph paid for it. In
+# the warm worker the first label pays and the rest do not.
+_READER = None
+
+
+def _reader():
+    global _READER
+    if _READER is None:
+        import easyocr
+
+        _READER = easyocr.Reader(["en"], gpu=False, verbose=False)
+    return _READER
+
 
 def extract_labels(image_path: str, min_conf: float = 0.25) -> dict:
     import cv2
-    import easyocr
 
     img = cv2.imread(image_path)
     if img is None:
         raise FileNotFoundError(f"Could not read image: {image_path}")
     h_img, w_img = img.shape[:2]
 
-    reader = easyocr.Reader(["en"], gpu=False, verbose=False)
-    results = reader.readtext(image_path, detail=1, paragraph=False)
+    results = _reader().readtext(image_path, detail=1, paragraph=False)
 
     labels = []
     for pts, text, conf in results:

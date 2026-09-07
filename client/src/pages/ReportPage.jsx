@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle.jsx';
+import { BackIcon } from '../components/BackButton.jsx';
 import { apiUrl, authFetch } from '../utils/api';
+import ExportSheet from '../components/ExportSheet.jsx';
+import ShareSheet from '../components/ShareSheet.jsx';
+import { downloadExport } from '../utils/exportApi';
 import { getJSON } from '../utils/safeStorage';
 import { useSmartBack } from '../hooks/useSmartBack';
 import styles from './ReportPage.module.css';
@@ -9,7 +13,9 @@ import styles from './ReportPage.module.css';
 /**
  * Report — the rack and its network on one page.
  *
- * Scan → Physical → Network → **Report** → Export.
+ * Scan → Physical → Network → **Report**. The report is the end of the chain:
+ * downloading it, pushing it to NetBox and sending it to somebody all happen
+ * here, because they are all things you do with the report you are reading.
  *
  * Two witnesses, joined and read-only. The camera gives the layout: which box
  * sits in which U, and what was read off its bezel. A switch reading gives the
@@ -53,6 +59,38 @@ function explain(r, fallback) {
   if (r.status === 403) return 'Only the account owner can open the NetBox tools for now. Ask them to sign in and open this report.';
   if (r.status === 404) return 'This rack could not be found on the NetBox side. Go back to the rack and open Report again.';
   return msg.endsWith('.') ? msg : `${msg}.`;
+}
+
+const IconDownload = () => (
+  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+const IconSend = () => (
+  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+  </svg>
+);
+const IconExport = () => (
+  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5" />
+    <path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3" />
+  </svg>
+);
+
+/** Uptime in seconds, as something a person would say. */
+function uptimeText(secs) {
+  const n = Number(secs || 0);
+  if (!n) return '';
+  const d = Math.floor(n / 86400);
+  const h = Math.floor((n % 86400) / 3600);
+  if (d > 0) return `up ${d} day${d === 1 ? '' : 's'}`;
+  if (h > 0) return `up ${h} hour${h === 1 ? '' : 's'}`;
+  return `up ${Math.max(1, Math.floor(n / 60))} min`;
 }
 
 const when = (iso) => {
@@ -144,36 +182,7 @@ function derive(doc, view) {
     }
   }
 
-  // Not stated / needs a person. Each line names who did not say it.
-  const gaps = [];
-  for (const d of devices) {
-    const who = d.u != null ? `U${d.u}` : d.name;
-    const cam = camByName.get(d.name);
-    const sw = swByDevName.get(d.name);
-    const matched = String(d.source || '').startsWith('switch');
-    if (d.u == null) gaps.push({ who: d.name, what: 'the camera did not place it in a U.' });
-    if (!matched && noModel(cam ? cam.model : d.model)) {
-      gaps.push({ who, what: `${titleOf(d).toLowerCase()} — make and model not read by the camera, and no switch reading is matched to it.` });
-    }
-    if (matched && sw && noModel(sw.model)) gaps.push({ who, what: 'the switch did not state its model.' });
-    if (matched && !d.serial) gaps.push({ who, what: 'the switch did not state a serial.' });
-  }
-  for (const s of filed) {
-    if (!s.read) gaps.push({ who: s.label, what: `${s.host} — filed for this rack, no reading yet.` });
-    else if (!(confirmed && s.matchedTo)) {
-      gaps.push({ who: s.label, what: `${s.host} — read, but not matched to a rack position, so its ports are not in the rack list.` });
-    }
-  }
-  for (const u of view?.summary?.unresolved || []) {
-    gaps.push({ who: u.from, what: `hears ${u.seen}: ${u.why}.` });
-  }
-  for (const c of doc.cables || []) {
-    if (c.evidence === 'lldp_one' && c.a && c.b) {
-      gaps.push({ who: `${c.a.device} ${c.a.port}`, what: `→ ${c.b.device} ${c.b.port}: only one end reports this cable.` });
-    }
-  }
-
-  return { camByName, swByDevName, filed, read, up, heard, gaps };
+  return { camByName, swByDevName, filed, read, up, heard };
 }
 
 export default function ReportPage() {
@@ -192,6 +201,22 @@ export default function ReportPage() {
   // the page says so, with numbers, rather than leave it unexplained.
   const phoneNet = useMemo(() => getJSON(`rt_network_state_${rackId}`, null), [rackId]);
 
+  // The NetBox side's id for this rack, and the three things a finished report
+  // is for: keeping it, writing it to the system of record, and sending it to
+  // somebody.
+  const [scanId, setScanId] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [fileBusy, setFileBusy] = useState(null);   // 'csv' | 'json' | 'share'
+  const [note, setNote] = useState(null);           // { tone, text }
+
+  const getFile = async (kind) => {
+    setFileBusy(kind); setNote(null);
+    try { setNote(await downloadExport(scanId, rackId, kind)); }
+    catch (e) { setNote({ tone: 'bad', text: e.message || 'The download failed.' }); }
+    finally { setFileBusy(null); }
+  };
+
   useEffect(() => {
     let live = true;
     setDoc(null); setView(null); setErr(null); setOpen({});
@@ -204,6 +229,7 @@ export default function ReportPage() {
         return;
       }
       const id = a.body.id;
+      setScanId(id);
       const [r, v] = await Promise.all([
         nb(`/api/nb/scans/${id}/report`),
         nb(`/api/nb/scans/${id}/reconcile`),
@@ -235,14 +261,38 @@ export default function ReportPage() {
     <div className={`page page-full ${styles.page}`}>
       <header className={styles.header}>
         <button type="button" className={styles.backBtn} onClick={goBack} aria-label="Back">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <BackIcon />
         </button>
         <h1 className={styles.title}>Report</h1>
         <ThemeToggle />
       </header>
+
+      {/* What this report is for, at the top of it. Four things: keep it, send
+          it, put it in the system of record. They were at the foot of the page,
+          past every device, which is not where anyone looks for the verb. */}
+      <div className={styles.actions}>
+        <button type="button" className={styles.action} disabled={!doc || scanId === null || fileBusy !== null}
+          onClick={() => getFile('csv')}>
+          <IconDownload />
+          <span>{fileBusy === 'csv' ? '…' : 'CSV'}</span>
+        </button>
+        <button type="button" className={styles.action} disabled={!doc || scanId === null || fileBusy !== null}
+          onClick={() => getFile('json')}>
+          <IconDownload />
+          <span>{fileBusy === 'json' ? '…' : 'JSON'}</span>
+        </button>
+        <button type="button" className={styles.action} disabled={!doc}
+          onClick={() => setSharing(true)}>
+          <IconSend />
+          <span>Send</span>
+        </button>
+        <button type="button" className={`${styles.action} ${styles.actionStrong}`}
+          disabled={!doc || scanId === null} onClick={() => setExporting(true)}>
+          <IconExport />
+          <span>NetBox</span>
+        </button>
+      </div>
+      {note && <p className={note.tone === 'bad' ? styles.noteBad : styles.noteOk}>{note.text}</p>}
 
       <div className={styles.scroll}>
         {!doc && !err && (
@@ -273,13 +323,54 @@ export default function ReportPage() {
               </span>
             </div>
 
-            {/* One line that says how the rack stands, before any detail. */}
-            <div className={styles.summary}>
-              <div><b>{s.devices || 0}</b><span>devices</span></div>
-              <div className={switchesRead ? styles.sumUp : ''}><b>{switchesRead}</b><span>switches read</span></div>
-              <div><b>{s.ports || 0}</b><span>ports</span></div>
-              <div className={facts.up ? styles.sumUp : ''}><b>{facts.up}</b><span>up</span></div>
-            </div>
+            {/* At a glance.
+                A wrapping row of number-and-word pairs put "6 ADDRESSES" alone
+                on a third line and left every column ragged — nine facts in a
+                shape that has to be read rather than seen. A fixed grid for the
+                counts, and the ports as what they actually are: a proportion,
+                drawn. */}
+            {(() => {
+              const ports = s.ports || 0;
+              const inUse = s.portsInUse ?? facts.up ?? 0;
+              const free = Math.max(0, ports - inUse);
+              const pct = ports ? Math.round((inUse / ports) * 100) : 0;
+              const cells = [
+                [s.devices || 0, 'devices'],
+                [switchesRead, `switch${switchesRead === 1 ? '' : 'es'} read`],
+                [s.seen || 0, 'plugged in'],
+                [s.cables || 0, 'cables'],
+                [s.vlans || 0, 'VLANs'],
+                [s.addresses || 0, 'addresses'],
+              ].filter(([n]) => n > 0);
+              return (
+                <div className={styles.glance}>
+                  {ports > 0 && (
+                    <div className={styles.ports}>
+                      <div className={styles.portsHead}>
+                        <span>Ports</span>
+                        <b>{inUse} of {ports} in use</b>
+                      </div>
+                      <div className={styles.bar} role="img"
+                        aria-label={`${pct} per cent of ports in use`}>
+                        <i style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className={styles.portsFoot}>
+                        <span><b>{inUse}</b> in use</span>
+                        <span><b>{free}</b> free</span>
+                        <span>{pct}%</span>
+                      </div>
+                    </div>
+                  )}
+                  {cells.length > 0 && (
+                    <div className={styles.grid}>
+                      {cells.map(([n, what]) => (
+                        <div key={what}><b>{n}</b><span>{what}</span></div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {noReadings && (
               <div className={`${styles.note} ${styles.noteInfo}`}>
@@ -300,7 +391,7 @@ export default function ReportPage() {
             )}
 
             {/* ── The rack, top down ── */}
-            <section className={styles.card}>
+            <section className={styles.section}>
               <div className={styles.secHead}>
                 <h2>Rack</h2>
                 <span>{plural(devices.length, 'device')} · top down</span>
@@ -329,7 +420,7 @@ export default function ReportPage() {
 
             {/* ── Network: what the switches said about each other ── */}
             {hasNetwork && (
-              <section className={styles.card}>
+              <section className={styles.section}>
                 <div className={styles.secHead}>
                   <h2>Network</h2>
                   <span>from the switches</span>
@@ -384,44 +475,25 @@ export default function ReportPage() {
                 )}
 
                 {addresses.length > 0 && (
-                  <p className={styles.line}>
-                    <span className={styles.lineK}>Addresses</span>
-                    {plural(addresses.length, 'address', 'addresses')} seen
-                    {' · '}{addrSwitch} on switches · {addresses.length - addrSwitch} hosts
-                  </p>
+                  <div className={styles.sub}>
+                    <h3>Addresses <span className={styles.count}>{addresses.length}</span></h3>
+                    <p className={styles.subLine}>
+                      {addrSwitch} on switches · {addresses.length - addrSwitch} on things plugged into them
+                    </p>
+                  </div>
                 )}
               </section>
             )}
 
-            {/* ── Not stated. Every line names who did not say it. ── */}
-            {facts.gaps.length > 0 && (
-              <section className={styles.card}>
-                <div className={styles.secHead}>
-                  <h2>Not stated</h2>
-                  <span>needs a person</span>
-                </div>
-                <ul className={styles.gaps}>
-                  {facts.gaps.map((g, i) => (
-                    <li key={i}><b>{g.who}</b> {g.what}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
           </>
         )}
 
-        {/* The one thing to do next. */}
-        <div className={styles.cta}>
-          <button
-            type="button"
-            className={styles.primary}
-            disabled={!doc}
-            onClick={() => navigate(`/results/${rackId}/export`)}
-          >
-            Export to NetBox
-          </button>
-        </div>
       </div>
+
+      {exporting && scanId !== null && (
+        <ExportSheet scanId={scanId} onClose={() => setExporting(false)} />
+      )}
+      {sharing && <ShareSheet rackId={rackId} onClose={() => setSharing(false)} />}
     </div>
   );
 }
@@ -436,31 +508,41 @@ function DeviceRow({ d, cam, sw, open, onToggle }) {
   const inUse = ports.filter((p) => p.inUse).length;
   const cabled = ports.filter((p) => p.plugged === true).length;
 
-  // The camera's own words. With the Review picture they are the un-merged
-  // identity read off the bezel; without it, only an unmatched device's record
-  // is purely the camera's, so a matched one shows its class alone.
+  // A report states what is there. "Make and model not read" is not a fact
+  // about the rack, it is a fact about us, and printing it on every row a
+  // camera could not read made the page look like a list of failures.
   const camMake = cam ? cam.make : (matched ? '' : d.vendor);
   const camModel = cam ? cam.model : (matched ? '' : d.model);
   const camPorts = cam ? cam.portCount : (matched ? null : d.portCount);
-  const camId = said(camMake, camModel);
-  const camBits = [
-    camId || 'make and model not read',
-    camPorts ? `${camPorts} ports` : '',
-    cabled ? `${cabled} cabled` : '',
-  ].filter(Boolean).join(' · ');
+  const identity = matched ? said(sw ? sw.vendor : d.vendor, sw ? sw.model : d.model)
+    : said(camMake, camModel);
 
-  let swBits = null;
-  if (matched) {
-    const id = said(sw ? sw.vendor : d.vendor, sw ? sw.model : d.model);
-    swBits = [
-      id || 'make and model not stated',
-      sw?.sysName || '',
-      d.serial ? `serial ${d.serial}` : 'no serial',
-      d.mgmtIp || '',
-      d.portsUp != null ? `${d.portsUp} of ${d.portCount} up` : '',
-    ].filter(Boolean).join(' · ');
-  }
+  // How it is doing, as numbers with their names — a sentence of six facts
+  // separated by dots wraps into a shape nobody can scan, and "1 of 28 ports
+  // up" next to a button saying "16 ports in use" reads as a contradiction
+  // when it is two different questions. Each count is labelled with what it
+  // counts, and they sit next to each other so the comparison is the layout.
+  const stats = [
+    [d.portCount || camPorts || 0, 'ports'],
+    [inUse, 'in use'],
+    [d.portsUp, 'up'],
+    [cabled, 'cabled'],
+    [d.seen, 'devices'],
+  ].filter(([n]) => n != null && n > 0);
 
+  // Who it is, for anyone who has to find it again.
+  const ids = [
+    ['at', d.mgmtIp],
+    ['serial', d.serial],
+    ['hardware', d.hardware],
+    ['firmware', d.firmware],
+    ['up', d.uptimeSeconds ? uptimeText(d.uptimeSeconds).replace(/^up /, '') : null],
+  ].filter(([, v]) => v);
+
+  // The witness that knows most goes first. A matched device is the switch
+  // stating what it is; an unmatched one is the camera guessing. Naming the
+  // other witness inline reads better than a label column, which squeezed the
+  // sentence into three words a line on a phone.
   return (
     <div className={styles.row}>
       <span className={`${styles.u} ${d.u == null ? styles.uNone : ''}`}>
@@ -469,12 +551,26 @@ function DeviceRow({ d, cam, sw, open, onToggle }) {
       <div className={styles.rowMain}>
         <div className={styles.rowTop}>
           <b className={styles.rowTitle}>{titleOf(d)}</b>
-          <span className={`${styles.pill} ${matched ? styles.pillGood : ''}`}>
-            {matched ? 'switch + camera' : 'camera only'}
-          </span>
+          {matched && <span className={styles.tag}>from the switch</span>}
         </div>
-        <p className={styles.line}><span className={styles.lineK}>Camera</span>{camBits}</p>
-        {swBits && <p className={styles.line}><span className={styles.lineK}>Switch</span>{swBits}</p>}
+
+        {identity && <p className={styles.said}>{identity}</p>}
+
+        {stats.length > 0 && (
+          <div className={styles.stats}>
+            {stats.map(([n, what]) => (
+              <div key={what}><b>{n}</b><span>{what}</span></div>
+            ))}
+          </div>
+        )}
+
+        {ids.length > 0 && (
+          <dl className={styles.ids}>
+            {ids.map(([k, v]) => (
+              <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+            ))}
+          </dl>
+        )}
 
         {inUse > 0 && (
           <button type="button" className={styles.more} aria-expanded={open} onClick={onToggle}>

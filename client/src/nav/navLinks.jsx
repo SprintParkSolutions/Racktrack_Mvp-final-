@@ -73,7 +73,7 @@ export function usePrimaryNav() {
   const isAdmin = isOwner || user?.role === 'org_admin';
 
   return [
-    { to: '/',               label: 'Home',         icon: <HomeIcon />,        end: true,  inBar: true },
+    // No Home. The app opens on the work — Scan is the first destination.
     { to: '/scan',           label: 'Scan',         icon: <ScanIcon />,        end: false, inBar: true },
     // In the phone's bottom bar as well as the sidebar. It used to be behind
     // "More", and testers reported not knowing the mode existed at all —
@@ -115,6 +115,9 @@ export function usePrimaryNav() {
     // Available to everyone; shows in the sidebar and the phone's Menu.
     { to: '/contact',        label: 'Contact',      icon: <ContactIcon />,     end: false,
       hint: 'Email the RackTrack support team' },
-    { to: '/profile',        label: 'Profile',      icon: <ProfileIcon />,     end: false, inBar: true },
+    // Profile is NOT in the bar: the drawer already ends with it, next to Sign
+    // out, which is where people look for their own account. Three slots and
+    // Menu is what fits a phone without the labels shrinking.
+    { to: '/profile',        label: 'Profile',      icon: <ProfileIcon />,     end: false },
   ];
 }

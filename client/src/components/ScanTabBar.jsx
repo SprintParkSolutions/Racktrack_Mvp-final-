@@ -1,23 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './ScanTabBar.module.css';
 
-// The rack's tab bar on a phone: Overview, Network, Topology, Drift, More.
+// The rack's tab bar on a phone: Overview, Network, Topology, Switches, More.
 //
 // Ports is gone. Network IS the live switches now — read from this phone over
 // SNMP — which is what Ports was trying to do over SSH from a server that
 // could never reach them, and what the Netdisco "Discovery" view only ever
 // showed second-hand. Network and Report open their own screens; the page
 // handles that in onTabChange.
+//
+// Switches is in the bar and Drift is under More: what a person came to the
+// rack to look at is what is in it, and drift is a question you ask on a
+// second visit.
 const PRIMARY_TABS = [
   { key: 'overview',  label: 'Overview',  icon: <IconRack /> },
   { key: 'network',   label: 'Network',   icon: <IconNetwork /> },
   { key: 'topology',  label: 'Topology',  icon: <IconTopology /> },
-  { key: 'drift',     label: 'Drift',     icon: <IconDrift /> },
+  { key: 'switches',  label: 'Switches',  icon: <IconSwitch /> },
 ];
 
 const MORE_TABS = [
   { key: 'report',    label: 'Report',    icon: <IconReport /> },
-  { key: 'switches',  label: 'Switches',  icon: <IconSwitch /> },
+  { key: 'drift',     label: 'Drift',     icon: <IconDrift /> },
 ];
 
 export default function ScanTabBar({ activeTab, onTabChange, badges = {} }) {

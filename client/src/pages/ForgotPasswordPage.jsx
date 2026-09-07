@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styles from './AuthPages.module.css';
 import AuthLayout, { AuthAside, IcAlert, IcEye, IcInfo } from '../components/AuthLayout.jsx';
 import { useAuth } from '../AuthContext.jsx';
-import { CodeGrid, PW_RULES, STRENGTH_COLORS } from './SignupPage.jsx';
+import { CodeGrid, PW_RULES, STRENGTH_COLORS } from '../components/PasswordFields.jsx';
 import { safeRedirect } from '../utils/safeRedirect.js';
 
 // Four-step password reset:

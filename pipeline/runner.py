@@ -135,6 +135,36 @@ def demote_if_no_ports(dev):
     return dev
 
 
+# A managed switch with a handful of ports is not what a switch is for. In
+# this estate a network box with fewer than ten ports is a router, and the
+# detector — which has only the front of the box to go on — calls them
+# switches because they look like small switches.
+ROUTER_PORT_CEILING = 10
+
+
+def reclass_small_as_router(dev):
+    """A network box with fewer than ten ports is a router, not a switch.
+
+    Applied only to devices the detector called Switch, and only once the
+    ports have actually been counted: a patch panel with four detected ports
+    is a patch panel with a bad count, and a four-port server is a server.
+    Widening this to every class would rename those, which is why the rule is
+    written narrowly here rather than as "anything small".
+
+    A device whose ports could not be counted at all is left alone —
+    demote_if_no_ports has its own answer for that one.
+    """
+    if dev.get("class_name") != "Switch":
+        return dev
+    count = dev.get("port_count")
+    if not isinstance(count, int) or count <= 0:
+        return dev
+    if count < ROUTER_PORT_CEILING:
+        dev["class_name"] = "Router"
+        dev["class_source"] = f"ports<{ROUTER_PORT_CEILING}"
+    return dev
+
+
 def unit_label_to_index(label):
     return int(label.strip().lower().lstrip("u"))
 
@@ -838,6 +868,8 @@ def main():
             # ports come back with status='unknown'. A crashed detection was
             # marked above; demote_if_no_ports preserves that marker.
             demote_if_no_ports(dev)
+            # ...and a network box too small to be a switch is a router.
+            reclass_small_as_router(dev)
 
         # Rebuild the class→units mapping since reclassification above may
         # have moved devices out of their original class bucket.

@@ -14,8 +14,14 @@
   max-width: 540px;
   z-index: 200;
   padding-bottom: env(safe-area-inset-bottom);
-  pointer-events: none;
+  /* The bar inside this is white, but this wrapper was transparent — so the
+     safe-area strip below it, over the home indicator, showed the page
+     scrolling underneath. Paint it, and take taps in that strip too, so a
+     finger resting near the bottom edge does not reach content behind it. */
+  background: #ffffff;
+  pointer-events: auto;
 }
+:global([data-theme='dark']) .tabBar { background: var(--bg, #0c1420); }
 
 .bar {
   position: relative;
@@ -184,6 +190,3 @@
 
 .moreItemLabel { flex: 1; min-width: 0; }
 
-/* The chain takes the bar; More keeps its slot at the right. */
-.chainWrap { flex: 1; min-width: 0; display: flex; align-items: center; }
-.chainInBar { border-bottom: 0; background: transparent; padding: 4px 2px 4px 6px; }

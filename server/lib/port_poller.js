@@ -165,6 +165,35 @@ function setSshRunner(fn) { _runSwitchCommandsSequential = fn; }
 
 function isBusy(deviceId) { return _busy.has(deviceId); }
 
+async function _pollSnmpDevice(device) {
+  // Resolved here rather than at the top of the file: these pull in the
+  // NetBox side (switch store, reader, collector), which the SSH poller has
+  // no other reason to load.
+  const switches = require('./netbox/switches');
+  const { readSwitch } = require('./netbox/reader');
+  const { feedDrift } = require('./netbox/drift_feed');
+
+  const rec = switches.list().find((s) => s.host === device.host);
+  if (!rec) {
+    logger?.warn?.(`[port_poller] ${device.host} is filed by SNMP but has no switch record — skipping`);
+    portsDb.touchPolled(device.id);
+    return;
+  }
+  const r = await readSwitch(rec.id);
+  if (!r.ok) {
+    // Not reachable from here is the ordinary case for this server, not a
+    // fault in the switch: the phone standing next to the rack reads it.
+    const { failures, backoffUntil } = portsDb.recordPollFailure(device.id, r.error);
+    logger?.info?.(`[port_poller] SNMP read of ${device.host} failed (failures=${failures}, backoff until ${backoffUntil}): ${r.error}`);
+    return;
+  }
+  feedDrift(rec, r.data, { tenantId: device.tenant_id ?? null });
+  portsDb.recordPollSuccess(device.id);
+  // This server CAN reach it. Let the background sweep keep it fresh from
+  // now on; a later failure enters the same backoff ladder as any device.
+  if (!device.enabled) portsDb.setEnabled(device.id, 1);
+}
+
 async function pollDevice(device) {
   if (_busy.has(device.id)) return; // previous poll still in flight
   // Yield the switch to an in-progress manual probe — don't fight for its
@@ -180,6 +209,14 @@ async function pollDevice(device) {
 
 async function _pollDeviceInner(device) {
   const vendor = normalizeVendor(device.vendor);
+
+  // A switch filed by SNMP has no SSH recipe and never will. Poll it the way it
+  // was read: over SNMP, with the credentials the Network step stored for it.
+  // This works exactly when the server can reach the switch — a local install
+  // on the customer's network — and fails honestly when it cannot, which is
+  // the demo server's position and the reason the phone reads them at all.
+  if (vendor === 'snmp') return _pollSnmpDevice(device);
+
   const recipe = resolveRecipe(vendor);
   if (!recipe) {
     logger?.warn?.(`[port_poller] no recipe for vendor=${device.vendor}, skipping ${device.host}`);

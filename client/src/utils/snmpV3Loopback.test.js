@@ -241,7 +241,12 @@ describe('SNMPv3 noAuthNoPriv against a live agent', () => {
     expect(caught).toBeInstanceOf(SnmpError);
     expect(caught.kind).toBe('timeout');
     expect(caught.hint).toMatch(/discovery/);
-    expect(caught.hint).toMatch(/not reachable|SNMPv3 is not enabled/);
+    // It names what to check, and does not claim which of the two it was:
+    // this end cannot see the difference between an unreachable switch and
+    // one with v3 switched off, and a guess in the voice of a measurement
+    // reads as one.
+    expect(caught.hint).toMatch(/Check the address/);
+    expect(caught.hint).not.toMatch(/Either/);
   });
 
   test('absent objects come back null, never invented', async () => {

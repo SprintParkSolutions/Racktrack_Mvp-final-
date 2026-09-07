@@ -8,39 +8,35 @@
    540px column — the page collapsed to one word wide and vertical centring
    pushed the logo off the top. #root scrolls; this page never clips. */
 
+/* One flat surface. No card, no tinted circles, nothing with an edge — the
+   first version drew a white panel on a slightly different ground and the
+   seam read as a box floating in the middle of the screen. The page paints
+   the whole viewport itself so there is no seam to see. */
 .page {
-  position: relative;
+  position: fixed; inset: 0;
   width: 100%;
-  flex: 1 0 auto;
-  min-height: 100%;
   display: flex; flex-direction: column;
   background: #ffffff;
   color: #0c1420;
   padding: max(20px, env(safe-area-inset-top, 0px)) 24px max(24px, env(safe-area-inset-bottom, 0px));
-  /* Clips only the circles' spill past the edges (they measured 70px of
-     sideways overflow inside #root). The page grows with its content, so
-     nothing of the content is ever behind this. */
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 :global([data-theme='dark']) .page { background: var(--bg, #0c1420); color: var(--text, #fff); }
 
-/* Two circles. Decoration only, out of the way of the form; #root clips the
-   horizontal spill. */
-.blobA, .blobB {
-  position: absolute; border-radius: 50%; pointer-events: none;
-  background: rgba(27, 95, 217, 0.08);
-}
-.blobA { width: min(62%, 340px); aspect-ratio: 1; top: -120px; left: -90px; }
-.blobB { width: min(44%, 240px); aspect-ratio: 1; right: -70px; top: 46%; background: rgba(27, 95, 217, 0.06); }
-:global([data-theme='dark']) .blobA, :global([data-theme='dark']) .blobB { background: rgba(27, 95, 217, 0.16); }
-
-/* Top-anchored, not centred: a short screen scrolls, it never crops. */
-.card {
+/* Top-anchored, not centred: a short screen scrolls, it never crops.
+   Explicitly transparent — a global `main` rule paints a surface colour, and
+   against the page's white that seam is exactly the box that read as a card
+   floating in the middle of the screen. */
+.stack {
   position: relative; z-index: 1;
   flex: 1 0 auto;
   display: flex; flex-direction: column; align-items: center;
   width: 100%;
   padding-top: clamp(28px, 9vh, 88px);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .logo {
@@ -125,14 +121,17 @@
 }
 .links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
 .links a:hover { color: #1b5fd9; }
-.dot { opacity: .5; }
-
 .foot {
   position: relative; z-index: 1;
   text-align: center;
-  font-size: 12px; color: #8a94a0;
-  padding: 28px 8px 0;
+  font-size: 12.5px; line-height: 1.7; color: #8a94a0;
+  padding: 24px 8px 4px;
   max-width: 440px; margin: 0 auto;
 }
+.foot a {
+  color: #1b5fd9; font-weight: 600;
+  text-decoration: none;
+}
+.foot a:active { text-decoration: underline; }
 
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } .cta { transition: none; } }

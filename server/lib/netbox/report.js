@@ -146,6 +146,16 @@ function build(scan) {
         source: reading ? 'switch + camera' : 'camera',
         portCount: reading ? physIfaces.length : (cam ? cam.size : cameraPorts),
         portsUp: reading ? physIfaces.filter((i) => i.operStatus === 'up').length : null,
+        // What the switch says about itself beyond its model — read from the
+        // maker's own MIB where the standard one is silent, which on the
+        // switches we have met is always.
+        hardware: reading?.identity?.hardwareRev || null,
+        firmware: reading?.identity?.firmwareRev || null,
+        uptimeSeconds: reading?.system?.uptimeSeconds ?? null,
+        location: reading?.system?.sysLocation || null,
+        // Everything the switch has learned the address of: the things
+        // plugged into it, whether or not they announce themselves.
+        seen: reading ? (reading.macs || []).length : null,
         ports,
       };
     });
@@ -184,6 +194,11 @@ function build(scan) {
       devices: devices.length,
       switchesRead: readingByDevice.size,
       ports: devices.reduce((n, d) => n + (d.portCount || 0), 0),
+      // What a person actually wants counted: how much of the rack is in use,
+      // how much is spare, and how many things are on the end of it.
+      portsUp: devices.reduce((n, d) => n + (d.portsUp || 0), 0),
+      portsInUse: devices.reduce((n, d) => n + (d.ports || []).filter((x) => x.inUse).length, 0),
+      seen: devices.reduce((n, d) => n + (d.seen || 0), 0),
       cables: cables.length,
       vlans: vlans.length,
       addresses: addresses.length,

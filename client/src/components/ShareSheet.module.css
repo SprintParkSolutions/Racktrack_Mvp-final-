@@ -1,0 +1,63 @@
+/* Send this report — see ShareSheet.jsx. */
+
+.scrim {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(17, 20, 24, .45);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  width: 100%; max-width: 540px; max-height: 88vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg, #fff);
+  border-radius: 16px 16px 0 0;
+  animation: rise .18s ease-out;
+}
+@keyframes rise { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+
+.head { display: flex; align-items: center; gap: 10px; padding: 16px 0 0; }
+.head h3 { flex: 1; margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.01em; color: var(--text); }
+.close {
+  width: 34px; height: 34px; flex: none;
+  border: 0; border-radius: 9px;
+  background: var(--bg2, #f1f3f5); color: var(--text);
+  font-size: 14px; cursor: pointer;
+}
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field span {
+  font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.field input {
+  min-height: 48px; padding: 0 12px;
+  border: 1px solid var(--border, rgba(0,0,0,.22)); border-radius: 10px;
+  background: var(--bg); color: var(--text);
+  font-size: 16px;   /* 16px or iOS zooms on focus */
+  width: 100%;
+}
+
+.ways { display: flex; flex-direction: column; }
+.way {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; padding: 14px 2px;
+  border: 0; border-top: 1px solid var(--border, rgba(0,0,0,.08));
+  background: transparent; text-align: left;
+  font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.way:disabled { opacity: .5; cursor: default; }
+.way:active { background: var(--bg2, rgba(0,0,0,.03)); }
+.wayIcon {
+  width: 40px; height: 40px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 11px;
+  background: var(--bg2, #f1f3f5); color: var(--text);
+}
+.wayText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wayText b { font-size: 15px; font-weight: 650; color: var(--text); }
+.wayText small { font-size: 12px; color: var(--muted); }
+
+.good { margin: 0; font-size: 13px; color: #0f7b4f; }
+.bad { margin: 0; font-size: 13px; color: #c0392b; }

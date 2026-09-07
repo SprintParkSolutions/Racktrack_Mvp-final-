@@ -1,0 +1,130 @@
+/* Where a switch sits in the rack — see PlacePicker.jsx. */
+
+.wrap { display: flex; flex-direction: column; gap: 4px; }
+
+/* ── The line that states the answer ── */
+.trigger {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'label action' 'value action' 'sub action';
+  align-items: center;
+  width: 100%;
+  padding: 10px 0;
+  border: 0; border-top: 1px solid var(--border, rgba(0,0,0,.09));
+  background: transparent; text-align: left;
+  font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.triggerLabel {
+  grid-area: label;
+  font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.triggerValue { grid-area: value; font-size: 15px; font-weight: 650; color: var(--text); margin-top: 2px; }
+.triggerEmpty { grid-area: value; font-size: 15px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.triggerSub { grid-area: sub; font-size: 12px; color: var(--muted); margin-top: 1px; }
+.triggerAction {
+  grid-area: action;
+  font-size: 13px; font-weight: 650; color: #0f7b4f;
+  padding-left: 14px;
+}
+.suggest { margin: 0 0 2px; font-size: 12px; color: var(--muted); }
+
+/* ── The sheet ── */
+.scrim {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(17, 20, 24, .45);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  width: 100%; max-width: 540px;
+  max-height: 88vh;
+  display: flex; flex-direction: column;
+  background: var(--bg, #fff);
+  border-radius: 16px 16px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: rise .18s ease-out;
+}
+@keyframes rise { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+
+.sheetHead {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 16px 12px;
+}
+.sheetHead h3 {
+  flex: 1; margin: 0;
+  font-size: 17px; font-weight: 650; letter-spacing: -.01em; color: var(--text);
+}
+.close {
+  width: 34px; height: 34px; flex: none;
+  border: 0; border-radius: 9px;
+  background: var(--bg2, #f1f3f5); color: var(--text);
+  font-size: 14px; cursor: pointer;
+}
+
+/* List | On the photo */
+.modes { display: flex; gap: 4px; padding: 0 16px 12px; }
+.mode, .modeOn {
+  flex: 1; min-height: 38px;
+  border-radius: 9px; border: 1px solid transparent;
+  background: var(--bg2, #f1f3f5); color: var(--muted);
+  font-family: var(--font); font-size: 13.5px; font-weight: 650;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.modeOn { background: #121212; color: #fff; }
+
+.body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── The list ── */
+.list { list-style: none; margin: 0; padding: 0; }
+.item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'name tag' 'sub tag';
+  width: 100%; gap: 0 10px;
+  padding: 13px 16px;
+  border: 0; border-bottom: 1px solid var(--border, rgba(0,0,0,.07));
+  background: transparent; text-align: left;
+  font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.itemOn { background: rgba(15,123,79,.07); }
+.itemName { grid-area: name; font-size: 14.5px; font-weight: 650; color: var(--text); }
+.itemSub { grid-area: sub; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.tag {
+  grid-area: tag; align-self: center;
+  font-size: 10px; letter-spacing: .06em; text-transform: uppercase; font-weight: 700;
+  color: #0f7b4f; background: rgba(15,123,79,.12);
+  padding: 3px 7px; border-radius: 999px;
+}
+.tick { grid-area: tag; align-self: center; color: #0f7b4f; font-size: 16px; font-weight: 700; }
+
+/* ── The photo ── */
+.photo { position: relative; padding: 0 16px 16px; }
+.photoImg { display: block; width: 100%; height: auto; border-radius: 10px; }
+.boxes { position: absolute; left: 16px; right: 16px; top: 0; bottom: 16px; width: calc(100% - 32px); height: calc(100% - 16px); }
+.boxG { cursor: pointer; }
+.box {
+  fill: rgba(18,18,18,.14);
+  stroke: #ffffff; stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.boxOn { fill: rgba(15,123,79,.34); stroke: #0f7b4f; stroke-width: 4; }
+.boxTaken { fill: rgba(18,18,18,.05); stroke: rgba(255,255,255,.55); stroke-dasharray: 6 5; }
+.boxLabel {
+  fill: #ffffff;
+  font-family: var(--font); font-size: 26px; font-weight: 700;
+  paint-order: stroke; stroke: rgba(0,0,0,.55); stroke-width: 5px; stroke-linejoin: round;
+  pointer-events: none;
+}
+.boxLabelOn { fill: #ffffff; stroke: rgba(15,123,79,.85); }
+
+/* ── Clear it ── */
+.none {
+  margin: 0; width: 100%; min-height: 52px;
+  border: 0; border-top: 1px solid var(--border, rgba(0,0,0,.1));
+  background: transparent; color: var(--muted);
+  font-family: var(--font); font-size: 14px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}

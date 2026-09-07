@@ -306,6 +306,55 @@ def handle_closeup_ocr(req):
     return result
 
 
+def handle_ocr_labels(req):
+    """Read every label in one rack photograph.
+
+    In the warm worker for the same reason as the close-up: building the OCR
+    reader costs several seconds, and the old path spawned a fresh Python for
+    each call and paid it every time. pipeline.ocr_labels caches the reader,
+    so only the first rack photo a worker sees pays for it. The import stays
+    deferred — a worker that never reads a label should not be holding the
+    models in memory.
+    """
+    from pipeline.ocr_labels import extract_labels
+
+    image_path = req.get("image_path")
+    if not image_path or not os.path.exists(image_path):
+        return {"ok": False, "error": "image_path missing"}
+    # The OCR backends log to stderr; a build that ever printed to stdout would
+    # corrupt the line-per-JSON protocol.
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        result = extract_labels(image_path, min_conf=float(req.get("min_conf", 0.25)))
+    stray = buf.getvalue().strip()
+    if stray:
+        log(f"ocr_labels stdout (suppressed): {stray[-300:]}")
+    return {"ok": True, **result}
+
+
+def handle_ocr_devices(req):
+    """Read the make and model off every device in one rack photograph.
+
+    In the warm worker for the same reason as the other two OCR passes: the
+    switch-ocr reader loads its models on construction, and this used to be a
+    fresh Python process per rack — the whole load paid before the first label
+    was read. pipeline.ocr_devices caches the reader now, so only the first
+    rack a worker sees pays for it.
+    """
+    from pipeline.ocr_devices import run as ocr_devices_run
+
+    rack_id = req.get("rack_id")
+    if not rack_id:
+        return {"ok": False, "error": "rack_id missing"}
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        result = ocr_devices_run(rack_id)
+    stray = buf.getvalue().strip()
+    if stray:
+        log(f"ocr_devices stdout (suppressed): {stray[-300:]}")
+    return {"ok": True, **(result or {})}
+
+
 def handle_relabel_port_count(req):
     """Re-detect ports for one device with a user-supplied target count.
     Updates that device's entry in device_unit_map.json and returns it.
@@ -895,6 +944,10 @@ def handle_request(req):
         return handle_relabel_port_count(req)
     if command == "closeup_ocr":
         return handle_closeup_ocr(req)
+    if command == "ocr_labels":
+        return handle_ocr_labels(req)
+    if command == "ocr_devices":
+        return handle_ocr_devices(req)
     if command == "extract_ticket":
         return handle_extract_ticket(req)
     if command == "feedback_scoreboard":

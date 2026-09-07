@@ -51,6 +51,7 @@ export const OID = {
   sysUpTime:   '1.3.6.1.2.1.1.3.0',
   sysName:     '1.3.6.1.2.1.1.5.0',
   sysLocation: '1.3.6.1.2.1.1.6.0',
+  sysContact:  '1.3.6.1.2.1.1.4.0',
 
   // ENTITY-MIB. The standard place for model and serial — and empty on every
   // switch we have tested so far, which is why the model is also parsed out of
@@ -67,9 +68,63 @@ export const OID = {
   ifHighSpeed:  '1.3.6.1.2.1.31.1.1.1.15',
   ifAlias:      '1.3.6.1.2.1.31.1.1.1.18',
 
-  lldpRemPortId:  '1.0.8802.1.1.2.1.4.1.1.7',
-  lldpRemSysName: '1.0.8802.1.1.2.1.4.1.1.9',
+  // The port's own hardware address, and whether it negotiated full duplex.
+  ifPhysAddress: '1.3.6.1.2.1.2.2.1.6',
+  dot3Duplex:    '1.3.6.1.2.1.10.7.2.1.19',
+
+  // BRIDGE-MIB / Q-BRIDGE-MIB: the forwarding table — every MAC the switch has
+  // learned and the port it learned it on. This is how a port says what is
+  // plugged into it when nothing on the other end speaks LLDP, which on the
+  // switches we have tested is almost everything.
+  dot1dBasePortIfIndex: '1.3.6.1.2.1.17.1.4.1.2',
+  dot1qTpFdbPort:       '1.3.6.1.2.1.17.7.1.2.2.1.2',
+  dot1dTpFdbPort:       '1.3.6.1.2.1.17.4.3.1.2',
+
+  // IP-MIB: the ARP cache, which turns a learned MAC into an IP address.
+  ipNetToMediaMac: '1.3.6.1.2.1.4.22.1.2',
+
+  // Our own end of a neighbour: the local port number LLDP reports, and the
+  // name that goes with it. Read rather than derived — the number is LLDP's
+  // own port numbering, which on the TP-Links is neither the ifIndex (49153+)
+  // nor anything a person would recognise.
+  lldpLocPortId:    '1.0.8802.1.1.2.1.3.7.1.3',
+  lldpRemPortId:    '1.0.8802.1.1.2.1.4.1.1.7',
+  lldpRemSysName:   '1.0.8802.1.1.2.1.4.1.1.9',
+  lldpRemChassisId: '1.0.8802.1.1.2.1.4.1.1.5',
 };
+
+/**
+ * What the maker's own MIB says about the box.
+ *
+ * ENTITY-MIB is the standard place for a serial number and neither of the
+ * switches in the lab answers it. Both makers publish a private MIB that does,
+ * and it is documented support in both cases — so where we already know the
+ * vendor (from sysObjectID), we ask that vendor's own leaves. One GET, four
+ * or five values.
+ *
+ * Named OIDs only, never a walk of the private tree: the D-Link keeps a
+ * masked password at .1.7.0, and a blind walk would fetch it and file it on
+ * the server. We ask for the four things we want and nothing else.
+ */
+const VENDOR_FACTS = {
+  'TP-Link': {
+    model:    '1.3.6.1.4.1.11863.6.1.1.2.0',
+    hardware: '1.3.6.1.4.1.11863.6.1.1.5.0',
+    firmware: '1.3.6.1.4.1.11863.6.1.1.6.0',
+    serial:   '1.3.6.1.4.1.11863.6.1.1.8.0',
+  },
+  'D-Link': {
+    hardware: '1.3.6.1.4.1.171.11.153.1000.1.2.0',
+    firmware: '1.3.6.1.4.1.171.11.153.1000.1.3.0',
+  },
+};
+
+/** ifDuplex, as the switch's own settings page words it. */
+const DUPLEX = { 1: 'unknown', 2: 'half', 3: 'full' };
+
+/** Six decimal arcs of an OID index, as a MAC address. */
+const macFromArcs = (arcs) =>
+  arcs.map((n) => Number(n).toString(16).padStart(2, '0')).join(':');
 
 /** The USM counters an agent reports instead of answering (RFC 3414 §6). */
 export const USM_REPORTS = {
@@ -408,14 +463,14 @@ export class Snmp {
       reply = await this.transact(message, (msg) => this.parseV3(msg, msgId, requestId));
     } catch (e) {
       // Silence here is the very first v3 packet going unanswered, which is a
-      // different problem from a refused user name and worth saying so: the
-      // switch is either not reachable from this network at all, or does not
-      // have SNMPv3 switched on. Neither is fixed by retyping anything.
+      // different problem from a refused user name and worth saying so. What
+      // happened is stated; why it happened is not something this end can see,
+      // so the hint asks rather than tells.
       if (e instanceof SnmpError && e.kind === 'timeout') {
         throw new SnmpError('timeout', e.message,
-          'That was the SNMPv3 discovery — the first packet. Either this switch is '
-          + 'not reachable from the network the phone is on (a different subnet or '
-          + 'VLAN from the switch that did answer?), or SNMPv3 is not enabled on it.');
+          'Nothing came back from the SNMPv3 discovery — the first packet, before '
+          + 'any user name is sent. Check the address, and that SNMPv3 is enabled '
+          + 'on the switch.');
       }
       throw e;
     }
@@ -524,7 +579,10 @@ export class Snmp {
 /** A single round trip (two for v3), to prove the switch is there and the login is right. */
 export async function testLogin(config) {
   const s = new Snmp(config);
-  const r = await s.get([OID.sysDescr, OID.sysName, OID.sysObjectID, OID.sysUpTime]);
+  // Six values, one datagram. sysLocation and sysContact are free at this
+  // point and are the only two fields on a switch a person has written.
+  const r = await s.get([OID.sysDescr, OID.sysName, OID.sysObjectID, OID.sysUpTime,
+    OID.sysLocation, OID.sysContact]);
   const sysDescr = r[OID.sysDescr];
   const sysName = r[OID.sysName];
   return {
@@ -532,49 +590,107 @@ export async function testLogin(config) {
     sysDescr: sysDescr || null,
     vendor: vendorOf(r[OID.sysObjectID]),
     model: modelFrom(sysDescr, sysName),
+    location: r[OID.sysLocation] || null,
+    contact: r[OID.sysContact] || null,
     uptime: r[OID.sysUpTime] || null,
     engineId: s.engineId?.length ? [...s.engineId].map((b) => b.toString(16).padStart(2, '0')).join('') : null,
   };
 }
 
-const IF_TYPE_SKIP = new Set([24, 23, 131, 135, 136, 161]);  // loopback, tunnels, vlans, aggregates
+// Loopbacks, tunnels, VLAN interfaces, aggregates — and 53 (propVirtual),
+// which is what several vendors call the VLAN interface a switch answers on.
+// None of them is a socket on the front of the box.
+const IF_TYPE_SKIP = new Set([24, 23, 131, 135, 136, 161, 53]);
+
+/**
+ * ...and the ones that lie about their type.
+ *
+ * The TP-Link SG2428P reports "Vlan-interface1" as ifType 6, ethernetCsmacd —
+ * the same type as the 28 sockets on the front. Believing it made a 28-port
+ * switch a 29-port switch. Nothing physical is called this.
+ */
+const NOT_A_SOCKET = /vlan|loopback|^lo\d|tunnel|null ?0|port-?channel|^po\d|aggregat|^ae\d/i;
 
 /** Everything the rack cares about: what it is, its ports, and its neighbours. */
-export async function readSwitch(config, onProgress = () => {}) {
+export async function readSwitch(config, onProgress = () => {}, onPartial = () => {}) {
   const s = new Snmp(config);
 
+  // A table a switch does not implement is answered with silence, and silence
+  // costs a full timeout and then the retry. Asked with a short fuse and no
+  // retry instead: a switch that offers none of the optional tables costs a
+  // few seconds rather than a minute, and an empty answer is recorded as "not
+  // offered" rather than failing the reading.
+  const soft = async (oid, limit = 4096) => {
+    const t = s.timeoutMs; const r = s.retries;
+    s.timeoutMs = 1500; s.retries = 0;
+    try { return await s.walk(oid, { limit }); } catch { return []; } finally { s.timeoutMs = t; s.retries = r; }
+  };
+
+  // ── What it is ──
+  // One round trip, and the two things a person is waiting to see. Handed back
+  // immediately rather than at the end: the make and model are known in a
+  // fraction of a second, and holding them until the ports, the forwarding
+  // table and LLDP are all in made a switch look unreadable for seven seconds
+  // when it had already answered.
   onProgress('Asking what it is');
   const identity = await testLogin(config);
-
-  onProgress('Asking for its serial');
-  // Almost always empty on these switches. Asked anyway, and left empty when
-  // it is — an empty serial is a fact, a filled-in one would be a liability.
-  let serial = null;
-  try {
-    const ent = await s.walk(OID.entPhysicalSerialNum, { limit: 64 });
-    serial = ent.map((e) => e.value).find((v) => v && String(v).trim()) || null;
-  } catch { /* no ENTITY-MIB is the normal case, not an error */ }
+  onPartial({ kind: 'hello', ...identity });
 
   // One table at a time, not seven at once. The native side runs a small
   // thread pool, and a phone on office Wi-Fi loses datagrams under load — a
   // burst of parallel walks turns into retries and reads slower than doing it
   // in order. A switch also tends to have one SNMP worker; asking politely
   // gets a faster answer than asking seven times simultaneously.
-  onProgress('Reading the ports');
+  // Say which table, not just "reading the ports". Seven walks of a 52-port
+  // switch take a while, and one message held for all of them reads as a
+  // screen that has stopped rather than one that is working. It is also where
+  // a person's Stop lands: the caller's progress callback is free to throw.
+  onProgress('Reading the port names');
   const names  = await s.walk(OID.ifName);
-  const descrs = await s.walk(OID.ifDescr);
+  onProgress('Reading the port descriptions');
+  const descrs = names.length ? [] : await s.walk(OID.ifDescr);
+  onProgress('Reading which ports are up');
   const oper   = await s.walk(OID.ifOperStatus);
+
+  // Draw the faceplate here, off two tables, and fill in the rest underneath.
+  // The SG2428P answers about 280 ms per request; waiting for all seven
+  // interface tables before showing anything left a switch that had already
+  // named all 28 of its ports looking unread for four seconds.
+  {
+    const q = (rows) => Object.fromEntries(rows.map((r) => [r.index, r.value]));
+    const QN = q(names.length ? names : descrs); const QO = q(oper);
+    const quick = Object.keys(QN)
+      .filter((i) => !NOT_A_SOCKET.test(String(QN[i] || '')))
+      .sort((a, b) => Number(a) - Number(b))
+      .map((i) => ({
+        index: Number(i), name: QN[i], descr: null,
+        up: Number(QO[i]) === 1, enabled: true, speedMbps: null, type: 6,
+      }));
+    onPartial({
+      kind: 'full', ...identity, serial: null,
+      interfaces: quick, neighbours: [], attached: [], gaps: [],
+      counts: { ports: quick.length, up: quick.filter((i) => i.up).length, neighbours: 0, attached: 0 },
+    });
+  }
+
+  onProgress('Reading the rest of the port table');
+  const descrs2 = names.length ? await s.walk(OID.ifDescr) : descrs;
+  onProgress('Reading which ports are enabled');
   const admin  = await s.walk(OID.ifAdminStatus);
+  onProgress('Reading the port speeds');
   const speed  = await s.walk(OID.ifHighSpeed);
+  onProgress('Reading the port types');
   const types  = await s.walk(OID.ifType);
+  onProgress('Reading the port labels');
   const alias  = await s.walk(OID.ifAlias);
 
   const by = (rows) => Object.fromEntries(rows.map((r) => [r.index, r.value]));
-  const N = by(names); const D = by(descrs); const O = by(oper);
+  const N = by(names); const D = by(descrs2); const O = by(oper);
   const A = by(admin); const S = by(speed); const Y = by(types); const L = by(alias);
 
-  const interfaces = Object.keys({ ...N, ...D })
+  const sockets0 = Object.keys({ ...N, ...D })
     .filter((i) => !IF_TYPE_SKIP.has(Number(Y[i])))
+    .filter((i) => !NOT_A_SOCKET.test(String(N[i] || D[i] || '')))
     .sort((a, b) => Number(a) - Number(b))
     .map((i) => ({
       index: Number(i),
@@ -583,46 +699,175 @@ export async function readSwitch(config, onProgress = () => {}) {
       up: Number(O[i]) === 1,
       enabled: Number(A[i]) === 1,
       speedMbps: Number(S[i]) || null,
+      // Kept so the screen can tell a socket from a VLAN interface without
+      // guessing from the name.
+      type: Number(Y[i]) || null,
     }));
+  const interfaces = sockets0;
+  onPartial({
+    kind: 'full', ...identity, serial: null,
+    interfaces, neighbours: [], attached: [], gaps: [],
+    counts: { ports: interfaces.length, up: interfaces.filter((i) => i.up).length, neighbours: 0, attached: 0 },
+  });
+
+  // ── Everything that takes longer ──
+  onProgress('Asking the maker what this is');
+  // The vendor's own record, where we know the vendor. This is where the
+  // serial number actually lives on these switches.
+  let vendorFacts = {};
+  const leaves = VENDOR_FACTS[identity.vendor];
+  if (leaves) {
+    const t = s.timeoutMs; const r = s.retries;
+    s.timeoutMs = 1500; s.retries = 0;
+    try {
+      const got = await s.get(Object.values(leaves));
+      for (const [key, oid] of Object.entries(leaves)) {
+        const v = got[oid];
+        if (v && String(v).trim()) vendorFacts[key] = String(v).trim();
+      }
+    } catch { vendorFacts = {}; } finally { s.timeoutMs = t; s.retries = r; }
+  }
+
+  onProgress('Asking for its serial');
+  // Almost always empty on these switches. Asked anyway, and left empty when
+  // it is — an empty serial is a fact, a filled-in one would be a liability.
+  // Soft, because a switch without ENTITY-MIB says nothing at all, and this
+  // sat between "what is it" and "what are its ports" costing six seconds on
+  // every TP-Link read.
+  const entSerial = (await soft(OID.entPhysicalSerialNum, 64))
+    .map((e) => e.value).find((v) => v && String(v).trim()) || null;
+  // ENTITY-MIB first when it answers — it is the standard and the switch
+  // stating it in the standard place. The maker's own MIB is the fallback,
+  // which on both of these switches is the only one that answers.
+  const serial = entSerial || vendorFacts.serial || null;
+
+  onProgress('Reading how much each port has carried');
+  const IN = by(await soft(OID.ifHCInOctets));
+  const OUT = by(await soft(OID.ifHCOutOctets));
+
+  onProgress('Reading the port hardware addresses');
+  const M = by(await soft(OID.ifPhysAddress));
+  onProgress('Reading how the ports negotiated');
+  const X = by(await soft(OID.dot3Duplex));
+  for (const i of interfaces) {
+    i.mac = M[i.index] || null;
+    i.duplex = DUPLEX[Number(X[i.index])] || null;
+    // Counters, not rates. A single reading of a counter says how much has
+    // gone through the port since the switch last booted, which is a fact;
+    // calling it a speed would not be. The screen turns two readings into a
+    // rate, because then there is an interval to divide by.
+    i.octetsIn = Number(IN[i.index]) || 0;
+    i.octetsOut = Number(OUT[i.index]) || 0;
+  }
+  const nameOfIndex = new Map(interfaces.map((i) => [i.index, i.name]));
 
   onProgress('Asking who its neighbours are');
   let neighbours = [];
+  // LLDP numbers our ports its own way. This is the table that says which
+  // socket each of those numbers is.
+  const locName = by(await soft(OID.lldpLocPortId, 256));
   try {
     const remName = await s.walk(OID.lldpRemSysName, { limit: 256 });
     const remPort = await s.walk(OID.lldpRemPortId, { limit: 256 });
-    const P = by(remPort);
-    neighbours = remName.map((r) => ({
-      sysName: r.value,
-      port: P[r.index] || null,
-      // The index is time.localPort.entry — the middle arc is our own port.
-      localPort: r.index.split('.')[1] || null,
-    }));
+    const remChassis = await soft(OID.lldpRemChassisId, 256);
+    const P = by(remPort); const C = by(remChassis); const NM = by(remName);
+    // A neighbour that does not send a system name is still a neighbour. The
+    // TP-Links report three of them with the name field empty and only a
+    // chassis id, and taking the name column as the list meant the screen said
+    // there were none.
+    const seen = [...new Set([...remName, ...remPort, ...remChassis].map((r) => r.index))];
+    neighbours = seen.map((idx) => {
+      // The index is time.localPort.entry — the middle arc is our own port,
+      // in LLDP's numbering. Named from LLDP's own local-port table, falling
+      // back to the interface table, and finally to the bare number rather
+      // than to a name that would be somebody else's port.
+      const local = String(idx).split('.')[1];
+      return {
+        sysName: NM[idx] || C[idx] || 'unnamed',
+        port: P[idx] || null,
+        localPort: locName[local] || nameOfIndex.get(Number(local)) || (local ? `port ${local}` : null),
+        named: Boolean(NM[idx]),
+      };
+    });
   } catch { /* LLDP switched off is a finding, not a failure */ }
 
+  // ── What is plugged in ──
+  //
+  // The forwarding table is the switch's own record of every device it has
+  // heard from and the port it heard it on. LLDP is a courtesy the other end
+  // has to offer; this is bookkeeping the switch does whether anyone asks or
+  // not, so it sees laptops, cameras, phones and printers that announce
+  // nothing. The ARP cache then puts an IP address to some of those MACs.
+  onProgress('Reading what is plugged into each port');
+  const bridgeToIf = new Map(
+    (await soft(OID.dot1dBasePortIfIndex)).map((r) => [String(r.index), Number(r.value)]),
+  );
+  // Q-BRIDGE indexes by VLAN and MAC, the older BRIDGE-MIB by MAC alone. Both
+  // report a BRIDGE port, its own numbering, which is only sometimes the same
+  // as ifIndex — hence the translation table above rather than an assumption.
+  const qFdb = await soft(OID.dot1qTpFdbPort, 8192);
+  const rawFdb = qFdb.length
+    ? qFdb.map((r) => {
+      const arcs = String(r.index).split('.');
+      return { vlan: Number(arcs[0]), mac: macFromArcs(arcs.slice(1, 7)), port: String(r.value) };
+    })
+    : (await soft(OID.dot1dTpFdbPort, 8192)).map((r) => {
+      const arcs = String(r.index).split('.');
+      return { vlan: null, mac: macFromArcs(arcs.slice(0, 6)), port: String(r.value) };
+    });
+
+  onProgress('Reading the address cache');
+  const ipOfMac = new Map();
+  for (const r of await soft(OID.ipNetToMediaMac)) {
+    // index = ifIndex.a.b.c.d, value = the MAC at that address.
+    const ip = String(r.index).split('.').slice(1).join('.');
+    if (r.value) ipOfMac.set(String(r.value).toLowerCase(), ip);
+  }
+
+  const attached = rawFdb
+    // Port 0 means "learned, but not on a port" — not a fact about cabling.
+    .filter((r) => Number(r.port) > 0)
+    .map((r) => {
+      const ifIndex = bridgeToIf.get(r.port) ?? Number(r.port);
+      return {
+        mac: r.mac,
+        vlan: r.vlan,
+        ifIndex,
+        port: nameOfIndex.get(ifIndex) || String(ifIndex),
+        ip: ipOfMac.get(r.mac) || null,
+      };
+    })
+    // The switch's own address on its uplink is itself, not something plugged in.
+    .filter((d) => !interfaces.some((i) => i.mac && i.mac.toLowerCase() === d.mac));
+
+  for (const i of interfaces) {
+    i.attached = attached.filter((d) => d.ifIndex === i.index).length;
+  }
+
+  // What the switch did not say. Each line states only that — what was asked
+  // for and not given. Why it was not given is not something a reading can
+  // know, and a guess written in the same voice as a measurement reads as one.
   const gaps = [];
-  if (!serial) {
-    gaps.push('No serial. This switch does not offer ENTITY-MIB, so the serial '
-      + 'has to come from the camera or be typed in.');
-  }
-  if (!identity.model) {
-    gaps.push('No model. It is not in the description or the name, so the camera '
-      + 'keeps that field.');
-  }
-  if (!neighbours.length) {
-    gaps.push('No LLDP neighbours. Either LLDP is switched off, or it is on but '
-      + 'not advertising on the ports that matter.');
-  }
+  if (!serial) gaps.push('No serial number.');
+  if (!identity.model) gaps.push('No model.');
+  if (!neighbours.length) gaps.push('No LLDP neighbours.');
+  if (!attached.length) gaps.push('No forwarding table.');
 
   return {
     ...identity,
+    ...vendorFacts,          // hardware, firmware, and the model the maker states
+    model: vendorFacts.model || identity.model,
     serial,
+    readAt: new Date().toISOString(),
     interfaces,
     neighbours,
+    attached,
     gaps,
     counts: {
       ports: interfaces.length,
       up: interfaces.filter((i) => i.up).length,
       neighbours: neighbours.length,
+      attached: attached.length,
     },
   };
 }
@@ -647,16 +892,25 @@ export function toServerReading(r, { tookMs = null } = {}) {
     operStatus: i.up ? 'up' : 'down',
     adminStatus: i.enabled ? 'up' : 'down',
     speedMbps: i.speedMbps ?? null,
-    mtu: null, duplex: null, pvid: null, mac: null,
+    mtu: null, pvid: null,
+    duplex: i.duplex ?? null,
+    mac: i.mac ?? null,
   }));
   const neighbours = (r.neighbours || []).map((n) => ({
     localPort: n.localPort ?? null,
-    localPortName: null,
-    remoteSysName: n.sysName ?? null,
+    localPortName: n.localPort ?? null,
+    remoteSysName: n.named ? n.sysName : null,
     remotePortDesc: null,
     remotePortId: n.port ?? null,
-    chassisId: null,
+    chassisId: n.named ? null : (n.sysName ?? null),
   }));
+  // Every device the switch has learned about, with the port it learned it on
+  // — the server's `macs` field, which its own collector fills the same way.
+  const macs = (r.attached || []).map((d) => ({
+    mac: d.mac, vlan: d.vlan ?? null, ifIndex: d.ifIndex ?? null,
+    port: d.port ?? null, ip: d.ip ?? null,
+  }));
+  const arp = macs.filter((d) => d.ip).map((d) => ({ ip: d.ip, mac: d.mac }));
   const model = r.model ?? null;
   return {
     collectedAt: new Date().toISOString(),
@@ -665,25 +919,25 @@ export function toServerReading(r, { tookMs = null } = {}) {
     localChassisId: null,
     identity: {
       model, serial: r.serial ?? null, manufacturer: r.vendor ?? null,
-      hardwareRev: null, firmwareRev: null, softwareRev: null,
+      hardwareRev: r.hardware ?? null, firmwareRev: r.firmware ?? null, softwareRev: null,
       stackMembers: 0, members: [],
     },
     system: {
       sysName: r.sysName ?? null,
       sysDescr: r.sysDescr ?? null,
-      sysLocation: null, sysContact: null,
+      sysLocation: r.location ?? null, sysContact: r.contact ?? null,
       uptimeSeconds: r.uptime != null ? Math.floor(Number(r.uptime) / 100) : null,
       vendor: r.vendor ?? null,
       derivedModel: model,           // the server's own name for "model read out of sysDescr"
     },
     interfaces,
     neighbours,
-    vlans: [], ipAddrs: [], arp: [], macs: null,
+    vlans: [], ipAddrs: [], arp, macs,
     counts: {
       interfaces: interfaces.length,
       interfacesUp: interfaces.filter((i) => i.operStatus === 'up').length,
       neighbours: neighbours.length,
-      vlans: 0, ipAddrs: 0, arp: 0, macs: null,
+      vlans: 0, ipAddrs: 0, arp: arp.length, macs: macs.length,
     },
     gaps: [...(r.gaps || [])],
   };

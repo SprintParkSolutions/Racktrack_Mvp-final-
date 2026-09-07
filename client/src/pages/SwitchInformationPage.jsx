@@ -158,7 +158,12 @@ function SourceBadge({ sw }) {
   const conf = sw.ocr_conf != null ? Math.round(sw.ocr_conf * 100) : null;
 
   let label, bg, color;
-  if (sw._fromOcr) {
+  if (sw._fromSwitch) {
+    // The box answering for itself. Nothing the camera can offer beats it.
+    label = 'From the switch';
+    bg = 'rgba(15,123,79,.10)';
+    color = '#0f7b4f';
+  } else if (sw._fromOcr) {
     // From the rack photo — confidence shown when available.
     label = conf != null ? `Photo ${conf}%` : 'From photo';
     bg = '#ffffff';
@@ -219,6 +224,10 @@ function saveOverride(rackId, sw, field, value) {
     if (value) setItem(k, value);
     else removeItem(k);
   } catch (_) {}
+  // The overrides live in each card, but the list around them has to know:
+  // the note under it says the labels are still being read, and it should
+  // stop saying that the moment somebody supplies one by hand.
+  try { window.dispatchEvent(new Event('rt:device-override')); } catch (_) { /* not a browser */ }
 }
 
 // Backwards-compat helpers for the existing firmware-version override.
@@ -1100,6 +1109,11 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
               position={sw.position}
               vendor={effectiveMake || 'Unknown'}
               model={effectiveModel || 'Unknown'}
+              // Without the slot count the advisor priced for zero ports and
+              // fell back to listing cables alone. The camera counted the
+              // cages; until a reading says which are filled, all of them are
+              // the ones to buy for.
+              sfpCounts={sw.sfp_count ? { total: sw.sfp_count, avail: sw.sfp_count } : undefined}
             />
           )}
 
@@ -1475,6 +1489,10 @@ function useSwitchData(rackId) {
   //   stalled — polled past the deadline; stopped
   //   error   — failed for a reason other than "not yet"
   const [ocrStatus, setOcrStatus] = useState(ocrCachedDevs ? 'ready' : 'pending');
+  // What the live switches said about themselves, by rack position. A switch
+  // stating its own model outranks OCR of a photograph of it, so where a
+  // reading has been matched to a box in this rack, it wins.
+  const [liveByU, setLiveByU] = useState(null);
   const [scanLoaded, setScanLoaded] = useState(!!scanCachedDevs);
   const [attempt, setAttempt] = useState(0);   // bumped by recheck() to re-run the effects
 
@@ -1551,7 +1569,56 @@ function useSwitchData(rackId) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rackId, attempt]);
 
+  // ── The third source: whatever the phone read off the switches ──
+  //
+  // The Switches tab was the camera's view alone — detection, then OCR. But
+  // for any switch somebody has actually read over SNMP, the make, model and
+  // serial are not a guess from a photograph: they are the box saying what it
+  // is. Where a reading has been matched to a position in this rack, those
+  // values fill the card. The source of truth is whichever witness knows.
+  useEffect(() => {
+    if (!rackId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const a = await authFetch(apiUrl(`/api/nb/scans/adopt/${encodeURIComponent(rackId)}`), { method: 'POST' });
+        if (!a.ok || cancelled) return;
+        const { id } = await a.json();
+        const v = await authFetch(apiUrl(`/api/nb/scans/${id}/reconcile`));
+        if (!v.ok || cancelled) return;
+        const view = await v.json();
+        const uOf = new Map((view.devices || []).map((d) => [d.uid, d.position]));
+        const byU = {};
+        for (const sw of view.switches || []) {
+          const u = sw.matchedTo ? uOf.get(sw.matchedTo) : null;
+          if (u == null) continue;
+          byU[Number(u)] = {
+            make: sw.vendor || '',
+            model: sw.model || '',
+            serial: sw.serial || '',
+            firmware: sw.firmware || '',
+            hardware: sw.hardware || '',
+            sysName: sw.sysName || '',
+            host: sw.host || '',
+            label: sw.label || '',
+          };
+        }
+        if (!cancelled) setLiveByU(byU);
+      } catch { /* the camera's view still stands on its own */ }
+    })();
+    return () => { cancelled = true; };
+  }, [rackId, attempt]);
+
   const recheck = () => setAttempt(n => n + 1);
+
+  // Re-read the overrides when a card saves one, so the note under the list
+  // disappears as soon as the last unknown switch is named.
+  const [, bumpOverrides] = useState(0);
+  useEffect(() => {
+    const onSaved = () => bumpOverrides((n) => n + 1);
+    window.addEventListener('rt:device-override', onSaved);
+    return () => window.removeEventListener('rt:device-override', onSaved);
+  }, []);
 
   // OCR is authoritative once it lands — it covers the same devices as the
   // scan (both derive from device_unit_map.json) and adds make/model. Until
@@ -1567,24 +1634,41 @@ function useSwitchData(rackId) {
     const rawExtracted = extractModelFromRaw(d.raw_text, d.make);
     const model = expandPartialModel(rawExtracted || d.model || '');
     const position = (d.position || '').toUpperCase();
+    // The switch's own account of itself, if one has been read and matched to
+    // this position. It goes first: OCR reads a photograph of a label, this is
+    // the box answering the question.
+    const uNum = Number(String(position).replace(/\D/g, ''));
+    const live = (liveByU && Number.isFinite(uNum)) ? liveByU[uNum] : null;
+    // How many SFP cages the camera saw on this box. The scan carries it per
+    // device; the OCR record does not, so it is looked up by position.
+    const scanTwin = (scanDevices || []).find((x) =>
+      Number(String(x.position || '').replace(/\D/g, '')) === uNum
+      || (x.units && x.units.some((u) => Number(String(u).replace(/\D/g, '')) === uNum)));
+    const sfpCount = Number(d.sfp_ports ?? scanTwin?.sfp_ports ?? 0) || 0;
     return {
       name: position ? `${d.class_name} (${position})` : (d.name || d.class_name || 'Detected switch'),
-      manufacturer: d.make || '',
-      model_number: model,
-      os_version: d.version || '',
-      serial_number: '',
+      manufacturer: live?.make || d.make || '',
+      model_number: live?.model || model,
+      os_version: live?.firmware || d.version || '',
+      serial_number: live?.serial || '',
       mac_address: '',
-      ip_address: '',
+      ip_address: live?.host || '',
       position,
-      discovery_source: d.source || 'ocr',
+      discovery_source: live ? 'switch' : (d.source || 'ocr'),
+      // What the switch calls itself, and what somebody named it in RackTrack.
+      live_sys_name: live?.sysName || '',
+      hardware_rev: live?.hardware || '',
+      live_label: live?.label || '',
+      _fromSwitch: Boolean(live),
       ocr_conf: d.match_conf,
       raw_text: d.raw_text || '',
       port_count: d.port_count,
+      sfp_count: sfpCount,
       _fromOcr: true,
       // True while this card is a scan-detected switch whose label hasn't
       // been read yet — distinct from "OCR ran and couldn't read it", which
       // is what the manual-entry prompts are for.
-      _awaitingLabel: awaitingLabels,
+      _awaitingLabel: awaitingLabels && !live,
       _key: position || `i${i}`,
     };
   });
@@ -1595,7 +1679,19 @@ function useSwitchData(rackId) {
     : ocrStatus === 'error' ? 'error'
     : 'empty';
 
-  return { status, ocrStatus, recheck, switches };
+  // Whether anything on screen is still missing its make and model.
+  //
+  // The note under the list says the labels are being read. It was tied to
+  // the OCR poll alone, so it stayed up after somebody typed the make and
+  // model in themselves — the page telling a person it was busy finding out
+  // the very thing they had just told it. It is about what is missing, so it
+  // asks what is missing.
+  const unidentified = switches.filter((sw) => (
+    !(sw.manufacturer || loadOverride(rackId, sw, 'make'))
+    || !(sw.model_number || loadOverride(rackId, sw, 'model'))
+  )).length;
+
+  return { status, ocrStatus, recheck, switches, unidentified };
 }
 
 // The states where work is genuinely in flight. Carries a live indicator so
@@ -1650,8 +1746,11 @@ function RestingPanel({ title, detail, onRetry, retryLabel = 'Check again' }) {
 // their labels are still being read. It belongs under the cards rather than in
 // front of them — the list is already useful, and blocking it behind this
 // message is the thing that made the page feel slow.
-function LabelProgressNote({ ocrStatus, onRetry }) {
+function LabelProgressNote({ ocrStatus, unidentified, onRetry }) {
   if (ocrStatus === 'ready') return null;
+  // Nothing is waiting to be filled in: every switch on screen has a make and
+  // a model, wherever they came from.
+  if (!unidentified) return null;
   const working = ocrStatus === 'pending';
   return (
     <div style={{
@@ -1681,7 +1780,7 @@ function LabelProgressNote({ ocrStatus, onRetry }) {
   );
 }
 
-function SwitchInfoBody({ rackId, status, ocrStatus, switches, recheck }) {
+function SwitchInfoBody({ rackId, status, ocrStatus, switches, recheck, unidentified }) {
   if (status === 'loading') {
     return <WorkingPanel
       title="Finding switches…"
@@ -1705,7 +1804,7 @@ function SwitchInfoBody({ rackId, status, ocrStatus, switches, recheck }) {
   return (
     <>
       <SwitchPicker switches={switches} rackId={rackId} />
-      <LabelProgressNote ocrStatus={ocrStatus} onRetry={recheck} />
+      <LabelProgressNote ocrStatus={ocrStatus} unidentified={unidentified} onRetry={recheck} />
     </>
   );
 }

@@ -1,13 +1,13 @@
-/* Switch test — the phone talking to a switch over SNMP.
-   A throwaway screen for one build, so it borrows the shared tokens from
-   index.css and adds nothing to the design system. Full device width, like
-   every other page. */
+/* Network — the switches on this rack, read by the phone over SNMP.
+
+   Laid out as bands across the full width of the screen, parted by hairlines
+   and marked down the left edge by how each reading went. The earlier version
+   put four bordered tiles above cards that each held four more bordered tiles
+   around a green panel: boxes inside boxes inside boxes. Nothing here floats
+   and nothing nests — the reading IS the row. */
 
 /* The global .page-full (index.css) pins a page at height:100vh with
-   overflow:hidden on phones — the app scrolls an inner region, not the page.
-   Build 50 gave this page min-height:100vh and let it grow, so anything past
-   one screen was clipped and could not be reached. Same shape as HelpPage now:
-   the page fills its box, .scroll does the scrolling. */
+   overflow:hidden on phones — the app scrolls an inner region, not the page. */
 .page {
   position: relative;
   display: flex; flex-direction: column;
@@ -22,15 +22,14 @@
   flex: 1; min-height: 0;
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  display: flex; flex-direction: column; gap: 16px;
-  padding-top: 12px;
-  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Header ── */
 .header {
   display: flex; align-items: center; gap: 10px;
-  padding: max(20px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px 4px;
+  padding: max(20px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px 12px;
 }
 .backBtn {
   width: 38px; height: 38px; flex: none;
@@ -46,108 +45,257 @@
   color: var(--text);
 }
 
-/* ── Intro ── */
-.intro {
-  margin: 0 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--border, rgba(0,0,0,.12));
-  border-radius: 12px;
-  background: var(--card2);
+/* ── One switch ──
+   A left rail carries the state, so the row needs no frame of its own. */
+.row {
+  position: relative;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px 16px 14px 16px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.09));
 }
-.intro p { margin: 0 0 8px; font-size: 14px; line-height: 1.55; color: var(--text); }
-.intro p:last-child { margin-bottom: 0; }
-.introNote { color: var(--muted) !important; }
-
-/* ── Summary strip: the rack's network in one glance ── */
-.summary {
-  margin: 0 16px;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px;
+.row::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: transparent;
 }
-.summary > div {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--border, rgba(0,0,0,.12)); border-radius: 12px;
-  background: var(--card);
-}
-.summary b { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.summary span { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
-.sumUp b { color: #0f7b4f; }
-.sumBad { border-color: rgba(192,57,43,.35) !important; }
-.sumBad b { color: #c0392b; }
+.row[data-state='good']::before { background: #0f7b4f; }
+.row[data-state='ok']::before   { background: rgba(15,123,79,.45); }
+.row[data-state='bad']::before  { background: #c0392b; }
+.row[data-state='busy']::before { background: #b26a00; }
 
-/* ── Status pill on each switch ── */
-.pill {
-  display: inline-block; margin-top: 6px;
-  padding: 3px 9px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
-  background: var(--bg2); color: var(--muted);
-  border: 1px solid var(--border, rgba(0,0,0,.12));
-}
-.pillGood { background: rgba(15,123,79,.12); color: #0f7b4f; border-color: rgba(15,123,79,.3); }
-.pillOk   { background: rgba(15,123,79,.08); color: #0f7b4f; border-color: rgba(15,123,79,.22); }
-.pillBad  { background: rgba(192,57,43,.10); color: #c0392b; border-color: rgba(192,57,43,.3); }
-.pillBusy { background: var(--bg2); color: var(--text); }
-
-/* ── Identity hero inside a result ── */
-.hero { display: flex; flex-direction: column; gap: 1px; }
-.heroMake { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #0f7b4f; font-weight: 700; }
-.heroModel { font-size: 24px; font-weight: 750; letter-spacing: -.02em; color: var(--text); line-height: 1.15; overflow-wrap: anywhere; }
-.heroSub { font-size: 12.5px; color: var(--muted); margin-top: 3px; overflow-wrap: anywhere; }
-
-/* ── Count tiles ── */
-.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.tile {
-  display: flex; flex-direction: column; align-items: center; gap: 0;
-  padding: 9px 4px; border-radius: 10px;
-  background: var(--bg); border: 1px solid var(--border, rgba(0,0,0,.1));
-}
-.tile b { font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.tile span { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
-.tileUp b { color: #0f7b4f; }
-
-/* ── Empty ── */
-.empty {
-  margin: 0 16px; padding: 28px 16px;
-  text-align: center;
-  border: 1px dashed var(--border, rgba(0,0,0,.18));
-  border-radius: 12px;
-}
-.empty p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
-
-/* ── Cards ── */
-.list { display: flex; flex-direction: column; gap: 14px; padding: 0 16px; }
-
-.card {
-  border: 1px solid var(--border, rgba(0,0,0,.12));
-  border-radius: 14px;
-  background: var(--card);
-  padding: 14px;
-  display: flex; flex-direction: column; gap: 12px;
-  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 18px -12px rgba(0,0,0,.18);
-}
-.cardHead { display: flex; align-items: flex-start; gap: 10px; }
+.rowTop { display: flex; align-items: flex-start; gap: 12px; }
 .who { flex: 1; min-width: 0; }
+/* Three steps down, and no two of them the same size: the name a person gave
+   it, then what the switch says it is, then where it lives. The make and model
+   used to be a 22px headline under a 17px name, so the second thing on the row
+   shouted louder than the first. */
 .who h2 {
-  margin: 0; font-size: 16px; font-weight: 650; color: var(--text);
+  margin: 0; font-size: 19px; font-weight: 700; color: var(--text);
+  letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere;
+}
+.model {
+  margin: 3px 0 0;
+  font-size: 14px; font-weight: 650; color: var(--text);
+  letter-spacing: -.01em; overflow-wrap: anywhere;
+}
+.make { color: var(--muted); font-weight: 600; }
+.make::after { content: ' '; }
+.meta {
+  margin: 3px 0 0; font-size: 12px; color: var(--muted);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+
+/* The one number worth reading from arm's length. */
+.count { flex: none; text-align: right; }
+.count b {
+  display: block;
+  font-size: 22px; font-weight: 700; letter-spacing: -.02em;
+  color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums;
+}
+.count b i { font-style: normal; font-weight: 500; color: var(--muted); margin: 0 1px; }
+.count span {
+  display: block; margin-top: 2px;
+  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.state {
+  flex: none; align-self: center;
+  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
+  font-weight: 600; color: var(--muted);
+}
+.row[data-state='bad'] .state { color: #c0392b; }
+.row[data-state='busy'] .state { color: #b26a00; }
+
+/* ── The faceplate ──
+   Every port on the switch in two rows, fitted to the width of the screen
+   however many there are: --cols is set on the element to half the port count,
+   so 52 ports make 26 columns and 10 ports make 5. Nothing scrolls sideways
+   and nothing is off the edge — the whole front of the box is one glance.
+   Too narrow for a number at 52 ports, so the numbers moved to the line
+   underneath, where tapping a port puts everything about it. */
+.plate {
+  padding: 10px 10px 8px;
+  border-radius: 10px;
+  background: var(--bg2, #f4f5f7);
+  border: 1px solid var(--border, rgba(0,0,0,.07));
+}
+.pins {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 12), 1fr);
+  grid-auto-rows: 20px;
+  gap: 2px;
+  /* A 10-port switch has a 10-port faceplate. Without this the five columns
+     stretch across the screen and a small switch looks like a row of buttons
+     rather than the front of a box. */
+  max-width: calc(var(--cols) * 34px);
+}
+.pinCell {
+  min-width: 0; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 3px;
+  background: #ffffff;
+  border: 1px solid var(--border, rgba(0,0,0,.14));
+  /* The number a switch prints above the socket. At 52 ports a column is
+     about 11px wide, so this is small on purpose — it is a label to confirm
+     what you are pointing at, and tapping puts the whole line underneath. */
+  font-family: var(--font);
+  font-size: 8px; font-weight: 700; letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  overflow: hidden;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.pinUp { background: #0f7b4f; border-color: #0f7b4f; color: #ffffff; }
+.pinOn { outline: 2px solid #121212; outline-offset: 1px; }
+
+.plateNote {
+  margin: 8px 2px 0;
+  font-size: 12px; color: var(--muted);
   overflow-wrap: anywhere;
 }
-.who p {
-  margin: 2px 0 0; font-size: 12.5px; color: var(--muted);
+.plateNote b { color: var(--text); font-variant-numeric: tabular-nums; }
+.key { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; }
+.key i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.keyUp { background: #0f7b4f; }
+.keyDown { background: #ffffff; border: 1px solid var(--border, rgba(0,0,0,.18)); }
+.keyHint { font-style: italic; }
+
+/* ── Actions, at the switch's name ── */
+.menuWrap { position: relative; flex: none; }
+.kebab {
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 9px;
+  background: transparent; color: var(--muted);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.kebab:disabled { opacity: .35; cursor: default; }
+.kebab:active { background: var(--bg2, rgba(0,0,0,.05)); }
+/* Catches the tap that closes the menu, without a visible layer. */
+.menuScrim { position: fixed; inset: 0; z-index: 40; border: 0; background: transparent; cursor: default; }
+.menu {
+  position: absolute; right: 0; top: 36px; z-index: 41;
+  min-width: 168px;
+  display: flex; flex-direction: column;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  box-shadow: 0 8px 28px -12px rgba(0,0,0,.35);
+}
+.menu button {
+  padding: 11px 12px;
+  border: 0; border-radius: 8px;
+  background: transparent; color: var(--text);
+  font-family: var(--font); font-size: 14px; font-weight: 600;
+  text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.menu button:active { background: var(--bg2, rgba(0,0,0,.05)); }
+.menuBad { color: #c0392b !important; }
+
+/* ── What the switch actually said ── */
+.data { display: flex; flex-direction: column; }
+.moreBtn {
+  display: flex; align-items: baseline; gap: 12px;
+  width: 100%; padding: 2px 0;
+  border: 0; background: transparent; text-align: left;
+  font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.moreSum { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); }
+.moreLink { flex: none; font-size: 13px; font-weight: 700; color: #0f7b4f; }
+.dataHead {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 14px 0 6px;
+}
+.dataHead h3 {
+  flex: 1; margin: 0;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.dataCount {
+  font-size: 12px; font-weight: 700; color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-.cardTools { flex: none; display: flex; gap: 12px; align-items: baseline; }
-.del {
-  flex: none;
-  background: none; border: 0; padding: 4px 2px;
-  color: var(--muted); font-size: 12.5px; cursor: pointer;
-  text-decoration: underline; text-underline-offset: 2px;
+.none { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+
+/* Which ports are running, and how fast. One line per speed, the numbers set
+   in a tabular column so they read as a set rather than a sentence. */
+.speeds { display: flex; flex-direction: column; gap: 8px; }
+.speedRow {
+  display: grid; grid-template-columns: 56px 1fr; gap: 12px;
+  align-items: baseline;
 }
-.del:disabled { opacity: .45; cursor: default; }
+.speedTag {
+  font-size: 12px; font-weight: 700; color: #0f7b4f;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.speedPorts {
+  font-size: 13px; color: var(--text);
+  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  line-height: 1.7; overflow-wrap: anywhere;
+}
+
+/* Neighbours, and ports somebody has named: what is on the left, where it is
+   on the right. */
+.nbrRows { list-style: none; margin: 0; padding: 0; }
+.nbrRows li {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border, rgba(0,0,0,.06));
+}
+.nbrName {
+  flex: 1; min-width: 0;
+  font-size: 13.5px; font-weight: 650; color: var(--text); overflow-wrap: anywhere;
+}
+.nbrWhere {
+  flex: none; font-size: 12px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── It did not answer ── */
+.bad { display: flex; flex-direction: column; gap: 5px; }
+.bad p { margin: 0; font-size: 13.5px; line-height: 1.5; color: #c0392b; }
+.hint { color: var(--muted) !important; font-size: 12.5px !important; }
+
+/* ── Working ── */
+.working {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0; font-size: 13.5px; color: var(--muted);
+}
+.workingStep { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.stop {
+  flex: none;
+  border: 1px solid var(--border, rgba(0,0,0,.2)); border-radius: 8px;
+  background: transparent; color: var(--text);
+  font-family: var(--font); font-size: 12.5px; font-weight: 650;
+  min-height: 32px; padding: 0 12px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.spinner {
+  width: 14px; height: 14px; flex: none;
+  border: 2px solid var(--border, rgba(0,0,0,.2));
+  border-top-color: #b26a00;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+.descr {
+  margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* ── Nothing here yet ── */
+.empty { padding: 44px 16px; text-align: center; }
+.empty p { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text); }
+.emptySub { font-weight: 400 !important; font-size: 13.5px !important; color: var(--muted) !important; margin-bottom: 18px !important; }
 
 /* ── Buttons ── */
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.primary, .secondary, .addMore {
-  flex: 1 1 auto; min-height: 44px;
+.primary, .secondary {
+  flex: 1 1 auto; min-height: 46px;
   border-radius: 10px; font-size: 14.5px; font-weight: 600;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   padding: 0 16px;
@@ -155,110 +303,32 @@
 .primary { background: #121212; border: 1px solid #121212; color: #fff; }
 .secondary { background: transparent; border: 1px solid var(--border, rgba(0,0,0,.22)); color: var(--text); }
 .primary:disabled, .secondary:disabled { opacity: .5; cursor: default; }
-.addMore { margin: 0 16px; background: transparent; border: 1px dashed var(--border, rgba(0,0,0,.25)); color: var(--text); }
 
-/* ── Working ── */
-.working {
-  display: flex; align-items: center; gap: 9px;
-  margin: 0; font-size: 13.5px; color: var(--muted);
+/* Full width, hairline under it — a row like the switches above it. */
+.addMore {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 56px;
+  background: transparent; border: 0;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.09));
+  color: var(--text); font-family: var(--font);
+  font-size: 14px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
-.spinner {
-  width: 14px; height: 14px; flex: none;
-  border: 2px solid var(--border, rgba(0,0,0,.2));
-  border-top-color: #121212;
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+.addMore span { font-size: 18px; font-weight: 500; color: var(--muted); }
+.addMore:active { background: var(--bg2, rgba(0,0,0,.03)); }
 
-/* ── Outcomes ── */
-.good, .bad {
-  border-radius: 11px; padding: 12px 13px;
-  display: flex; flex-direction: column; gap: 10px;
-}
-.good { background: rgba(15,123,79,.07); border: 1px solid rgba(15,123,79,.28); }
-.bad  { background: rgba(192,57,43,.07); border: 1px solid rgba(192,57,43,.28); }
-.good h3 { margin: 0; font-size: 14px; font-weight: 650; color: #0f7b4f; }
-.bad h3  { margin: 0; font-size: 14px; font-weight: 650; color: #c0392b; }
-.bad p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
-.hint { color: var(--muted) !important; }
-
-.facts { margin: 0; display: flex; flex-direction: column; gap: 6px; }
-.facts > div { display: flex; gap: 10px; align-items: baseline; }
-.facts dt {
-  flex: 0 0 84px; margin: 0;
-  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--muted);
-}
-.facts dd {
-  flex: 1; margin: 0; min-width: 0;
-  font-size: 14px; font-weight: 600; color: var(--text);
-  overflow-wrap: anywhere;
-}
-.facts dd em { font-weight: 400; font-style: normal; color: var(--muted); }
-
-.descr {
-  margin: 0; padding: 9px 10px;
-  background: var(--bg2); border-radius: 8px;
-  font-size: 12.5px; line-height: 1.5; color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.counts { display: flex; gap: 16px; flex-wrap: wrap; }
-.counts span { font-size: 13px; color: var(--muted); }
-.counts b {
-  font-size: 17px; color: var(--text); margin-right: 4px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Port faceplate. Scrolls inside itself; the page never scrolls sideways. */
-.ports {
-  display: flex; flex-wrap: wrap; gap: 4px;
-  max-height: 168px; overflow-y: auto;
-}
-.port {
-  font-size: 11px; padding: 3px 6px; border-radius: 5px;
-  background: var(--bg2); color: var(--muted);
-  border: 1px solid transparent;
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-.portUp {
-  background: rgba(15,123,79,.14); color: #0f7b4f;
-  border-color: rgba(15,123,79,.3); font-weight: 600;
-}
-
-.neighbours { margin: 0; padding-left: 18px; }
-.neighbours li { font-size: 13px; color: var(--text); margin-bottom: 4px; overflow-wrap: anywhere; }
-
-.gaps { border-top: 1px dashed var(--border, rgba(0,0,0,.2)); padding-top: 10px; }
-.gaps h4 {
-  margin: 0 0 6px; font-size: 11.5px; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--muted); font-weight: 600;
-}
-.gaps ul { margin: 0; padding-left: 18px; }
-.gaps li { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin-bottom: 5px; }
-
-.copy {
-  align-self: flex-start;
-  background: transparent; border: 1px solid var(--border, rgba(0,0,0,.25));
-  color: var(--text); border-radius: 8px;
-  min-height: 38px; padding: 0 14px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-}
-
-/* ── Add form ── */
+/* ── Add / edit ── */
 .form {
-  margin: 0 16px;
-  border: 1px solid var(--border, rgba(0,0,0,.12));
-  border-radius: 14px; background: var(--card);
-  padding: 14px;
-  display: flex; flex-direction: column; gap: 12px;
+  padding: 18px 16px 22px;
+  margin: 0 -16px;   /* full-bleed inside a switch row, which has its own 16px */
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.09));
+  background: var(--bg2, #fafafa);
+  display: flex; flex-direction: column; gap: 14px;
 }
-.form h2 { margin: 0; font-size: 16px; font-weight: 650; color: var(--text); }
+.form h2 { margin: 0; font-size: 17px; font-weight: 650; color: var(--text); letter-spacing: -.01em; }
 .field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
 .field span {
-  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
+  font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
   color: var(--muted); font-weight: 600;
 }
 .field input {
@@ -276,7 +346,7 @@
 .seg {
   display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
   padding: 4px; border-radius: 12px;
-  background: var(--bg2); border: 1px solid var(--border, rgba(0,0,0,.14));
+  background: var(--bg); border: 1px solid var(--border, rgba(0,0,0,.14));
 }
 .segBtn {
   display: flex; flex-direction: column; align-items: center; gap: 1px;
@@ -287,36 +357,38 @@
 }
 .segBtn b { font-size: 14px; font-weight: 650; color: inherit; }
 .segBtn small { font-size: 11px; letter-spacing: .01em; }
-.segOn { background: var(--card); color: var(--text); border-color: var(--border, rgba(0,0,0,.18)); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.segOn { background: var(--card); color: var(--text); border-color: var(--border, rgba(0,0,0,.18)); }
 .fieldNote { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.formErr { margin: 0; font-size: 13px; font-weight: 650; color: #c0392b; }
+
+/* A reading the server has not been told about. */
+.unfiled {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 0; font-size: 12.5px; color: #b26a00;
+}
+.unfiled button {
+  border: 0; background: transparent; padding: 0;
+  font-family: var(--font); font-size: 12.5px; font-weight: 700;
+  color: #0f7b4f; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.formErr { margin: 0; font-size: 13px; font-weight: 600; color: #c0392b; }
 .fieldNote code {
-  background: var(--bg2); padding: 1px 5px; border-radius: 4px;
+  background: var(--bg); padding: 1px 5px; border-radius: 4px;
   font-size: 12px;
 }
 
 /* Shown only in a browser: the reading happens on the phone. */
-.onPhone {
-  margin: 0 16px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(178,106,0,.08);
-  border: 1px solid rgba(178,106,0,.28);
-  color: var(--text);
-  font-size: 13.5px; line-height: 1.5;
+.notice {
+  margin: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.09));
+  border-left: 3px solid #b26a00;
+  color: var(--muted);
+  font-size: 13px; line-height: 1.55;
 }
-.onPhone b { font-weight: 700; }
+.notice b { font-weight: 700; color: var(--text); }
 
-/* Where a switch sits in the rack — shown under a reading. */
-.place { display: flex; flex-direction: column; gap: 5px; }
-.place > span { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.place select {
-  min-height: 46px; padding: 0 12px;
-  border: 1px solid var(--border, rgba(0,0,0,.22)); border-radius: 10px;
-  background: var(--bg); color: var(--text); font-size: 16px; width: 100%;
-}
-.placeWhy { font-size: 12px; color: var(--muted); font-style: normal; }
-
-/* Save the places and move on. */
-.finish { margin: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+/* ── Save the places and move on ── */
+.finish { padding: 18px 16px 8px; display: flex; flex-direction: column; gap: 10px; }
 .finishOk { margin: 0; font-size: 13px; color: #0f7b4f; }
 .finishBad { margin: 0; font-size: 13px; color: #c0392b; }

@@ -23,12 +23,23 @@ describe('toServerReading: the phone\'s reading in the server\'s shape', () => {
     sysName: 'SG2428P', sysDescr: 'Omada 28-Port Gigabit Smart Switch with 24-Port PoE+',
     vendor: 'TP-Link', model: 'SG2428P', uptime: 34802000, serial: null,
     interfaces: [
-      { index: 1, name: 'gigabitEthernet 1/0/1', descr: 'uplink', up: true, enabled: true, speedMbps: 1000 },
-      { index: 2, name: 'gigabitEthernet 1/0/2', descr: null, up: false, enabled: true, speedMbps: null },
+      { index: 1, name: 'gigabitEthernet 1/0/1', descr: 'uplink', up: true, enabled: true, speedMbps: 1000,
+        mac: '30:de:4b:23:70:ac', duplex: 'full' },
+      { index: 2, name: 'gigabitEthernet 1/0/2', descr: null, up: false, enabled: true, speedMbps: null,
+        mac: null, duplex: null },
     ],
-    neighbours: [{ sysName: 'core_sw', port: 'Slot0/2', localPort: '4' }],
+    neighbours: [
+      { sysName: 'core_sw', port: 'Slot0/2', localPort: '4', named: true },
+      // A neighbour that sends no system name: LLDP is on, the other end just
+      // does not fill that field. It is still a neighbour.
+      { sysName: 'e8:cf:83:3d:c0:b2', port: 'E8:CF:83:3D:C0:B3', localPort: '9', named: false },
+    ],
+    attached: [
+      { mac: 'f8:e4:3b:35:2f:92', vlan: 1, ifIndex: 1, port: 'gigabitEthernet 1/0/1', ip: '192.168.1.20' },
+      { mac: '3c:22:fb:11:22:33', vlan: 1, ifIndex: 2, port: 'gigabitEthernet 1/0/2', ip: null },
+    ],
     gaps: ['No serial. This switch does not offer ENTITY-MIB, so the serial has to come from the camera or be typed in.'],
-    counts: { ports: 2, up: 1, neighbours: 1 },
+    counts: { ports: 2, up: 1, neighbours: 2, attached: 2 },
   };
 
   test('has every top-level key a server-side reading has, and nothing invented', () => {
@@ -40,9 +51,11 @@ describe('toServerReading: the phone\'s reading in the server\'s shape', () => {
     expect(r.source).toBe('phone');
     expect(r.tookMs).toBe(1234);
     expect(r.localChassisId).toBeNull();          // the phone does not read LLDP local chassis id
-    expect(r.vlans).toEqual([]);
-    expect(r.arp).toEqual([]);
-    expect(r.macs).toBeNull();
+    expect(r.vlans).toEqual([]);          // no switch we have tested offers them
+    // The forwarding table and the ARP cache DO come back, so they travel.
+    expect(r.macs).toHaveLength(2);
+    expect(r.macs[0]).toMatchObject({ mac: 'f8:e4:3b:35:2f:92', vlan: 1, ifIndex: 1, ip: '192.168.1.20' });
+    expect(r.arp).toEqual([{ ip: '192.168.1.20', mac: 'f8:e4:3b:35:2f:92' }]);
   });
 
   test('identity and system map the way the collector fills them', () => {
@@ -52,18 +65,23 @@ describe('toServerReading: the phone\'s reading in the server\'s shape', () => {
     expect(r.system.sysDescr).toMatch(/Omada/);
   });
 
-  test('interfaces: up/enabled become the collector\'s up/down strings; unread fields stay null', () => {
+  test('interfaces carry the hardware address and duplex; what was not read stays null', () => {
     const r = toServerReading(phone);
     expect(r.interfaces).toHaveLength(2);
     expect(r.interfaces[0]).toMatchObject({ ifIndex: 1, name: 'gigabitEthernet 1/0/1', alias: 'uplink',
-      operStatus: 'up', adminStatus: 'up', speedMbps: 1000, mtu: null, duplex: null, pvid: null, mac: null });
-    expect(r.interfaces[1]).toMatchObject({ ifIndex: 2, alias: null, operStatus: 'down', adminStatus: 'up', speedMbps: null });
-    expect(r.counts).toMatchObject({ interfaces: 2, interfacesUp: 1, neighbours: 1, vlans: 0, arp: 0, macs: null });
+      operStatus: 'up', adminStatus: 'up', speedMbps: 1000, duplex: 'full', mac: '30:de:4b:23:70:ac',
+      mtu: null, pvid: null });
+    expect(r.interfaces[1]).toMatchObject({ ifIndex: 2, alias: null, operStatus: 'down', adminStatus: 'up',
+      speedMbps: null, duplex: null, mac: null });
+    expect(r.counts).toMatchObject({ interfaces: 2, interfacesUp: 1, neighbours: 2, vlans: 0, arp: 1, macs: 2 });
   });
 
   test('neighbours keep local port and remote name/port, and gaps travel untouched', () => {
     const r = toServerReading(phone);
     expect(r.neighbours[0]).toMatchObject({ localPort: '4', remoteSysName: 'core_sw', remotePortId: 'Slot0/2', chassisId: null });
+    // A nameless neighbour is filed under the id it did send, not as a name
+    // it never claimed.
+    expect(r.neighbours[1]).toMatchObject({ remoteSysName: null, chassisId: 'e8:cf:83:3d:c0:b2', localPort: '9' });
     expect(r.gaps).toEqual(phone.gaps);
     expect(r.gaps).not.toBe(phone.gaps);          // a copy, not the caller's array
   });

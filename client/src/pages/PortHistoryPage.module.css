@@ -241,12 +241,15 @@
 }
 .portCell {
   display: flex; align-items: center; justify-content: center;
-  aspect-ratio: 1 / 1;
+  /* Fixed height rather than a square: at 26 columns a square tile is 11px
+     tall and the number inside it is unreadable. */
+  height: 22px; min-width: 0;
   padding: 0;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid rgba(0,0,0,0.18);
   background: rgba(0,0,0,0.55);
   color: #e9e9e9;
+  overflow: hidden;
   cursor: pointer; transition: transform 80ms ease, border-color 100ms ease;
 }
 .portCell:hover { transform: translateY(-1px); border-color: rgba(0,0,0,0.4); }
@@ -255,7 +258,12 @@
 .portCell.unknown{ background: rgba(0,0,0,0.04);        border-color: rgba(0,0,0,0.15);     color: #6b6b6b; }
 .portCellActive  { outline: 2px solid #000000; outline-offset: 1px; }
 .portDisabled    { filter: grayscale(0.6); opacity: 0.7; }
-.portName  { font-size: 12px; font-weight: 700; line-height: 1; }
+/* Small on purpose: 26 columns on a phone leave about 12px each. It is a
+   label to confirm what you are pointing at; the detail sheet has the rest. */
+.portName {
+  font-size: 9px; font-weight: 700; line-height: 1;
+  letter-spacing: -.04em; font-variant-numeric: tabular-nums;
+}
 
 /* ── Port detail header ──────────────────────────────────────────── */
 .portChip {
@@ -1449,3 +1457,20 @@
   .header { display: none; }
   .main { max-width: none; margin: 0 auto; padding: 32px 32px 64px; }
 }
+
+
+/* ── Which switch — one row of names above the hero ── */
+.switcher {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.switcherBtn {
+  min-height: 36px; padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.16);
+  background: transparent; color: #1c1c1c;
+  font-family: inherit; font-size: 13px; font-weight: 650;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color .14s, color .14s;
+}
+.switcherOn { background: #121212; border-color: #121212; color: #ffffff; }

@@ -104,15 +104,33 @@ const OUTPUTS_DIR = process.env.RT_OUTPUTS_DIR || path.resolve(__dirname, '..', 
 
 router.param('rackId', rackOwnershipParam({ tenant, logger }));
 
+// Bump when cv.toSnapshot starts reading the same map differently, so every
+// adopted rack is re-read under the new rules the next time it is opened.
+//   2 — a Switch with fewer than ten ports is a Router
+const SNAPSHOT_RULES = 2;
+
 router.post('/adopt/:rackId', (req, res) => {
   const { rackId } = req.params;
-  const existing = store.scansForRack(rackId).find((s) => s.source === 'adopted');
-  if (existing && !req.query.refresh) {
-    return res.json({ id: existing.id, rackId, adopted: false, createdAt: existing.createdAt });
-  }
-
   const dir = path.join(OUTPUTS_DIR, rackId);
   const mapFile = path.join(dir, 'device_unit_map.json');
+
+  // An adopted snapshot is a copy of the detection result as it stood. A rack
+  // re-scanned since — or a rule that now reads the same map differently — is
+  // not served from that copy: when the map on disk is newer than the copy,
+  // adopt again. ?refresh=1 still forces it.
+  const existing = store.scansForRack(rackId).find((s) => s.source === 'adopted');
+  let stale = false;
+  if (existing && fs.existsSync(mapFile)) {
+    try { stale = fs.statSync(mapFile).mtimeMs > new Date(existing.createdAt).getTime(); } catch { stale = false; }
+  }
+  // The rules that turn a map into a snapshot change too — a small switch
+  // became a router — and a copy made under the old rules is as stale as one
+  // made from an old map. The version travels in the payload; older or
+  // missing means adopt again.
+  if (existing && (existing.payload?.rulesVersion || 0) < SNAPSHOT_RULES) stale = true;
+  if (existing && !req.query.refresh && !stale) {
+    return res.json({ id: existing.id, rackId, adopted: false, createdAt: existing.createdAt });
+  }
   if (!fs.existsSync(mapFile)) {
     return res.status(409).json({
       error: 'This rack has no detection result yet.',
@@ -182,6 +200,7 @@ router.post('/adopt/:rackId', (req, res) => {
   const payload = {
     snapshot, map, siteName, rackName,
     adoptedFrom: rackId, adoptedAt: new Date().toISOString(), engineOutput: dir,
+    rulesVersion: SNAPSHOT_RULES,
   };
 
   let rec;

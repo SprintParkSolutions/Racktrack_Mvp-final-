@@ -1,0 +1,85 @@
+/* Export to NetBox, as a sheet over the report. See ExportSheet.jsx. */
+
+.scrim {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(17, 20, 24, .45);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  width: 100%; max-width: 540px; max-height: 88vh;
+  display: flex; flex-direction: column;
+  background: var(--bg, #fff);
+  border-radius: 16px 16px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: rise .18s ease-out;
+}
+@keyframes rise { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+
+.head { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; }
+.head h3 { flex: 1; margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.01em; color: var(--text); }
+.close {
+  width: 34px; height: 34px; flex: none;
+  border: 0; border-radius: 9px;
+  background: var(--bg2, #f1f3f5); color: var(--text);
+  font-size: 14px; cursor: pointer;
+}
+
+.body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 0 16px 8px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.note { margin: 0; font-size: 13px; color: var(--muted); }
+
+/* What the connection is doing, said in one block with a coloured edge. */
+.health {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px 0 12px 14px;
+  border-left: 3px solid var(--border, rgba(0,0,0,.2));
+}
+.health b { font-size: 14px; font-weight: 650; color: var(--text); }
+.health span { font-size: 12.5px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.hint { font-style: italic; }
+.good { border-left-color: #0f7b4f; }
+.warn { border-left-color: #b26a00; }
+.bad  { border-left-color: #c0392b; }
+.none { border-left-color: var(--border, rgba(0,0,0,.2)); }
+
+/* What a push would do, counted. */
+.tally { display: flex; gap: 22px; flex-wrap: wrap; }
+.tally > div { display: flex; align-items: baseline; gap: 6px; }
+.tally b { font-size: 20px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.tally span { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+.types { list-style: none; margin: 0; padding: 0; }
+.types li {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border, rgba(0,0,0,.06));
+}
+.typeName { flex: 1; font-size: 13.5px; font-weight: 650; color: var(--text); }
+.typeCounts { font-size: 12px; color: var(--muted); }
+
+.rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rules li { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.rules b { color: var(--text); font-weight: 650; }
+
+.confirm { padding: 12px 16px 16px; border-top: 1px solid var(--border, rgba(0,0,0,.1)); }
+.confirm p { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--text); }
+
+.actions {
+  display: flex; gap: 10px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border, rgba(0,0,0,.1));
+}
+.confirm .actions { padding: 0; border-top: 0; }
+.primary, .secondary {
+  flex: 1; min-height: 48px;
+  border-radius: 10px; font-size: 14.5px; font-weight: 650;
+  font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.primary { background: #121212; border: 1px solid #121212; color: #fff; }
+.secondary { background: transparent; border: 1px solid var(--border, rgba(0,0,0,.22)); color: var(--text); }
+.primary:disabled, .secondary:disabled { opacity: .45; cursor: default; }

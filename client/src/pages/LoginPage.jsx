@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import s from './LoginPage.module.css';
 import { IcAlert, IcEye } from '../components/AuthLayout.jsx';
@@ -15,6 +15,19 @@ import { safeRedirect } from '../utils/safeRedirect.js';
 // case still has the invite link. Everything else is one line at the bottom.
 
 export default function LoginPage() {
+  // Opt this screen out of the app's depth system.
+  //
+  // index.css carves every input into a soft grey well — the app's own look,
+  // and wrong here: sign-in is a photograph, a white column and hairlines.
+  // The exception already exists in index.css, keyed on this class; it was
+  // AuthLayout that used to set it, and this page no longer goes through
+  // AuthLayout, so the fields came back as grey pillows.
+  useEffect(() => {
+    const root = document.getElementById('root');
+    root?.classList.add('rt-auth-wide');
+    return () => root?.classList.remove('rt-auth-wide');
+  }, []);
+
   const navigate = useNavigate();
   const location = useLocation();
   const { login, loading } = useAuth();
@@ -35,13 +48,10 @@ export default function LoginPage() {
       return;
     }
     try {
-      const u = await login(username.trim(), password, '');
-      // Everyone lands on Home; a deep link that bounced here is still honoured.
-      if (u?.role === 'owner' || u?.role === 'org_admin') {
-        navigate(safeRedirect(location.state?.from, '/'), { replace: true });
-      } else {
-        navigate(from, { replace: true });
-      }
+      await login(username.trim(), password, '');
+      // Everyone lands on Scan — there is no Home. A deep link that bounced
+      // here is still honoured.
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message);
     }
@@ -49,10 +59,7 @@ export default function LoginPage() {
 
   return (
     <div className={s.page}>
-      <div className={s.blobA} aria-hidden="true" />
-      <div className={s.blobB} aria-hidden="true" />
-
-      <main className={s.card}>
+      <main className={s.stack}>
         <img src="/logo.jpg" alt="" className={s.logo} width="108" height="108" />
         <h1 className={s.brand}>RackTrack</h1>
         <p className={s.tag}>Scan a rack. Know what's in it.</p>
@@ -69,7 +76,6 @@ export default function LoginPage() {
               autoCorrect="off"
               value={username}
               onChange={(e) => { setUsername(e.target.value); setError(null); }}
-              autoFocus
             />
           </div>
 
@@ -107,13 +113,19 @@ export default function LoginPage() {
           <Link to="/forgot-password" state={{ email: username.includes('@') ? username.trim() : '' }}>
             Forgot password?
           </Link>
-          <span className={s.dot}>·</span>
-          <Link to="/signup" state={{ from }}>New here? Create an organization</Link>
         </div>
       </main>
 
+      {/* RackTrack is invitation-only: an account is created for you by an
+          administrator, never by signing up. Saying so here, with the address
+          that can actually do something about it, is the whole of the answer
+          to "I don't have a login". */}
       <footer className={s.foot}>
-        Joining a team? Ask your admin for an invite link or a username and password.
+        No account? RackTrack is given out by your administrator.
+        <br />
+        <a href="mailto:support@racktrack.ai?subject=RackTrack%20access%20request">
+          support@racktrack.ai
+        </a>
       </footer>
     </div>
   );

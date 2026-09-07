@@ -1,151 +1,164 @@
-/* Overflow navigation sheet for the phone bottom bar. Sized against the
-   viewport (svh, so the iOS URL bar collapsing does not clip it) and
-   scrollable inside itself, so a long list never runs off the screen. */
+/* The navigation drawer.
+   Comes from the left edge, over a dimmed page. Grouped, with the account at
+   the top and the way out at the bottom — the shape every tool uses, so it
+   needs no explaining. Black, white and one blue for the current place, which
+   is the whole palette this app has. */
 
 .backdrop {
-  position: fixed;
-  inset: 0;
-  /* Above the bottom bar (200). The bar stays visible but dimmed behind the
-     scrim, and tapping it closes the sheet like any other backdrop tap. */
-  z-index: 900;
-  background: rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  animation: fade .16s ease;
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(12, 20, 32, .42);
+  -webkit-backdrop-filter: saturate(120%) blur(2px);
+  backdrop-filter: saturate(120%) blur(2px);
+  animation: fade 180ms ease both;
 }
 
-.sheet {
-  width: 100%;
-  max-width: 540px;           /* match #root so it reads as part of the app */
-  max-height: 82svh;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.drawer {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: min(84vw, 340px);
+  display: flex; flex-direction: column;
   background: #ffffff;
-  border-radius: 18px 18px 0 0;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-bottom: 0;
-  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.18);
-  padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px));
-  /* Clear the bottom bar so the last row is never hidden behind it. */
-  margin-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
-  animation: rise .2s cubic-bezier(.22, 1, .36, 1);
-  overflow: hidden;
+  box-shadow: 24px 0 60px -30px rgba(12, 20, 32, .5);
+  animation: slide 240ms cubic-bezier(.2, .8, .3, 1) both;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+:global([data-theme='dark']) .drawer { background: var(--bg, #0c1420); }
 
-.grip {
-  width: 36px; height: 4px;
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.16);
-  margin: 2px auto 8px;
-  flex-shrink: 0;
-}
-
-.title {
-  margin: 0 0 4px;
-  padding: 0 6px;
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.42);
-  flex-shrink: 0;
-}
-
-.list {
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  min-height: 0;              /* lets the flex child actually scroll */
-}
-
-/* A standard settings-style list: a framed icon, a two-line label block, a
-   chevron, and a divider that starts past the icon rather than cutting the
-   full width. Rows are 52px so they are a comfortable thumb target.
-
-   The divider is drawn on ::after, not as a border-bottom: a border made the
-   row box taller than its background, so the rounded highlight on the active
-   row sat 1px off from the row itself. */
-.row {
+/* ── Who you are ──
+   A quiet band, not a black panel: the account is the one thing in the
+   drawer that is not a destination, and it says so by being lighter than
+   the rows under it rather than heavier. The monogram, the name and the
+   address arrive a beat apart as the drawer settles. */
+.head {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  min-height: 52px;
-  padding: 9px 10px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  text-decoration: none;
-  color: #171717;
-  transition: background .12s ease;
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 22px 18px 18px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(12, 20, 32, .08);
 }
-.row::after {
-  content: '';
-  position: absolute;
-  left: 55px; right: 10px; bottom: -1px;
-  height: 1px;
-  background: rgba(0, 0, 0, 0.06);
+:global([data-theme='dark']) .head { background: var(--bg, #0c1420); border-bottom-color: rgba(255,255,255,.08); }
+
+.avatar {
+  width: 46px; height: 46px;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #f1f3f5;
+  border: 1px solid rgba(12, 20, 32, .08);
+  color: #0c1420;
+  font-size: 16px; font-weight: 700; letter-spacing: .04em;
+  animation: rise 320ms cubic-bezier(.2,.8,.3,1) both;
 }
-.row:last-child::after { display: none; }
-.row:active { background: rgba(0, 0, 0, 0.05); }
-/* Current page: lit ground and a hard edge — the same treatment every other
-   selected control in the app now uses. */
-.rowActive {
-  background: rgba(18, 18, 18, 0.06);
-  border-color: rgba(18, 18, 18, 0.85);
+.name {
+  margin-top: 12px;
+  font-size: 17px; font-weight: 700; letter-spacing: -.01em;
+  color: #0c1420;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  animation: rise 320ms cubic-bezier(.2,.8,.3,1) 60ms both;
 }
-.rowActive::after { display: none; }
-.row:focus-visible { outline: 2px solid #171717; outline-offset: -2px; }
+:global([data-theme='dark']) .name { color: var(--text, #fff); }
+.role {
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(12, 20, 32, .14);
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700;
+  color: #5c6878;
+  animation: rise 320ms cubic-bezier(.2,.8,.3,1) 100ms both;
+}
+.mail {
+  margin-top: 8px;
+  font-size: 12.5px; color: #7b8794;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  animation: rise 320ms cubic-bezier(.2,.8,.3,1) 140ms both;
+}
+.x {
+  position: absolute; top: 14px; right: 12px;
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 999px;
+  background: #f1f3f5; color: #5c6878;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color .16s, transform .16s;
+}
+.x:hover { background: #e6e9ec; }
+.x:active { transform: scale(.94); }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar, .name, .role, .mail { animation: none; }
+}
+
+/* ── The destinations ── */
+.scroll {
+  flex: 1; min-height: 0;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 8px 10px 4px;
+}
+.group { display: flex; flex-direction: column; margin-bottom: 6px; }
+.groupTitle {
+  margin: 12px 8px 4px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: #9aa5b1;
+}
+
+.row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 10px;
+  border-radius: 12px;
+  color: #0c1420; text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+:global([data-theme='dark']) .row { color: var(--text, #fff); }
+.row:active { background: rgba(12, 20, 32, .05); }
 
 .icon {
-  width: 34px; height: 34px;
-  flex-shrink: 0;
-  color: rgba(0, 0, 0, 0.62);
-  background: rgba(0, 0, 0, 0.045);
-  border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #5c6878;
 }
-.icon svg { width: 19px; height: 19px; }
-.rowActive .icon { color: #ffffff; background: #121212; }
+.icon svg { width: 20px; height: 20px; }
 
-.text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
-.label { font-size: .95rem; font-weight: 600; letter-spacing: -.005em; }
-.rowActive .label { font-weight: 700; }
+.text { display: flex; flex-direction: column; min-width: 0; }
+.label { font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
 .hint {
-  font-size: .74rem;
-  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px; color: #8a94a0; margin-top: 1px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.chev {
-  width: 17px; height: 17px;
-  flex-shrink: 0;
-  color: rgba(0, 0, 0, 0.24);
-}
-.chev svg { width: 100%; height: 100%; }
+/* Where you are: a filled row, not a tinted one — at a glance, from arm's
+   length, in a bright room. */
+.rowActive { background: #121212; color: #ffffff; }
+.rowActive .icon { color: #ffffff; }
+.rowActive .hint { color: rgba(255, 255, 255, .62); }
 
-.close {
-  flex-shrink: 0;
-  margin-top: 10px;
-  padding: 13px;
-  font: inherit;
-  font-size: .9rem;
-  font-weight: 600;
-  color: #171717;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.14);
-  border-radius: 11px;
-  cursor: pointer;
+/* ── Account and the way out ── */
+.foot {
+  border-top: 1px solid rgba(12, 20, 32, .08);
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 2px;
 }
-.close:active { background: rgba(0, 0, 0, 0.09); }
+.footRow {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  padding: 12px 10px;
+  border: 0; border-radius: 12px;
+  background: transparent; color: #0c1420;
+  font-size: 14.5px; font-weight: 600; text-align: left;
+  text-decoration: none; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+:global([data-theme='dark']) .footRow { color: var(--text, #fff); }
+.footRow svg { color: #5c6878; flex: none; }
+.footRow:active { background: rgba(12, 20, 32, .05); }
+.signOut { color: #c0392b; }
+.signOut svg { color: #c0392b; }
 
-@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
-@keyframes rise { from { transform: translateY(14px) } to { transform: none } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .backdrop, .sheet { animation: none; }
+  .backdrop, .drawer { animation: none; }
 }

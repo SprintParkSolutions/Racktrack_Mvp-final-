@@ -11,6 +11,15 @@ import styles from './PortHistoryPage.module.css';
 // Interface Details + Interface Status (stacked-bar timeline) +
 // Interface Configuration + Maintenance State + change log.
 
+/** The number written above the socket: the last run of digits in its name.
+ *  Was `p.port.replace('Gi1/0/', '')`, which is one vendor's spelling — the
+ *  D-Link calls its ports Slot0/1..52, so nothing was stripped and every tile
+ *  read "ot0/" with the number clipped off the end. */
+const portNum = (name) => {
+  const m = String(name || '').match(/(\d+)(?!.*\d)/);
+  return m ? m[1] : String(name || '').slice(-3);
+};
+
 const OVERVIEW_REFRESH_MS = 15_000;
 const HISTORY_REFRESH_MS  = 15_000;
 const TIMELINE_REFRESH_MS = 20_000;
@@ -222,8 +231,8 @@ function buildSegments(initial, snapshots, field, windowStartMs, windowEndMs) {
 // Routable page wrapper — used by /port-history.
 // Embeddable content — used by the ResultsPage "Drift" tab.
 // ─────────────────────────────────────────────────────────────────────
-export function PortHistoryContent() {
-  return <PortHistoryInner embedded />;
+export function PortHistoryContent({ rackId = null }) {
+  return <PortHistoryInner rackId={rackId} embedded />;
 }
 
 export default function PortHistoryPage() {
@@ -247,7 +256,7 @@ export default function PortHistoryPage() {
   );
 }
 
-function PortHistoryInner({ embedded }) {
+function PortHistoryInner({ embedded, rackId = null }) {
   const [devices, setDevices]   = useState([]);
   const [loadErr, setLoadErr]   = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -255,24 +264,48 @@ function PortHistoryInner({ embedded }) {
   const [overviewErr, setOverviewErr] = useState(null);
   const [selectedPort, setSelectedPort] = useState(null);
 
-  // Load device list once — server auto-seeds the bench switch so the
-  // list is always non-empty after a single poll has succeeded.
+  // Which switches this view is about.
+  //
+  // Inside a rack: the switches filed for THAT rack on the Network step, each
+  // resolved to its Drift row by address — the Drift table withholds hosts
+  // from its list on purpose, so the join runs through the by-host route that
+  // exists for exactly this. Three switches added on Network are three
+  // switches here; the page used to show only whichever device happened to
+  // be first in the platform-wide list.
+  //
+  // Outside a rack (the standalone page): every device in scope, as before.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const r = await authFetch(apiUrl('/api/ports/devices'));
-        const data = await r.json();
+        let list = [];
+        if (rackId) {
+          const r = await authFetch(apiUrl(`/api/nb/switches?rackId=${encodeURIComponent(rackId)}`));
+          const filed = r.ok ? await r.json() : [];
+          const found = await Promise.all(filed.map(async (sw) => {
+            try {
+              const o = await authFetch(apiUrl(`/api/ports/by-host/${encodeURIComponent(sw.host)}/overview`));
+              if (!o.ok) return null;
+              const { device } = await o.json();
+              // The name a person gave it on Network is the one they know.
+              return device ? { ...device, display_name: sw.label || device.display_name } : null;
+            } catch { return null; }
+          }));
+          list = found.filter(Boolean);
+        } else {
+          const r = await authFetch(apiUrl('/api/ports/devices'));
+          const data = await r.json();
+          list = data.devices || [];
+        }
         if (cancelled) return;
-        setDevices(data.devices || []);
-        if (data.devices?.length === 1) setSelectedId(data.devices[0].id);
-        else if (data.devices?.length) setSelectedId(data.devices[0].id);
+        setDevices(list);
+        setSelectedId(list.length ? list[0].id : null);
       } catch (err) {
         if (!cancelled) setLoadErr(err.message);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [rackId]);
 
   // Poll overview while a device is selected (live port grid).
   useEffect(() => {
@@ -307,12 +340,34 @@ function PortHistoryInner({ embedded }) {
 
   return (
     <div className={embedded ? styles.embeddedWrap : ''}>
+      {/* ── Which switch ── one row of names; the chosen one is filled. */}
+      {devices.length > 1 && (
+        <div className={styles.switcher} role="tablist" aria-label="Switches in this rack">
+          {devices.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              role="tab"
+              aria-selected={d.id === selectedId}
+              className={[styles.switcherBtn, d.id === selectedId ? styles.switcherOn : ''].join(' ')}
+              onClick={() => { setSelectedId(d.id); setSelectedPort(null); }}
+            >
+              {d.display_name || d.model || `Switch ${d.id}`}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Switch identity hero ────────────────────────────── */}
       <section className={styles.switchHero}>
         {loadErr && <div className={styles.errorLine}>{loadErr}</div>}
 
         {!device ? (
-          <div className={styles.muted}>Waiting for first poll…</div>
+          <div className={styles.muted}>
+            {rackId && devices.length === 0 && !loadErr
+              ? 'No switch reading has reached the server for this rack yet. Read one on the Network step and it appears here.'
+              : 'Waiting for first poll…'}
+          </div>
         ) : (
           <>
             <div className={styles.switchHeroGlow} aria-hidden />
@@ -329,13 +384,25 @@ function PortHistoryInner({ embedded }) {
                   <h2 className={styles.switchHeroName}>
                     {device.display_name || device.model || 'Switch'}
                   </h2>
-                  <span className={[
-                    styles.switchStatus,
-                    device.enabled ? styles.switchStatusOk : styles.switchStatusOff,
-                  ].join(' ')}>
-                    <span className={styles.switchStatusDot} />
-                    {device.enabled ? 'Streaming' : 'Paused'}
-                  </span>
+                  {/* A switch the phone reads is not a paused poller. The
+                      server has no route to a private address inside somebody's
+                      building — that is the whole reason the phone does the
+                      reading — so "Paused" described our polling and read as a
+                      fault in theirs. */}
+                  {(() => {
+                    const fromPhone = device.vendor === 'snmp' || device.ssh_port === 0;
+                    const [cls, text] = device.enabled
+                      ? [styles.switchStatusOk, 'Streaming']
+                      : fromPhone
+                        ? [styles.switchStatusOk, 'Read from the phone']
+                        : [styles.switchStatusOff, 'Paused'];
+                    return (
+                      <span className={[styles.switchStatus, cls].join(' ')}>
+                        <span className={styles.switchStatusDot} />
+                        {text}
+                      </span>
+                    );
+                  })()}
                 </div>
                 {device.system_description && (
                   <p className={styles.switchHeroSub}>{device.system_description}</p>
@@ -404,13 +471,11 @@ function PortHistoryInner({ embedded }) {
               <div
                 className={styles.portGrid}
                 style={{
-                  // Lay out ports in ~2 rows: cols = ceil(N/2), but cap the
-                  // column count so tiles never shrink below a tappable size
-                  // on narrow phones (a 48-port switch would otherwise be 24
-                  // columns → ~11px tiles at 360px). Capped at 12, the grid
-                  // wraps to more rows on small screens and stays tidy on
-                  // desktop.
-                  gridTemplateColumns: `repeat(${Math.min(12, Math.max(1, Math.ceil(overview.ports.length / 2)))}, minmax(0, 1fr))`,
+                  // Two rows, the shape of the front of the box, fitted to
+                  // whatever width there is — the same faceplate the Network
+                  // page draws. Capping the columns at 12 wrapped a 52-port
+                  // switch into five ragged rows that looked like nothing.
+                  gridTemplateColumns: `repeat(${Math.max(1, Math.ceil(overview.ports.length / 2))}, minmax(0, 1fr))`,
                 }}
               >
                 {[...overview.ports].sort((a, b) => {
@@ -434,7 +499,7 @@ function PortHistoryInner({ embedded }) {
                     onClick={() => setSelectedPort(p.port === selectedPort ? null : p.port)}
                     title={`${p.port} · ${p.oper} · ${fmtSpeed(p.speed_mbps)}`}
                   >
-                    <span className={styles.portName}>{p.port.replace('Gi1/0/', '')}</span>
+                    <span className={styles.portName}>{portNum(p.port)}</span>
                   </button>
                 ))}
               </div>

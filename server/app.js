@@ -30,6 +30,7 @@ const auth = require('./auth');
 const audit = require('./audit');
 const tenant = require('./lib/tenant');
 const rackAccess = require('./lib/rack_access');
+const ocrCache = require('./lib/ocr_cache');
 const rackGroups = require('./lib/rack_groups');
 const { appendLineWithRotation } = require('./lib/jsonl_rotation');
 const orphanGC = require('./lib/orphan_gc');
@@ -240,6 +241,7 @@ const uploadsDir   = path.join(__dirname, 'uploads');
 const outputsDir   = path.join(PROJECT_ROOT, 'outputs');
 
 [uploadsDir, outputsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
+ocrCache.init(outputsDir);
 
 // Windows sometimes keeps a lingering handle on files sharp just wrote,
 // causing transient EPERM on unlink. Retry briefly, then give up — a
@@ -1574,6 +1576,11 @@ function resolveMonitoredSwitch(portIdentifications, selectedPort) {
   }
 }
 
+// Fewer than this many ports and a network box is a router. Kept in step with
+// ROUTER_PORT_CEILING in pipeline/runner.py.
+const ROUTER_PORT_CEILING = 10;
+
+
 function buildScanReportData(rackId) {
   const rackDir = path.join(outputsDir, rackId);
   const meta    = readMeta(rackId);
@@ -1585,7 +1592,22 @@ function buildScanReportData(rackId) {
   const unitsDetected = mapData.units_detected || [];
 
   const counts = {};
-  const devices = rawDevices.map((dev, i) => {
+  const devices = rawDevices.map((dev0, i) => {
+    // A network box with fewer than ten ports is a router, not a switch.
+    //
+    // The same rule as pipeline/runner.py's reclass_small_as_router, applied
+    // again here on the way out. The pipeline settles it for a scan that has
+    // not run yet; this settles it for every rack already on disk, without
+    // asking anyone to photograph their rack a second time. Both are narrow
+    // in the same way: only a device the detector called Switch, and only
+    // once its ports have actually been counted — a four-port server is a
+    // server and a six-port patch panel is a patch panel.
+    const dev = (dev0.class_name === 'Switch'
+      && Number.isInteger(dev0.port_count)
+      && dev0.port_count > 0
+      && dev0.port_count < ROUTER_PORT_CEILING)
+      ? { ...dev0, class_name: 'Router', class_source: `ports<${ROUTER_PORT_CEILING}` }
+      : dev0;
     const code = CLASS_CODE_SRV[dev.class_name] || (dev.class_name || 'UNK').replace(/\s+/g, '').slice(0, 4).toUpperCase();
     counts[code] = (counts[code] || 0) + 1;
     const seq = String(counts[code]).padStart(2, '0');
@@ -4285,7 +4307,41 @@ app.post('/api/stitch', scanLimit, upload.array('images', 8), async (req, res) =
  *     summary:    { count, highConfCount, hasLabels }
  *   }
  */
-function runOcrLabels(imagePath) {
+/**
+ * Read the labels in an image.
+ *
+ * Through the warm worker, which holds the models in memory, and only through
+ * the one-shot script when that cannot start. The script pays for importing
+ * torch and building an easyocr Reader on every single call — five to twenty
+ * seconds before it looks at the picture — which is the whole of the wait
+ * after photographing a label.
+ */
+async function runOcrLabels(imagePath) {
+  // The same pixels give the same labels. Read once, remembered against the
+  // image's own hash, so a photo uploaded again — or scanned as a second rack
+  // — costs nothing the second time.
+  const hash = ocrCache.hashFile(imagePath);
+  const hit = ocrCache.get('labels', hash);
+  if (hit) return hit;
+
+  let result;
+  try {
+    const r = await pool.request('ocr_labels', { image_path: imagePath });
+    if (r && r.ok) result = r;
+    else throw new Error(r?.error || 'the worker could not read it');
+  } catch (e) {
+    logger.warn({ event: 'ocr.labels_pool_failed', err: e.message }, 'label read fell back to a fresh process');
+    result = await runOcrLabelsOneShot(imagePath);
+  }
+  // Only a real read is worth remembering; an empty one may be a bad moment
+  // rather than a photograph with no labels in it.
+  if (result && Array.isArray(result.labels) && result.labels.length) {
+    ocrCache.put('labels', hash, result);
+  }
+  return result;
+}
+
+function runOcrLabelsOneShot(imagePath) {
   return new Promise((resolve, reject) => {
     const { spawn } = require('child_process');
     const pyBin = resolvePythonBin();
@@ -4393,7 +4449,20 @@ app.post('/api/ocr/device-label', auth.requireAuth, scanLimit, upload.single('im
     // photo library and a canvas capture from the in-app camera arrive at
     // the OCR engine identically.
     tmpPath = await normalizeImage(tmpPath);
-    const result = await pool.request('closeup_ocr', { image_path: tmpPath, preset });
+    // Same photo, same answer. Hashed AFTER normalising, because that is the
+    // image the reader actually sees — the same label photographed twice is
+    // two different files and is read twice, which is right; the same file
+    // sent twice is not.
+    // The preset changes the answer, so it is part of the key.
+    const hash = ocrCache.hashFile(tmpPath);
+    const kind = `closeup_${preset}`;
+    let result = ocrCache.get(kind, hash);
+    if (!result) {
+      result = await pool.request('closeup_ocr', { image_path: tmpPath, preset });
+      // A read that failed is not an answer about this photo — remembering it
+      // would make one bad moment permanent.
+      if (result && result.ok) ocrCache.put(kind, hash, result);
+    }
     safeUnlink(tmpPath);
 
     const elapsedMs = Date.now() - t0;

@@ -38,6 +38,9 @@ const UNKNOWN_MAKE = 'Unknown';
 // name: it carries no model, role or ports, so it is noise in the inventory
 // rather than a device. Neither is created, placed, boxed or exported.
 const NOT_A_DEVICE = new Set(['Empty', 'Unidentified']);
+// Fewer than this many ports and a network box is a router. Kept in step with
+// ROUTER_PORT_CEILING in pipeline/runner.py and server/app.js.
+const ROUTER_PORT_CEILING = 10;
 
 const slug = (s) =>
   String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-')
@@ -329,7 +332,14 @@ function toSnapshot(map, { rackId, siteName, rackName, uHeight = null, scannedAt
   let unplacedN = 0;
 
   for (const d of map.devices || []) {
-    const cls = d.class_name || 'Unidentified';
+    // A network box with fewer than ten ports is a router, not a switch.
+    // The same rule as pipeline/runner.py and server/app.js; it has to hold
+    // here too, because this snapshot is what the report and NetBox read,
+    // and a map written before the rule existed still says "Switch".
+    const ports0 = Number(d.port_count || 0);
+    const cls = (d.class_name === 'Switch' && Number.isInteger(ports0) && ports0 > 0 && ports0 < ROUTER_PORT_CEILING)
+      ? 'Router'
+      : (d.class_name || 'Unidentified');
     if (NOT_A_DEVICE.has(cls)) continue;
 
     // Position and height come from the units array, not a single number, so a
@@ -404,6 +414,10 @@ function toSnapshot(map, { rackId, siteName, rackName, uHeight = null, scannedAt
       observed(devUid, Evidence.CV_ONLY, {
         cvClass: cls, cvLabel: label, cvUnits: d.units ?? null,
         connectedPorts: d.connected_ports ?? null,
+        // Where on the photo the camera saw it, in the image's own pixels.
+        // Carried so a person can point at the box on the picture instead of
+        // reading a dropdown of names the camera invented.
+        box: Array.isArray(d.box) && d.box.length === 4 ? d.box.map(Number) : null,
       }),
       {
         name: label, deviceTypeUid: seenType.get(model), roleUid: seenRole.get(cls),

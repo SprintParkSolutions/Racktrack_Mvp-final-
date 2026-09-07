@@ -1,250 +1,288 @@
 /* Report — the rack and its network on one page.
-   Same shape as SwitchTestPage and ExportPage: the page fills its box, .scroll
-   does the scrolling, shared tokens from index.css, full device width. */
 
-/* The global .page-full (index.css) pins a page at height:100vh with
-   overflow:hidden on phones — the app scrolls an inner region, not the page.
-   A page that grows past one screen gets clipped, so the content lives in
-   .scroll and the page itself never grows. */
+   Laid out like the Network page it follows: bands across the full width of
+   the screen, parted by hairlines, with the heading of each band in small
+   caps above it. The earlier version was a stack of rounded cards, each with
+   its own border and shadow, holding a row of bordered tiles whose labels
+   broke across lines — four frames deep before any fact. Nothing floats here. */
+
 .page {
   position: relative;
   display: flex; flex-direction: column;
-  gap: 0;
-  width: 100%;
-  max-width: none;
-  height: 100%;
-  min-height: 0;
+  width: 100%; max-width: none;
+  height: 100%; min-height: 0;
   background: var(--bg);
 }
 .scroll {
   flex: 1; min-height: 0;
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  display: flex; flex-direction: column; gap: 16px;
-  padding-top: 12px;
-  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Header ── */
 .header {
   display: flex; align-items: center; gap: 10px;
-  padding: max(20px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px 4px;
+  padding: max(20px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px 12px;
 }
 .backBtn {
   width: 38px; height: 38px; flex: none;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 10px;
   background: #121212; border: 1px solid #121212; color: #ffffff;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .title {
   flex: 1; margin: 0;
-  font-size: 20px; font-weight: 650; letter-spacing: -0.01em;
-  color: var(--text);
+  font-size: 20px; font-weight: 650; letter-spacing: -0.01em; color: var(--text);
 }
+
+/* ── Which rack, when ── */
+.hero { display: flex; flex-direction: column; gap: 1px; padding: 4px 16px 0; }
+.heroMake {
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.heroModel {
+  font-size: 24px; font-weight: 700; letter-spacing: -.02em;
+  color: var(--text); line-height: 1.15; overflow-wrap: anywhere;
+}
+.heroSub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+
+/* At a glance. */
+.glance {
+  display: flex; flex-direction: column; gap: 16px;
+  margin: 16px 0 0; padding: 0 16px 18px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.09));
+}
+
+/* How full the rack's ports are — a proportion, so it is drawn as one. */
+.ports { display: flex; flex-direction: column; gap: 7px; }
+.portsHead { display: flex; align-items: baseline; gap: 10px; }
+.portsHead span {
+  flex: 1;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.portsHead b {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.bar {
+  height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--bg2, #eceff2);
+}
+.bar i { display: block; height: 100%; background: #0f7b4f; border-radius: 999px; }
+.portsFoot {
+  display: flex; gap: 16px;
+  font-size: 12px; color: var(--muted);
+}
+.portsFoot b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.portsFoot span:last-child { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* The rest, in a grid so the columns line up however many there are. */
+.grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 14px 12px;
+}
+.grid > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.grid b {
+  font-size: 20px; font-weight: 700; letter-spacing: -.02em;
+  color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.grid span {
+  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.up { color: #0f7b4f; }
+.down { color: #c0392b; }
+
+/* ── Something to say before the facts ── */
+.note {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.09));
+  border-left: 3px solid var(--border, rgba(0,0,0,.2));
+}
+.noteInfo { border-left-color: #b26a00; }
+.noteBad { border-left-color: #c0392b; }
+.note h3 { margin: 0 0 5px; font-size: 14.5px; font-weight: 650; color: var(--text); }
+.note p { margin: 0 0 6px; font-size: 13px; line-height: 1.55; color: var(--muted); }
+.hint { font-style: italic; }
+.linkBtn {
+  display: inline-block; margin-top: 6px;
+  font-size: 13px; font-weight: 700; color: #0f7b4f; text-decoration: none;
+}
+.noteOk { margin: 0 16px 10px; font-size: 12.5px; color: #0f7b4f; }
+
+/* ── A band ── */
+.section { display: flex; flex-direction: column; }
+.secHead {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 20px 16px 6px;
+}
+.secHead h2 {
+  flex: 1; margin: 0;
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.secHead span { font-size: 11.5px; color: var(--muted); }
+.emptyLine { margin: 0; padding: 0 16px 12px; font-size: 13px; color: var(--muted); }
+
+/* ── One device ── */
+.rows { display: flex; flex-direction: column; }
+.row {
+  display: flex; gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border, rgba(0,0,0,.07));
+}
+.u {
+  flex: none; width: 40px; padding-top: 1px;
+  font-size: 13px; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.uNone { color: var(--muted); font-weight: 600; }
+.rowMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rowTop { display: flex; align-items: baseline; gap: 10px; }
+.rowTitle {
+  flex: 1; min-width: 0;
+  font-size: 15px; font-weight: 650; color: var(--text);
+  letter-spacing: -.01em; overflow-wrap: anywhere;
+}
+.tag {
+  flex: none;
+  font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  font-weight: 700; color: #0f7b4f; white-space: nowrap;
+}
+
+/* What it is. */
+.said {
+  margin: 1px 0 0;
+  font-size: 14px; font-weight: 650; color: var(--text);
+  letter-spacing: -.01em; line-height: 1.4; overflow-wrap: anywhere;
+}
+
+/* How it is doing: each number with the word for what it counts, side by side
+   so they can be compared at a glance instead of read as a sentence. */
+.stats { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 7px; }
+.stats > div { display: flex; align-items: baseline; gap: 5px; }
+.stats b {
+  font-size: 16px; font-weight: 700; letter-spacing: -.02em;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+.stats span {
+  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+
+/* Who it is: label and value, so a long firmware string cannot be mistaken
+   for part of the address next to it. */
+.ids { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 3px 16px; }
+.ids > div { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.ids dt {
+  margin: 0; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; white-space: nowrap;
+}
+.ids dd {
+  margin: 0; font-size: 12.5px; color: var(--text);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+
+.more {
+  align-self: flex-start; margin-top: 4px;
+  border: 0; background: transparent; padding: 2px 0;
+  font-family: var(--font); font-size: 12.5px; font-weight: 700;
+  color: #0f7b4f; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+
+/* ── The ports of one device ── */
+.ports { margin-top: 6px; display: flex; flex-direction: column; }
+.port {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border, rgba(0,0,0,.06));
+}
+.portName {
+  flex: none; min-width: 68px;
+  font-size: 12.5px; font-weight: 650; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.portFacts {
+  flex: 1; min-width: 0;
+  display: flex; flex-wrap: wrap; gap: 10px;
+  font-size: 12px; color: var(--muted);
+}
+.portNote { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); }
+
+/* ── Cables, neighbours, VLANs, addresses ── */
+.sub { display: flex; flex-direction: column; }
+.sub h3 {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 14px 0 2px; padding: 0 16px;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.count { font-size: 12px; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.subLine { margin: 0; padding: 0 16px; font-size: 12.5px; color: var(--muted); }
+
+.links { list-style: none; margin: 0; padding: 0; }
+.links li {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border, rgba(0,0,0,.06));
+}
+.end { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.end b { color: var(--text); font-weight: 650; }
+.arrow { color: var(--muted); font-size: 12px; }
+.proof {
+  margin-left: auto;
+  font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  font-weight: 700; color: var(--muted); white-space: nowrap;
+}
+.proofGood { color: #0f7b4f; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 16px 0; }
+.chip {
+  font-size: 12px; color: var(--muted);
+  padding: 3px 8px; border-radius: 999px;
+  background: var(--bg2, #f1f3f5);
+  font-variant-numeric: tabular-nums;
+}
+.chip b { color: var(--text); font-weight: 700; }
 
 /* ── Working ── */
 .working {
   display: flex; align-items: center; gap: 9px;
-  margin: 0 16px; font-size: 13.5px; color: var(--muted);
+  margin: 0; padding: 20px 16px; font-size: 13.5px; color: var(--muted);
 }
 .spinner {
   width: 14px; height: 14px; flex: none;
   border: 2px solid var(--border, rgba(0,0,0,.2));
-  border-top-color: #121212;
-  border-radius: 50%;
+  border-top-color: #121212; border-radius: 50%;
   animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 
-/* ── Notes: something the page has to say before the data ── */
-.note {
-  margin: 0 16px;
-  border-radius: 11px; padding: 12px 13px;
-  display: flex; flex-direction: column; gap: 8px;
+/* ── What this report is for, at the top of it ── */
+.actions {
+  display: flex; gap: 8px;
+  padding: 4px 16px 14px;
 }
-.note h3 { margin: 0; font-size: 14px; font-weight: 650; color: var(--text); }
-.note p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
-.noteBad  { background: rgba(192,57,43,.07); border: 1px solid rgba(192,57,43,.28); }
-.noteBad h3 { color: #c0392b; }
-.noteInfo { background: var(--bg2); border: 1px solid var(--border, rgba(0,0,0,.12)); }
-.hint { color: var(--muted) !important; font-size: 12.5px !important; }
-.linkBtn {
-  align-self: flex-start;
-  display: inline-flex; align-items: center;
-  min-height: 40px; padding: 0 14px;
-  border-radius: 9px;
-  background: #121212; color: #fff; border: 1px solid #121212;
-  font-size: 13.5px; font-weight: 600; text-decoration: none;
-}
-
-/* ── Hero: which rack, when ── */
-.hero { margin: 0 16px; display: flex; flex-direction: column; gap: 1px; }
-.heroMake { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #0f7b4f; font-weight: 700; overflow-wrap: anywhere; }
-.heroModel { font-size: 26px; font-weight: 750; letter-spacing: -.02em; color: var(--text); line-height: 1.15; overflow-wrap: anywhere; }
-.heroSub { font-size: 12.5px; color: var(--muted); margin-top: 3px; overflow-wrap: anywhere; }
-
-/* ── Summary strip: the rack in one glance ── */
-.summary {
-  margin: 0 16px;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px;
-}
-.summary > div {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--border, rgba(0,0,0,.12)); border-radius: 12px;
-  background: var(--card);
-  min-width: 0;
-}
-.summary b { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.summary span { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
-.sumUp b { color: #0f7b4f; }
-
-/* ── Cards ── */
-.card {
-  margin: 0 16px;
-  border: 1px solid var(--border, rgba(0,0,0,.12));
-  border-radius: 14px;
-  background: var(--card);
-  padding: 14px;
-  display: flex; flex-direction: column; gap: 12px;
-  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 18px -12px rgba(0,0,0,.18);
-}
-.secHead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.secHead h2 { margin: 0; font-size: 16px; font-weight: 650; color: var(--text); }
-.secHead span { font-size: 12px; color: var(--muted); }
-.emptyLine { margin: 0; font-size: 13.5px; color: var(--muted); }
-
-/* ── The rack, one row per device, top down ── */
-.rows { display: flex; flex-direction: column; }
-.row {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border, rgba(0,0,0,.08));
-}
-.row:first-child { border-top: 0; padding-top: 0; }
-.u {
-  flex: none; min-width: 42px; text-align: center;
-  padding: 4px 7px; border-radius: 7px;
-  background: var(--bg2); color: var(--text);
-  font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
-  border: 1px solid var(--border, rgba(0,0,0,.1));
-}
-.uNone { color: var(--muted); font-weight: 500; }
-.rowMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.rowTop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.rowTitle { font-size: 15px; font-weight: 650; color: var(--text); overflow-wrap: anywhere; }
-
-/* The status pill, as on the Network page */
-.pill {
-  display: inline-block;
-  padding: 2px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; letter-spacing: .02em;
-  background: var(--bg2); color: var(--muted);
-  border: 1px solid var(--border, rgba(0,0,0,.12));
-  white-space: nowrap;
-}
-.pillGood { background: rgba(15,123,79,.12); color: #0f7b4f; border-color: rgba(15,123,79,.3); }
-
-/* A fact line: who said it, then what they said */
-.line {
-  margin: 0; display: flex; gap: 8px; align-items: baseline;
-  font-size: 13px; line-height: 1.45; color: var(--text);
-  overflow-wrap: anywhere; min-width: 0;
-}
-.lineK {
-  flex: none; width: 58px;
-  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--muted); font-weight: 600;
-}
-
-/* Fold-out for the ports. A text button, not a card of its own. */
-.more {
-  align-self: flex-start;
-  background: none; border: 0; padding: 2px 0;
-  color: var(--text); font-size: 12.5px; font-weight: 600; cursor: pointer;
-  text-decoration: underline; text-underline-offset: 2px;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* ── Ports in use, one line each ── */
-.ports {
-  display: flex; flex-direction: column;
-  border-radius: 9px; background: var(--bg2);
-  padding: 4px 10px;
-  max-height: 60vh; overflow-y: auto;
-}
-.port {
-  display: flex; gap: 10px; align-items: baseline;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
-  font-size: 12.5px; line-height: 1.4; min-width: 0;
-}
-.port:last-of-type { border-bottom: 0; }
-.portName { flex: none; min-width: 64px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.portFacts { flex: 1; min-width: 0; color: var(--text); overflow-wrap: anywhere; }
-.portFacts > span + span::before { content: ' · '; color: var(--muted); }
-.up { color: #0f7b4f; font-weight: 600; }
-.down { color: var(--muted); }
-.portNote { margin: 0; padding: 6px 0 4px; font-size: 11.5px; color: var(--muted); }
-
-/* ── Network ── */
-.sub { display: flex; flex-direction: column; gap: 6px; }
-.sub h3 {
-  margin: 0; display: flex; align-items: center; gap: 8px;
-  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600;
-}
-.count {
-  display: inline-block; padding: 1px 7px; border-radius: 999px;
-  background: var(--bg2); color: var(--text); font-size: 11px; letter-spacing: 0; text-transform: none;
-  font-variant-numeric: tabular-nums;
-}
-.links { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
-.links li {
-  display: flex; align-items: baseline; gap: 6px 8px; flex-wrap: wrap;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
-  font-size: 13px; color: var(--text); min-width: 0;
-}
-.links li:last-child { border-bottom: 0; }
-.end { flex: 1 1 38%; min-width: 0; overflow-wrap: anywhere; }
-.end b { font-weight: 650; }
-.arrow { flex: none; color: var(--muted); }
-.proof {
-  flex: none;
-  padding: 1px 7px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
-  background: var(--bg2); color: var(--muted);
-  border: 1px solid var(--border, rgba(0,0,0,.12));
-  white-space: nowrap;
-}
-.proofGood { background: rgba(15,123,79,.12); color: #0f7b4f; border-color: rgba(15,123,79,.3); }
-
-.chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.chip {
-  font-size: 12px; padding: 3px 8px; border-radius: 6px;
-  background: var(--bg2); color: var(--text);
-  border: 1px solid var(--border, rgba(0,0,0,.1));
-  overflow-wrap: anywhere;
-}
-.chip b { font-variant-numeric: tabular-nums; margin-right: 1px; }
-
-/* ── Not stated ── */
-.gaps { margin: 0; padding-left: 18px; }
-.gaps li { font-size: 13px; line-height: 1.5; color: var(--muted); margin-bottom: 6px; overflow-wrap: anywhere; }
-.gaps li:last-child { margin-bottom: 0; }
-.gaps b { color: var(--text); font-weight: 650; }
-
-/* ── The one button ── */
-.cta { margin: 0 16px; display: flex; }
-.primary {
-  flex: 1 1 auto; min-height: 48px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 10px; font-size: 15px; font-weight: 600;
-  background: #121212; border: 1px solid #121212; color: #fff;
+.action {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  min-height: 60px; padding: 8px 4px;
+  border: 1px solid var(--border, rgba(0,0,0,.14)); border-radius: 12px;
+  background: transparent; color: var(--text);
+  font-family: var(--font);
   cursor: pointer; -webkit-tap-highlight-color: transparent;
-  padding: 0 16px;
+  transition: background-color .14s;
 }
-.primary:disabled { opacity: .5; cursor: default; }
+.action span {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.action:disabled { opacity: .4; cursor: default; }
+.action:active { background: var(--bg2, rgba(0,0,0,.04)); }
+.actionStrong { background: #121212; border-color: #121212; color: #ffffff; }
+.actionStrong:active { background: #2a2a2a; }
