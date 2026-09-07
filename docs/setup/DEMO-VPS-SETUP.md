@@ -119,7 +119,7 @@ box as well.
 
 `NODE_ENV`, `PORT`, `CORS_ALLOWED_ORIGINS` and `RACKTRACK_WORKERS` are not in
 this file on purpose: `docker-compose.demo.yml` sets them, and compose's
-`environment:` beats `env_file:`. (On Windows they come from `start.ps1`,
+`environment:` beats `env_file:`. (On Windows they come from `deploy/legacy-windows/start.ps1`,
 which is why production's `.env` has none of them either.)
 
 The loader takes everything after `=` verbatim — **no inline comments**. A

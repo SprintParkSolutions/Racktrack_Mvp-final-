@@ -169,7 +169,7 @@ cd client
 
 ## Step 6 — Verify on a real phone
 
-**The Windows box must be on with `start.ps1` running, or none of this works.**
+**The Windows box must be on with `deploy/legacy-windows/start.ps1` running, or none of this works.**
 
 Install from TestFlight, then check:
 
@@ -208,4 +208,4 @@ returns real PNG bytes; without it, HTML.
 | Bundle ID | `com.racktrack.app` |
 | Current build | 1.0 (4) → ship **1.0 (5)** |
 | IPA output | `client/build/ipa/` |
-| Server | **Windows box** — must be running `start.ps1` |
+| Server | **Windows box** — must be running `deploy/legacy-windows/start.ps1` |
