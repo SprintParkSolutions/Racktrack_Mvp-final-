@@ -4587,7 +4587,6 @@ export default function ResultsPage({ rackId: propRackId = null, embedded: embed
           onTabChange={handleTabChange}
           badges={{
             ports: devices.filter(d => d.class_name === 'Switch').reduce((s, d) => s + (d.port_count || 0), 0) || undefined,
-            switches: devices.filter(d => d.class_name === 'Switch').length || undefined,
           }}
         />
       )}

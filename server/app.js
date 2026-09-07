@@ -1262,7 +1262,7 @@ function buildResponse(rackId, cached) {
   const overlayFile = fs.existsSync(rackImagePath(rackDir, '7_rack_all_ports.png'))
     ? rackImageUrlPath(rackDir, '7_rack_all_ports.png')
     : null;
-  const devices = (data.devices || []).map(dev => ({
+  const devices = (data.devices || []).map(applyRouterRule).map(dev => ({
     ...dev,
     port_count: typeof dev.port_count === 'number' ? dev.port_count : null,
     ports: dev.ports || [],
@@ -1577,8 +1577,26 @@ function resolveMonitoredSwitch(portIdentifications, selectedPort) {
 }
 
 // Fewer than this many ports and a network box is a router. Kept in step with
-// ROUTER_PORT_CEILING in pipeline/runner.py.
+// ROUTER_PORT_CEILING in pipeline/classify.py.
 const ROUTER_PORT_CEILING = 10;
+
+/**
+ * The router rule, applied to a device on its way out of this server.
+ *
+ * The pipeline writes it into new maps; this is for every file written before
+ * the rule existed, and for every route that used to copy class_name straight
+ * off disk — the Results payload, the cached scan_result.json, the OCR record.
+ * Same rule as pipeline/classify.py: only a Switch, only once its ports have
+ * been counted, and never a class a person or the detector chose otherwise.
+ */
+function applyRouterRule(dev) {
+  if (!dev || typeof dev !== 'object') return dev;
+  const n = Number(dev.port_count);
+  if (dev.class_name === 'Switch' && Number.isInteger(n) && n > 0 && n < ROUTER_PORT_CEILING) {
+    return { ...dev, class_name: 'Router', class_source: `ports<${ROUTER_PORT_CEILING}` };
+  }
+  return dev;
+}
 
 
 function buildScanReportData(rackId) {
@@ -1602,12 +1620,7 @@ function buildScanReportData(rackId) {
     // in the same way: only a device the detector called Switch, and only
     // once its ports have actually been counted — a four-port server is a
     // server and a six-port patch panel is a patch panel.
-    const dev = (dev0.class_name === 'Switch'
-      && Number.isInteger(dev0.port_count)
-      && dev0.port_count > 0
-      && dev0.port_count < ROUTER_PORT_CEILING)
-      ? { ...dev0, class_name: 'Router', class_source: `ports<${ROUTER_PORT_CEILING}` }
-      : dev0;
+    const dev = applyRouterRule(dev0);
     const code = CLASS_CODE_SRV[dev.class_name] || (dev.class_name || 'UNK').replace(/\s+/g, '').slice(0, 4).toUpperCase();
     counts[code] = (counts[code] || 0) + 1;
     const seq = String(counts[code]).padStart(2, '0');
@@ -2844,7 +2857,10 @@ function writeCanonicalScanResult(rackId, prebuiltData) {
     let selectedPort = null;
     const selPath = path.join(_rackDir, 'selected_port_info.json');
     if (fs.existsSync(selPath)) {
-      try { selectedPort = JSON.parse(fs.readFileSync(selPath, 'utf8')); }
+      try {
+        selectedPort = JSON.parse(fs.readFileSync(selPath, 'utf8'));
+        if (selectedPort?.selected_device) selectedPort.selected_device = applyRouterRule(selectedPort.selected_device);
+      }
       catch (e) { logger.warn(`[scan_result] selected_port_info parse failed for ${rackId}: ${e.message}`); }
     }
 
@@ -7215,7 +7231,16 @@ app.get('/api/scan/:rackId/result', auth.requireAuth, async (req, res) => {
       return res.json(result);
     }
     res.setHeader('Content-Type', 'application/json');
-    res.send(fs.readFileSync(resultPath, 'utf8'));
+    // A file written before the rule existed says "Switch" where the report says
+    // "Router". Reclassify on the way out rather than trusting the copy on disk.
+    try {
+      const cached = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+      if (Array.isArray(cached.devices)) cached.devices = cached.devices.map(applyRouterRule);
+      if (cached.selectedPort?.selected_device) cached.selectedPort.selected_device = applyRouterRule(cached.selectedPort.selected_device);
+      return res.json(cached);
+    } catch {
+      res.send(fs.readFileSync(resultPath));
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -9797,7 +9822,17 @@ app.get('/api/scan/:rackId/ocr-devices', (req, res) => {
   }
   try {
     res.setHeader('Content-Type', 'application/json');
-    res.send(fs.readFileSync(p, 'utf8'));
+    // The OCR record copied each device's class from the map at OCR time; a
+    // small switch it still calls "Switch" is a Router, and the Switches tab
+    // takes this list as the truth once it lands.
+    try {
+      const ocr = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (Array.isArray(ocr.devices)) ocr.devices = ocr.devices.map(applyRouterRule);
+      else if (Array.isArray(ocr)) return res.json(ocr.map(applyRouterRule));
+      return res.json(ocr);
+    } catch {
+      res.send(fs.readFileSync(p, 'utf8'));
+    }
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message, rackId });
   }

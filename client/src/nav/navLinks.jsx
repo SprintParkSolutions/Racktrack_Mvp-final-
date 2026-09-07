@@ -40,6 +40,9 @@ export const DataSourcesIcon = () => (
 export const TwoRackIcon = () => (
   <svg {...s}><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/><path d="M10 8h4"/></svg>
 );
+export const HistoryIcon = () => (
+  <svg {...s}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/><path d="M3.5 12H5"/></svg>
+);
 export const LabIcon = () => (
   <svg {...s}><path d="M9 3v6.5L4.5 18A2 2 0 006.3 21h11.4a2 2 0 001.8-3L15 9.5V3"/><path d="M8 3h8"/><path d="M7.5 14h9"/></svg>
 );
@@ -81,6 +84,10 @@ export function usePrimaryNav() {
     // so a hidden menu item was the ONLY way in. `barLabel` keeps the bar
     // legible: "TWO RACKS" is too wide for a fifth 10px slot on a 320px phone,
     // where "2 RACKS" fits.
+    // Every scan this account has made, with its report — the place to go
+    // back to a rack you are not standing in front of.
+    { to: '/history',        label: 'History',      icon: <HistoryIcon />,     end: false,
+      hint: 'Past scans and their reports' },
     { to: '/multi-rack/new', label: 'Two racks',    icon: <TwoRackIcon />,     end: false,
       inBar: true, barLabel: '2 Racks',
       hint: 'Scan two racks together' },
