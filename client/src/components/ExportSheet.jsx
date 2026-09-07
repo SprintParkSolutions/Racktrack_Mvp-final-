@@ -135,10 +135,20 @@ export default function ExportSheet({ scanId, rackId, onClose }) {
             </div>
           )}
 
-          {report && (
+          {written && (
+            <div className={styles.done} role="status">
+              <span className={styles.doneMark} aria-hidden="true">✓</span>
+              <div>
+                <b>Exported to NetBox</b>
+                <span>{(c.create || 0) + (c.update || 0)} object{((c.create || 0) + (c.update || 0)) === 1 ? '' : 's'} written{c.noop ? `, ${c.noop} already there` : ''}.</span>
+                {openUrl && <a href={openUrl} target="_blank" rel="noreferrer noopener" className={styles.openLink}>Open NetBox ↗</a>}
+              </div>
+            </div>
+          )}
+          {report && !written && (
             <>
               <p className={styles.note}>
-                {written ? 'Written to NetBox.' : `Compared with NetBox ${comparedAt ? ago(comparedAt) : ''}.`}
+                Compared with NetBox {comparedAt ? ago(comparedAt) : ''}.
                 {openUrl && (
                   <> <a href={openUrl} target="_blank" rel="noreferrer noopener" className={styles.openLink}>Open NetBox ↗</a></>
                 )}

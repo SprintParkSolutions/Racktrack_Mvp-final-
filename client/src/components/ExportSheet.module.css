@@ -82,3 +82,21 @@
 
 /* The one way out to NetBox itself. */
 .openLink { color: #0f7b4f; font-weight: 650; text-decoration: none; margin-left: 6px; }
+
+/* After the write: one unmistakable line, then the way to see it. */
+.done {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px; border-radius: 12px;
+  background: rgba(15,123,79,.08); border: 1px solid rgba(15,123,79,.25);
+  animation: donePop .22s ease-out;
+}
+.done > div { display: flex; flex-direction: column; gap: 3px; }
+.done b { font-size: 16px; color: #0f7b4f; }
+.done span { font-size: 13px; color: var(--text); }
+.doneMark {
+  flex: none; width: 30px; height: 30px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #0f7b4f; color: #fff; font-weight: 700;
+}
+@keyframes donePop { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .done { animation: none; } }
