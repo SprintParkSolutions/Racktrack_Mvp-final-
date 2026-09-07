@@ -31,6 +31,7 @@ const audit = require('./audit');
 const tenant = require('./lib/tenant');
 const rackAccess = require('./lib/rack_access');
 const ocrCache = require('./lib/ocr_cache');
+const imageIntake = require('./lib/image_intake');
 const rackGroups = require('./lib/rack_groups');
 const { appendLineWithRotation } = require('./lib/jsonl_rotation');
 const orphanGC = require('./lib/orphan_gc');
@@ -749,6 +750,12 @@ if (fs.existsSync(clientDist)) {
 // camera and rejected as "Invalid file type" when chosen from the gallery,
 // which is exactly the "sometimes works, sometimes doesn't" the testers hit.
 // Falling back to the MIME type makes the decision about what the file IS.
+//
+// Since then the decision moved again, to the bytes. The name and the declared
+// type only choose the extension the tmp file is stored under (empty when
+// neither says anything); what the file IS is read from its first bytes after
+// the upload, in lib/image_intake.js, and anything the pipeline cannot decode
+// is converted to JPEG there.
 const MIME_EXT = {
   'image/jpeg': '.jpg',  'image/jpg':  '.jpg',  'image/pjpeg': '.jpg',
   'image/png':  '.png',  'image/gif':  '.gif',  'image/webp':  '.webp',
@@ -771,11 +778,22 @@ const storage = multer.diskStorage({
     cb(null, `tmp_${uuidv4()}${ext}`);
   },
 });
+// What the client SAYS the file is can only turn away something that is
+// plainly not a picture (a PDF, a spreadsheet). Anything declared image/* or
+// video/* is accepted, and so is a file with no usable type at all: an Android
+// content:// pick often arrives as application/octet-stream or with an empty
+// type, and rejecting those here was the "sometimes works" complaint. The real
+// decision is made from the bytes once the file is on disk (intakeImage below).
+function _declaredTypeAllowed(mimetype) {
+  const mt = String(mimetype || '').split(';')[0].trim().toLowerCase();
+  if (!mt || mt === 'application/octet-stream' || !mt.includes('/')) return true;
+  return mt.startsWith('image/') || mt.startsWith('video/');
+}
 const upload = multer({
   storage,
   limits: { fileSize: 340 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const ok = _safeExt(file.originalname, file.mimetype) !== '';
+    const ok = _declaredTypeAllowed(file.mimetype);
     // Tag the rejection so the error handler answers 400 rather than 500.
     // A user picking the wrong file type is not a server fault, and every one
     // of these was polluting the uncaught-error rate that alerting watches.
@@ -851,12 +869,35 @@ app.post('/api/client-error', clientErrorLimit, express.json({ limit: '32kb' }),
   res.status(204).end();
 });
 
+// ── Image intake ─────────────────────────────────────────────
+// First thing every image upload route does with req.file. Reads the first
+// bytes to learn what the file really is, and converts anything the pipeline
+// cannot decode (HEIC/HEIF, AVIF, WebP, TIFF, BMP, GIF) to an upright RGB JPEG
+// through pipeline/normalize_image.py, on the same interpreter the pipeline
+// runs on. JPEG, PNG and video pass through on their original path. A file
+// that is not a picture at all throws an Error tagged status 400 (see
+// imageIntake.isUnreadable) with a plain message for the user.
+//
+// Returns { path, kind, converted, width, height }. When a converted copy
+// replaced the upload, the original tmp file is removed here so uploads/ never
+// keeps both; the caller owns `path` from then on exactly as it owned
+// req.file.path before.
+async function intakeImage(file) {
+  const intake = await imageIntake.normalizeForPipeline(file.path, { pythonCmd, projectRoot: PROJECT_ROOT });
+  if (intake.converted) safeUnlink(file.path);
+  return intake;
+}
+
 // ── Image normalization ───────────────────────────────────────
-// Converts HEIC/HEIF to JPEG and applies EXIF rotation so downstream
-// code (cv2, pipeline) always sees an upright standard JPEG.
-async function normalizeImage(inputPath) {
+// Applies EXIF rotation and re-encodes to JPEG so downstream code (cv2,
+// pipeline) always sees an upright standard JPEG. Pass the intake result so a
+// copy pipeline/normalize_image.py already wrote is not re-encoded (it is
+// already upright RGB JPEG with the orientation tag gone) and so video is
+// recognised by its bytes rather than by an extension the upload may not have.
+async function normalizeImage(inputPath, intake = null) {
+  if (intake && intake.converted) return inputPath;
   const ext = path.extname(inputPath).toLowerCase();
-  const isVideo = /\.(mp4|mov|webm)$/i.test(ext);
+  const isVideo = intake && intake.kind ? intake.kind === 'video' : /\.(mp4|mov|webm)$/i.test(ext);
   if (isVideo) {
     // Hand the video to the Python worker, which scores frames and writes
     // the best one to disk. From here on the rest of the pipeline treats
@@ -877,6 +918,12 @@ async function normalizeImage(inputPath) {
   const outputPath = inputPath.replace(/\.[^.]+$/, '') + '_norm.jpg';
   await sharp(inputPath)
     .rotate()             // auto-orient from EXIF, strips the tag
+    // JPEG has no alpha. Without this a transparent PNG comes out with black
+    // where the viewer showed white (sharp drops the channel and keeps the RGB
+    // underneath). White matches what pipeline/normalize_image.py does for the
+    // formats it converts. A no-op for an image with no alpha channel: the
+    // JPEG bytes, and so the rack id, are unchanged for every ordinary photo.
+    .flatten({ background: '#ffffff' })
     .jpeg({ quality: 92, mozjpeg: true })
     .toFile(outputPath);
   safeUnlink(inputPath);
@@ -3690,8 +3737,11 @@ setInterval(() => {
  */
 app.post('/api/detect', detectLimit, upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file provided' });
-  const tmpPath = req.file.path;
+  let tmpPath = req.file.path;
   try {
+    // The viewfinder sends JPEG frames, which pass straight through; a
+    // gallery HEIC gets converted first so cv2 can read it.
+    tmpPath = (await intakeImage(req.file)).path;
     const result = await pool.request('detect_only', {
       image_path:  tmpPath,
       config_path: CONFIG_PATH,
@@ -3704,10 +3754,15 @@ app.post('/api/detect', detectLimit, upload.single('image'), async (req, res) =>
       image_size: result.image_size || null,
     });
   } catch (err) {
+    if (imageIntake.isUnreadable(err)) {
+      logger.warn({ event: 'detect.unreadable_upload', kind: err.kind, detail: err.detail }, err.message);
+      return res.status(400).json({ error: err.message });
+    }
     logger.error({ err: err.message }, 'detect failed');
     res.status(500).json({ error: 'detection failed' });
   } finally {
     safeUnlink(tmpPath);
+    safeUnlink(req.file.path);
   }
 });
 
@@ -3769,7 +3824,9 @@ app.post('/api/analyze', auth.requireAuth, scanLimit, upload.single('image'), as
 
   try {
     const tNormStart = Date.now();
-    tmpPath = await normalizeImage(tmpPath);
+    const intake = await intakeImage(req.file);
+    tmpPath = intake.path;
+    tmpPath = await normalizeImage(tmpPath, intake);
     timings.normalize_ms = Date.now() - tNormStart;
     const rackId    = computeRackId(tmpPath, rackScope(_a));
     const rackDir   = path.join(outputsDir, rackId);
@@ -4054,6 +4111,12 @@ app.post('/api/analyze', auth.requireAuth, scanLimit, upload.single('image'), as
   } catch (err) {
     // Clean up tmp if still around
     safeUnlink(tmpPath);
+    // Not a picture we can read: the user's file, said plainly, no stack trace.
+    if (imageIntake.isUnreadable(err)) {
+      logger.warn({ event: 'scan.unreadable_upload', kind: err.kind, detail: err.detail }, `[scan] ${err.message}`);
+      audit.log({ req, action: 'scan.create', status: 'fail', error: err.message });
+      return res.status(400).json({ error: err.message, retryable: true, kind: 'quality' });
+    }
     logger.error({ event: 'scan.failed', err: err.message, stack: String(err.stack || '').slice(0, 1500) },
       `[scan] analyze failed: ${err.message}`);
     const deviceDown = isFatalWorkerError(err.message);
@@ -4145,8 +4208,11 @@ app.post('/api/stitch', scanLimit, upload.array('images', 8), async (req, res) =
     // Normalize every input (HEIC->JPEG, EXIF rotate) before stitching.
     const tNormStart = Date.now();
     for (const f of files) {
-      const p = await normalizeImage(f.path);
-      tmpPaths.push(p);
+      const intake = await intakeImage(f);
+      // Recorded before normalising so a failure part-way still cleans it up;
+      // normalizeImage removes its input on success, so the entry is replaced.
+      tmpPaths.push(intake.path);
+      tmpPaths[tmpPaths.length - 1] = await normalizeImage(intake.path, intake);
     }
     timings.normalize_ms = Date.now() - tNormStart;
 
@@ -4290,7 +4356,12 @@ app.post('/api/stitch', scanLimit, upload.array('images', 8), async (req, res) =
 
   } catch (err) {
     tmpPaths.forEach(safeUnlink);
+    files.forEach(f => safeUnlink(f.path));   // inputs not yet reached when the loop threw
     if (stitchedPath) safeUnlink(stitchedPath);
+    if (imageIntake.isUnreadable(err)) {
+      logger.warn({ event: 'scan.unreadable_upload', kind: err.kind, detail: err.detail, stitched: true }, err.message);
+      return res.status(400).json({ error: err.message, retryable: true, kind: 'quality' });
+    }
     logger.error(err.message);
     const deviceDown = isFatalWorkerError(err.message);
     audit.log({ req, action: 'scan.create', status: 'fail',
@@ -4396,7 +4467,9 @@ app.post('/api/ocr/labels', scanLimit, upload.single('image'), async (req, res) 
 
   let tmpPath = req.file.path;
   try {
-    tmpPath = await normalizeImage(tmpPath);
+    const intake = await intakeImage(req.file);
+    tmpPath = intake.path;
+    tmpPath = await normalizeImage(tmpPath, intake);
     const result = await runOcrLabels(tmpPath);
 
     // Cache labels under the rack folder so they can be mapped to devices later.
@@ -4427,6 +4500,10 @@ app.post('/api/ocr/labels', scanLimit, upload.single('image'), async (req, res) 
     });
   } catch (e) {
     safeUnlink(tmpPath);
+    if (imageIntake.isUnreadable(e)) {
+      logger.warn({ event: 'ocr.unreadable_upload', kind: e.kind, detail: e.detail }, `[ocr] ${e.message}`);
+      return res.status(400).json({ error: e.message, labels: [] });
+    }
     logger.warn(`[ocr] failed: ${e.message}`);
     res.status(500).json({ error: 'OCR failed', labels: [] });
   }
@@ -4469,7 +4546,9 @@ app.post('/api/ocr/device-label', auth.requireAuth, scanLimit, upload.single('im
     // Auto-orients from EXIF and re-encodes to JPEG, so a HEIC from the iOS
     // photo library and a canvas capture from the in-app camera arrive at
     // the OCR engine identically.
-    tmpPath = await normalizeImage(tmpPath);
+    const intake = await intakeImage(req.file);
+    tmpPath = intake.path;
+    tmpPath = await normalizeImage(tmpPath, intake);
     // Same photo, same answer. Hashed AFTER normalising, because that is the
     // image the reader actually sees — the same label photographed twice is
     // two different files and is read twice, which is right; the same file
@@ -4499,6 +4578,10 @@ app.post('/api/ocr/device-label', auth.requireAuth, scanLimit, upload.single('im
     res.json({ ...result, elapsed_ms: elapsedMs });
   } catch (e) {
     safeUnlink(tmpPath);
+    if (imageIntake.isUnreadable(e)) {
+      logger.warn({ event: 'ocr.unreadable_upload', kind: e.kind, detail: e.detail }, `[ocr] device-label: ${e.message}`);
+      return res.status(400).json({ ok: false, error: e.message });
+    }
     logger.warn(`[ocr] device-label failed: ${e.message}`);
     res.status(500).json({ ok: false,
       error: 'Could not read that photo. Enter the make and model instead.' });
@@ -6143,7 +6226,9 @@ app.post('/api/incidents/:inc/verify-rack', scanLimit, upload.single('image'), a
 
   let tmpPath = req.file.path;
   try {
-    tmpPath = await normalizeImage(tmpPath);
+    const intake = await intakeImage(req.file);
+    tmpPath = intake.path;
+    tmpPath = await normalizeImage(tmpPath, intake);
     const rackId  = computeRackId(tmpPath, rackScope(softAuthPayload(req)));
     const rackDir = path.join(outputsDir, rackId);
     const dumPath = path.join(rackDir, 'device_unit_map.json');
@@ -6203,6 +6288,10 @@ app.post('/api/incidents/:inc/verify-rack', scanLimit, upload.single('image'), a
     });
   } catch (e) {
     safeUnlink(tmpPath);
+    if (imageIntake.isUnreadable(e)) {
+      logger.warn({ event: 'verify_rack.unreadable_upload', kind: e.kind, detail: e.detail }, `[verify-rack] ${incNumber}: ${e.message}`);
+      return res.status(400).json({ ok: false, error: e.message });
+    }
     logger.warn(`[verify-rack] ${incNumber} failed: ${e.message}`);
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -6234,11 +6323,13 @@ app.post('/api/analyze-for-ticket', scanLimit, upload.single('image'), async (re
 
   const reqStart = Date.now();
   const timings = {};
+  let tmpPath = req.file.path;
 
   try {
     // STEP 1 — analyze the rack (reuse logic from /api/analyze inline)
-    let tmpPath = req.file.path;
-    tmpPath = await normalizeImage(tmpPath);
+    const intake = await intakeImage(req.file);
+    tmpPath = intake.path;
+    tmpPath = await normalizeImage(tmpPath, intake);
     const rackId   = computeRackId(tmpPath, rackScope(softAuthPayload(req)));
     const rackDir  = path.join(outputsDir, rackId);
     const jsonPath = path.join(rackDir, 'device_unit_map.json');
@@ -6454,6 +6545,11 @@ app.post('/api/analyze-for-ticket', scanLimit, upload.single('image'), async (re
       timings,
     });
   } catch (err) {
+    safeUnlink(tmpPath);
+    if (imageIntake.isUnreadable(err)) {
+      logger.warn({ event: 'scan.unreadable_upload', kind: err.kind, detail: err.detail, ticket: incNumber }, `[analyze-for-ticket] ${err.message}`);
+      return res.status(400).json({ error: err.message, retryable: true, kind: 'quality' });
+    }
     logger.error('[analyze-for-ticket]', err.message);
     res.status(400).json({
       error: 'Analysis failed. Please check the image and try again.',

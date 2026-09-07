@@ -135,10 +135,21 @@ describe('dispatch', () => {
     expect(await validateMedia(null)).toMatchObject({ ok: false });
   });
 
-  test('anything that is neither image nor video is rejected', async () => {
+  test('a file that announces a non-media type is rejected', async () => {
+    for (const f of [file('rack.pdf', 'application/pdf'), file('notes.txt', 'text/plain'), file('rack.zip', 'application/zip')]) {
+      const r = await validateMedia(f);
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/rack photo/i);
+    }
+  });
+
+  test('the rejection message says any photo format works, not a list of four', async () => {
+    // The earlier text named JPG/JPEG, PNG, WEBP and HEIC. Testers read that
+    // as the complete set and asked whether their format was supported. The
+    // server accepts every photo format now, so the message must say so.
     const r = await validateMedia(file('rack.pdf', 'application/pdf'));
-    expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/rack photo/i);
+    expect(r.error).toBe('Unsupported file type. Upload a rack photo. Any photo format works (JPG, PNG, HEIC, WebP and more).');
+    expect(r.error).not.toMatch(/—/);
   });
 
   test('an audio file is rejected in those words', async () => {
@@ -151,6 +162,7 @@ describe('dispatch', () => {
       const r = await validateMedia(f);
       expect(r.ok).toBe(false);
       expect(r.error).toMatch(/audio file/i);
+      expect(r.error).toMatch(/any photo format works/i);
     }
   });
 
@@ -161,6 +173,63 @@ describe('dispatch', () => {
     // really isn't an image.
     const r = await validateMedia(file('image', ''));
     expect(r.ok).toBe(true);
+    expect(r.metrics.skipped).toBe('no-mime-deferred-to-server');
+  });
+
+  test('an unknown type with an unknown extension is deferred too', async () => {
+    // application/octet-stream is what some pickers report for anything they
+    // cannot classify; a .bin name says nothing either way. Only the server
+    // can tell, by reading the bytes.
+    for (const f of [file('photo.bin', ''), file('photo', 'application/octet-stream'), file('photo.dat', 'application/octet-stream')]) {
+      expect(await validateMedia(f)).toMatchObject({ ok: true, metrics: { skipped: 'no-mime-deferred-to-server' } });
+    }
+  });
+
+  test('every image MIME type goes through the image check', async () => {
+    // Not a list of four any more: AVIF, TIFF, BMP and GIF are photos too and
+    // the server converts them all. Each runs the same size and blur check.
+    nextImage = { width: 1920, height: 1080 };
+    nextPixels = CHECKER;
+    for (const f of [
+      file('rack.avif', 'image/avif'),
+      file('rack.tiff', 'image/tiff'),
+      file('rack.bmp', 'image/bmp'),
+      file('rack.gif', 'image/gif'),
+      file('rack.webp', 'image/webp'),
+    ]) {
+      const r = await validateMedia(f);
+      expect(r.ok).toBe(true);
+      expect(r.metrics).toMatchObject({ width: 1920, height: 1080 });
+    }
+  });
+
+  test('a known photo extension is an image even when the type is empty or generic', async () => {
+    // Pickers that cannot classify a file report an empty type or
+    // application/octet-stream; the name still says it is a photo.
+    nextImage = { width: 1920, height: 1080 };
+    nextPixels = CHECKER;
+    for (const f of [
+      file('rack.tiff', ''),
+      file('rack.TIF', ''),
+      file('rack.avif', 'application/octet-stream'),
+      file('rack.JFIF', ''),
+      file('rack.png', 'text/plain'),
+    ]) {
+      const r = await validateMedia(f);
+      expect(r.ok).toBe(true);
+      expect(r.metrics).toMatchObject({ width: 1920, height: 1080 });
+    }
+  });
+
+  test('a photo format the browser cannot decode is deferred, not rejected', async () => {
+    // Chrome has no TIFF decoder and older Safari has no AVIF decoder. The
+    // server reads both, so a decode failure here is not evidence of a bad file.
+    nextImage = null;
+    for (const f of [file('rack.tiff', 'image/tiff'), file('rack.avif', 'image/avif'), file('rack.bmp', '')]) {
+      const r = await validateMedia(f);
+      expect(r.ok).toBe(true);
+      expect(r.metrics.skipped).toBe('browser-decode-failed-deferred-to-server');
+    }
   });
 
   test('HEIC/HEIF is passed straight to the server, by name or by MIME type', async () => {

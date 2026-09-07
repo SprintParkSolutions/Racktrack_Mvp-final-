@@ -28,6 +28,12 @@ opencv-python-headless>=4.9.0
 # stack against numpy 2.x's ABI break — easyocr in particular.
 numpy>=1.26.0,<2.0
 Pillow>=10.0.0
+# HEIC/HEIF and AVIF decoding for pipeline/normalize_image.py. Neither OpenCV
+# nor Pillow reads an iPhone HEIC without it; the manylinux wheels bundle
+# libheif, so no apt package is needed in the Docker image. 1.x wheels are
+# manylinux_2_28 (glibc 2.28+, which python:3.11-slim has) and need
+# Pillow>=11.1, which the floor above allows.
+pillow-heif>=1.0,<2
 torch>=2.1.0
 torchvision>=0.16.0
 # Floor raised above the compromised ultralytics releases: 8.3.41 and 8.3.42

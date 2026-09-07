@@ -4,38 +4,58 @@ const MIN_DURATION = 1.0;
 const MAX_DURATION = 120;
 const SAMPLE_MAX_DIM = 512;
 
+// Every extension a photo arrives under. The server accepts all of these (it
+// sniffs the bytes and converts to JPEG), so the client must never turn one
+// away on its name or type alone.
+const PHOTO_EXT = /\.(jpe?g|jfif|png|gif|webp|tiff?|bmp|heic|heif|avif)$/i;
+const HEIC_EXT = /\.(heic|heif)$/i;
+
+// Named once so the audio and unsupported messages cannot drift apart. Earlier
+// wording listed four formats, and testers read that list as the complete set
+// of what was allowed.
+const PHOTO_HINT = 'Upload a rack photo. Any photo format works (JPG, PNG, HEIC, WebP and more).';
+
 export async function validateMedia(file) {
   if (!file) return { ok: false, error: 'No file selected.' };
+  const name = file.name || '';
+  const type = (file.type || '').toLowerCase();
 
-  // HEIC/HEIF (iPhone default): most browsers can't decode in JS.
-  // Skip client-side checks and let the server normalize + validate.
-  if (/\.(heic|heif)$/i.test(file.name) ||
-      file.type === 'image/heic' || file.type === 'image/heif') {
+  // HEIC/HEIF (iPhone default): no browser decodes it in JS, so there is
+  // nothing to measure here. The server converts it and runs the same checks.
+  if (HEIC_EXT.test(name) || type === 'image/heic' || type === 'image/heif') {
     return { ok: true, metrics: { skipped: 'heic-deferred-to-server' } };
   }
 
-  if (file.type.startsWith('image/')) return validateImage(file);
-  if (file.type.startsWith('video/')) return validateVideo(file);
+  if (type.startsWith('video/')) return validateVideo(file);
 
   // A sound file can never be scanned, so say so in those words rather than
   // with the generic message below. Android's generic file chooser used to
   // offer a sound recorder alongside the camera on this screen (the accept
-  // lists now stop that — see utils/mediaAccept.js), and a recording picked
+  // lists now stop that, see utils/mediaAccept.js), and a recording picked
   // from the file manager can still reach us here.
-  if (file.type.startsWith('audio/')) {
-    return { ok: false, error: 'That is an audio file. Upload a rack photo — JPG/JPEG, PNG, WEBP or HEIC.' };
+  if (type.startsWith('audio/')) {
+    return { ok: false, error: `That is an audio file. ${PHOTO_HINT}` };
   }
 
-  // No MIME type at all: an Android content:// pick often arrives with an
-  // empty `type` and no extension on the name. Don't reject a photo the
-  // gallery just handed us — the server reads the file itself and answers
-  // 400 if it really isn't an image.
-  if (!file.type) return { ok: true, metrics: { skipped: 'no-mime-deferred-to-server' } };
+  // Any image at all. The type is what the picker reported; the extension
+  // covers pickers that report nothing useful for a file they cannot classify.
+  // Formats the browser cannot decode (TIFF, BMP in some WebViews, AVIF on
+  // older Safari) fall through validateImage's decode-failure branch and are
+  // deferred to the server rather than rejected.
+  if (type.startsWith('image/') || PHOTO_EXT.test(name)) return validateImage(file);
 
-  // Spell JPEG out alongside JPG. Testers reported "JPEG format missing"
-  // when JPEG has always been accepted — they were reading this message,
-  // which named only "JPG", and concluded the format was unsupported.
-  return { ok: false, error: 'Unsupported file type. Upload a rack photo — JPG/JPEG, PNG, WEBP or HEIC.' };
+  // No MIME type at all, or the generic one: an Android content:// pick often
+  // arrives with an empty `type` (or application/octet-stream) and no
+  // extension on the name. Don't reject a photo the gallery just handed us.
+  // The server reads the file itself and answers 400 with a plain message if
+  // it really isn't an image.
+  if (!type || type === 'application/octet-stream') {
+    return { ok: true, metrics: { skipped: 'no-mime-deferred-to-server' } };
+  }
+
+  // A file that announces itself as something else entirely (a PDF, a text
+  // file, an archive) can be turned away here without a round trip.
+  return { ok: false, error: `Unsupported file type. ${PHOTO_HINT}` };
 }
 
 async function validateImage(file) {

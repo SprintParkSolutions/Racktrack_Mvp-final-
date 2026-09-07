@@ -62,6 +62,8 @@ function ImageSlot({ index, file, onPick, disabled }) {
               <span className={styles.fmtPill}>JPG</span>
               <span className={styles.fmtPill}>PNG</span>
               <span className={styles.fmtPill}>HEIC</span>
+              <span className={styles.fmtPill}>WebP</span>
+              <span className={styles.fmtPill}>and more</span>
             </span>
           </div>
         )}

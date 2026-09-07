@@ -58,7 +58,9 @@
 # --- CV pipeline (pipeline/) ---
 opencv-python-headless==4.10.0.84   # headless (no GUI libs) — correct for server/Docker
 numpy==1.26.4                        # constraint winner: satisfies requirements.txt <2.0
-Pillow==10.4.0
+Pillow==11.3.0                       # was 10.4.0; every pillow-heif 1.x needs pillow>=11.1. torchvision 0.19.1
+                                     # (!=8.3.*,>=5.3.0), ultralytics 8.3.43 (>=7.1.2) and easyocr 1.7.2 all accept it.
+pillow-heif==1.7.0                   # HEIC/AVIF decode for pipeline/normalize_image.py; wheels bundle libheif
 torch==2.4.1                         # torchvision 0.19.1 requires exactly this
 torchvision==0.19.1
 ultralytics==8.3.43                  # >8.3.42: excludes the Dec-2024 compromised releases

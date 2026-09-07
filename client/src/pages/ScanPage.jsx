@@ -120,10 +120,13 @@ function UploadZone({ onFile, mode = 'image', inputRef: externalRef = null }) {
   // generic chooser — the one that offers a sound recorder. See mediaAccept.js.
   const accept = isVideo ? VIDEO_ACCEPT : IMAGE_ACCEPT;
   const title = isVideo ? 'Drop rack video here' : 'Drop rack image here';
-  const sub = isVideo ? 'tap to browse · MP4, MOV, WEBM' : 'tap to browse · JPG, JPEG, PNG, HEIC';
+  // The server accepts every photo format (it sniffs the bytes and converts to
+  // JPEG), so the caption says so instead of naming four. Testers read the old
+  // list of four as the complete set of what was allowed.
+  const sub = isVideo ? 'tap to browse · MP4, MOV, WEBM' : 'tap to browse · any photo format';
   // Format pills shown only in the desktop reference layout (hidden on mobile
   // via CSS — see .fmtPills). Mobile keeps the inline `sub` string above.
-  const formats = isVideo ? ['MP4', 'MOV', 'WEBM'] : ['JPG', 'JPEG', 'PNG', 'HEIC'];
+  const formats = isVideo ? ['MP4', 'MOV', 'WEBM'] : ['JPG', 'PNG', 'HEIC', 'WebP', 'and more'];
 
   return (
     <>
