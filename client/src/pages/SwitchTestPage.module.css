@@ -46,12 +46,28 @@
 }
 
 /* ── One switch ──
-   A left rail carries the state, so the row needs no frame of its own. */
+   Each switch is its own card, numbered, with a gap of page between it and
+   the next: three switches read as three things, not one long sheet. The
+   left rail still carries the state. */
 .row {
   position: relative;
+  flex: none;   /* the page is a fixed-height column; a card must never be squeezed */
   display: flex; flex-direction: column; gap: 10px;
-  padding: 16px 16px 14px 16px;
-  border-bottom: 1px solid var(--border, rgba(0,0,0,.09));
+  margin: 0 12px 12px;
+  padding: 14px 16px 14px 18px;
+  background: #ffffff;
+  border: 1px solid var(--border, rgba(0,0,0,.10));
+  border-radius: 14px;
+  overflow: hidden;
+}
+.row:first-of-type { margin-top: 12px; }
+.num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; margin-right: 8px;
+  border-radius: 999px;
+  background: #121212; color: #ffffff;
+  font-size: 12px; font-weight: 700; letter-spacing: 0;
+  vertical-align: 3px;
 }
 .row::before {
   content: '';

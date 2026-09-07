@@ -15,6 +15,7 @@ Three layers:
 Data sources are populated by separate per-vendor fetchers (firmware_sources/).
 This module is read-only over the DB.
 """
+
 from __future__ import annotations
 
 import json
@@ -23,7 +24,6 @@ import re
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("firmware")
 
@@ -43,19 +43,20 @@ _VERSION_TOKEN = re.compile(r"(\d+)([A-Za-z]*)")
 @dataclass(frozen=True)
 class Version:
     """Parsed version. Comparable. Vendor-agnostic."""
+
     raw: str
     parts: tuple
 
-    def __lt__(self, other: "Version") -> bool:
+    def __lt__(self, other: Version) -> bool:
         return self.parts < other.parts
 
-    def __le__(self, other: "Version") -> bool:
+    def __le__(self, other: Version) -> bool:
         return self.parts <= other.parts
 
-    def __gt__(self, other: "Version") -> bool:
+    def __gt__(self, other: Version) -> bool:
         return self.parts > other.parts
 
-    def __ge__(self, other: "Version") -> bool:
+    def __ge__(self, other: Version) -> bool:
         return self.parts >= other.parts
 
     def __eq__(self, other) -> bool:
@@ -70,7 +71,7 @@ class Version:
         return self.raw
 
 
-def parse_version(s: str) -> Optional[Version]:
+def parse_version(s: str) -> Version | None:
     """
     Parse a vendor firmware version string into a comparable Version.
 
@@ -106,15 +107,15 @@ def parse_version(s: str) -> Optional[Version]:
     return Version(raw=s, parts=tuple(parts))
 
 
-def version_compare(a: str, b: str) -> Optional[int]:
-    """
-    Compare two version strings. Returns -1, 0, 1 or None if unparseable.
-    """
+def version_compare(a: str, b: str) -> int | None:
+    """Compare two version strings: -1, 0, 1, or None if unparseable."""
     va, vb = parse_version(a), parse_version(b)
     if va is None or vb is None:
         return None
-    if va < vb: return -1
-    if va > vb: return 1
+    if va < vb:
+        return -1
+    if va > vb:
+        return 1
     return 0
 
 
@@ -122,14 +123,16 @@ def version_compare(a: str, b: str) -> Optional[int]:
 # Firmware DB queries
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class FirmwareRecord:
     """One firmware version's metadata."""
+
     vendor: str
     nos: str
     version: str
-    release_date: Optional[str] = None
-    train: Optional[str] = None
+    release_date: str | None = None
+    train: str | None = None
     is_recommended: bool = False
     applies_to_models: list[str] = field(default_factory=list)
     new_features: list[str] = field(default_factory=list)
@@ -137,15 +140,16 @@ class FirmwareRecord:
     bug_fixes: list[str] = field(default_factory=list)
     known_issues: list[str] = field(default_factory=list)
     deprecations: list[str] = field(default_factory=list)
-    release_notes_url: Optional[str] = None
+    release_notes_url: str | None = None
 
     @property
-    def parsed(self) -> Optional[Version]:
+    def parsed(self) -> Version | None:
         return parse_version(self.version)
 
 
 def _row_to_firmware(row: sqlite3.Row) -> FirmwareRecord:
     """Convert a DB row into a FirmwareRecord."""
+
     def _parse_json_field(value):
         if not value:
             return []
@@ -153,6 +157,7 @@ def _row_to_firmware(row: sqlite3.Row) -> FirmwareRecord:
             return json.loads(value)
         except (json.JSONDecodeError, TypeError):
             return []
+
     return FirmwareRecord(
         vendor=row["vendor"],
         nos=row["nos"],
@@ -189,7 +194,7 @@ def list_firmware(vendor: str, nos: str, db_path: Path = DB_PATH) -> list[Firmwa
     )
 
 
-def vendor_latest_any(vendor: str, db_path: Path = DB_PATH) -> Optional[FirmwareRecord]:
+def vendor_latest_any(vendor: str, db_path: Path = DB_PATH) -> FirmwareRecord | None:
     """Return the newest cached firmware row for `vendor` ONLY when the
     cache is trustworthy.
 
@@ -218,8 +223,9 @@ def vendor_latest_any(vendor: str, db_path: Path = DB_PATH) -> Optional[Firmware
     # Trust filter — must pass at least one rule.
     if len(records) <= 1:
         only = records[0]
-        has_notes = bool(only.new_features or only.security_fixes
-                         or only.bug_fixes or only.known_issues)
+        has_notes = bool(
+            only.new_features or only.security_fixes or only.bug_fixes or only.known_issues
+        )
         if not has_notes:
             return None  # don't trust a single un-annotated regex hit
 
@@ -234,10 +240,10 @@ def latest_firmware(
     vendor: str,
     nos: str,
     *,
-    train: Optional[str] = None,
-    model: Optional[str] = None,
+    train: str | None = None,
+    model: str | None = None,
     db_path: Path = DB_PATH,
-) -> Optional[FirmwareRecord]:
+) -> FirmwareRecord | None:
     """
     Return the latest known firmware version for a vendor+nos.
     Optionally restrict by train ('stable', 'LTS') or compatible model.
@@ -247,10 +253,10 @@ def latest_firmware(
         candidates = [c for c in candidates if (c.train or "").lower() == train.lower()]
     if model:
         candidates = [
-            c for c in candidates
-            if not c.applies_to_models or any(
-                model.lower() in m.lower() for m in c.applies_to_models
-            )
+            c
+            for c in candidates
+            if not c.applies_to_models
+            or any(model.lower() in m.lower() for m in c.applies_to_models)
         ]
     return candidates[0] if candidates else None
 
@@ -259,9 +265,11 @@ def latest_firmware(
 # Diff between two versions
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class FirmwareDiff:
     """Structured comparison of current vs target firmware."""
+
     current: FirmwareRecord
     target: FirmwareRecord
     releases_behind: int
@@ -273,20 +281,25 @@ class FirmwareDiff:
     deprecations: list[str]
 
     def has_changes(self) -> bool:
-        return any([
-            self.new_features, self.security_fixes,
-            self.bug_fixes, self.known_issues, self.deprecations,
-        ])
+        return any(
+            [
+                self.new_features,
+                self.security_fixes,
+                self.bug_fixes,
+                self.known_issues,
+                self.deprecations,
+            ]
+        )
 
 
 def firmware_diff(
     vendor: str,
     nos: str,
     current_version: str,
-    target_version: Optional[str] = None,
+    target_version: str | None = None,
     *,
     db_path: Path = DB_PATH,
-) -> Optional[FirmwareDiff]:
+) -> FirmwareDiff | None:
     """
     Compute what the user gains by upgrading from current_version to
     target_version (or latest if not specified).
@@ -309,7 +322,9 @@ def firmware_diff(
         if not v:
             return None
         current = FirmwareRecord(
-            vendor=vendor, nos=nos, version=current_version,
+            vendor=vendor,
+            nos=nos,
+            version=current_version,
         )
 
     # Decide target
@@ -329,10 +344,7 @@ def firmware_diff(
     if not cur_v or not tgt_v or cur_v >= tgt_v:
         return None
 
-    intermediate = [
-        r for r in all_releases
-        if r.parsed and cur_v < r.parsed <= tgt_v
-    ]
+    intermediate = [r for r in all_releases if r.parsed and cur_v < r.parsed <= tgt_v]
     intermediate.sort(key=lambda r: r.parsed.parts if r.parsed else ())
 
     # Aggregate changes across all intermediate releases
@@ -363,28 +375,30 @@ def firmware_diff(
 # Security advisories (CVE data) — populated by scrapers.nvd_fetcher
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class Advisory:
     """One CVE affecting a vendor's NOS. Mirrors security_advisories table."""
+
     cve_id: str
     vendor: str
-    nos: Optional[str]
-    published: Optional[str] = None
-    last_modified: Optional[str] = None
-    severity: Optional[str] = None      # CRITICAL / HIGH / MEDIUM / LOW
-    cvss_score: Optional[float] = None
-    cvss_vector: Optional[str] = None
-    description: Optional[str] = None
+    nos: str | None
+    published: str | None = None
+    last_modified: str | None = None
+    severity: str | None = None  # CRITICAL / HIGH / MEDIUM / LOW
+    cvss_score: float | None = None
+    cvss_vector: str | None = None
+    description: str | None = None
     affected_ranges: list[dict] = field(default_factory=list)
     fixed_versions: list[str] = field(default_factory=list)
     references: list[dict] = field(default_factory=list)
-    source: Optional[str] = None
+    source: str | None = None
     # CISA "Known Exploited Vulnerabilities" overlay — True means
     # attackers are using this CVE in the wild right now.
     actively_exploited: bool = False
-    kev_date_added: Optional[str] = None
-    kev_due_date: Optional[str] = None
-    kev_required_action: Optional[str] = None
+    kev_date_added: str | None = None
+    kev_due_date: str | None = None
+    kev_required_action: str | None = None
 
 
 _SEVERITY_RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, None: 0}
@@ -398,6 +412,7 @@ def _row_to_advisory(row: sqlite3.Row) -> Advisory:
             return json.loads(value)
         except (json.JSONDecodeError, TypeError):
             return []
+
     # KEV columns are added by a later migration; older DBs may not
     # have them. Read defensively via the row's keys.
     keys = set(row.keys())
@@ -416,25 +431,26 @@ def _row_to_advisory(row: sqlite3.Row) -> Advisory:
         references=_j(row["references_json"]),
         source=row["source"],
         actively_exploited=bool(row["actively_exploited"])
-            if "actively_exploited" in keys else False,
-        kev_date_added=row["kev_date_added"]
-            if "kev_date_added" in keys else None,
-        kev_due_date=row["kev_due_date"]
-            if "kev_due_date" in keys else None,
-        kev_required_action=row["kev_required_action"]
-            if "kev_required_action" in keys else None,
+        if "actively_exploited" in keys
+        else False,
+        kev_date_added=row["kev_date_added"] if "kev_date_added" in keys else None,
+        kev_due_date=row["kev_due_date"] if "kev_due_date" in keys else None,
+        kev_required_action=row["kev_required_action"] if "kev_required_action" in keys else None,
     )
 
 
 def list_advisories(
-    vendor: str, nos: Optional[str] = None, db_path: Path = DB_PATH,
+    vendor: str,
+    nos: str | None = None,
+    db_path: Path = DB_PATH,
 ) -> list[Advisory]:
     """Pull cached CVE rows for a vendor (optionally narrowed by NOS).
 
     NOS matching is tolerant: switch rows often have heterogeneous nos
     labels ('OS10 / SONiC', 'ArubaOS-CX' vs 'AOS-CX'), so we expand the
     requested nos into common variants. The query is built with an IN
-    clause to keep it a single round-trip."""
+    clause to keep it a single round-trip.
+    """
     if not db_path.exists():
         return []
     con = sqlite3.connect(db_path)
@@ -443,9 +459,8 @@ def list_advisories(
         if nos:
             variants = _nos_match_variants(nos)
             placeholders = ",".join("?" * len(variants))
-            rows = con.execute(
-                f"SELECT * FROM security_advisories "
-                f"WHERE vendor=? AND nos IN ({placeholders})",
+            rows = con.execute(  # placeholders is only "?,?,?"; every value is bound
+                f"SELECT * FROM security_advisories WHERE vendor=? AND nos IN ({placeholders})",  # noqa: S608
                 (vendor, *variants),
             ).fetchall()
         else:
@@ -461,7 +476,8 @@ def list_advisories(
 
 def _version_in_range(version: Version, rng: dict) -> bool:
     """True iff `version` falls inside the {start, start_incl, end, end_incl}
-    range. None bounds mean unbounded on that side."""
+    range. None bounds mean unbounded on that side.
+    """
     start = parse_version(rng.get("start")) if rng.get("start") else None
     end = parse_version(rng.get("end")) if rng.get("end") else None
     start_incl = bool(rng.get("start_incl"))
@@ -485,12 +501,13 @@ def _version_in_range(version: Version, rng: dict) -> bool:
 
 def advisories_for_version(
     vendor: str,
-    nos: Optional[str],
+    nos: str | None,
     current_version: str,
     db_path: Path = DB_PATH,
 ) -> list[Advisory]:
     """Return all known CVEs whose affected ranges include current_version.
-    Sorted highest-severity first, then by CVSS score, then by date."""
+    Sorted highest-severity first, then by CVSS score, then by date.
+    """
     v = parse_version(current_version)
     if v is None:
         return []
@@ -513,10 +530,11 @@ def advisories_for_version(
     return matching
 
 
-def minimum_fixed_version(advisories: list[Advisory]) -> Optional[str]:
+def minimum_fixed_version(advisories: list[Advisory]) -> str | None:
     """Across a list of advisories, find the smallest 'fixed_versions' entry
     that's >= all known fixes. Heuristic — vendors don't always backport, so
-    the user should still read the per-CVE notes."""
+    the user should still read the per-CVE notes.
+    """
     fixes = []
     for a in advisories:
         for fv in a.fixed_versions:
@@ -553,16 +571,18 @@ FETCHER_KEYS = {
 def _try_live_firmware(model: str, vendor: str):
     """Lazy wrapper around live_firmware.live_firmware_lookup so the
     import only happens when we actually need it (keeps cold start fast
-    and lets advise() work even if requests/bs4 aren't installed)."""
+    and lets advise() work even if requests/bs4 aren't installed).
+    """
     if not (model or vendor):
         return None
     try:
         from live_firmware import live_firmware_lookup
-        return live_firmware_lookup(model or vendor, vendor_hint=vendor,
-                                    deadline_sec=8.5)
+
+        return live_firmware_lookup(model or vendor, vendor_hint=vendor, deadline_sec=8.5)
     except Exception as e:  # pragma: no cover
         logger.warning("live firmware lookup failed: %s", e)
         return None
+
 
 # Vendors whose full *release notes* are behind a vendor login portal —
 # but whose security advisories ARE publicly available via NIST NVD and
@@ -582,6 +602,7 @@ LOGIN_GATED_VENDORS = {
 # vendor support portals — surface the URL instead of "no source".
 try:
     from vendor_registry import login_gated as _vr_gated
+
     for _name, _url in _vr_gated().items():
         LOGIN_GATED_VENDORS.setdefault(_name, _url)
 except Exception:  # pragma: no cover
@@ -603,7 +624,8 @@ DEFAULT_GATED_NOS = {
 def _nos_match_variants(nos: str) -> list[str]:
     """Generate plausible nos string variants so a switch row with
     nos='OS10 / SONiC' still matches advisories stored under 'OS10', and
-    'ArubaOS-CX' matches 'AOS-CX', etc."""
+    'ArubaOS-CX' matches 'AOS-CX', etc.
+    """
     if not nos:
         return []
     raw = nos.strip()
@@ -622,17 +644,18 @@ def _nos_match_variants(nos: str) -> list[str]:
 @dataclass
 class FirmwareAdvice:
     """Result of an advise() call - always returned, even when no data."""
+
     vendor: str
-    nos: Optional[str]
+    nos: str | None
     current_version: str
     has_data: bool
     message: str = ""
-    diff: Optional[FirmwareDiff] = None
-    portal_url: Optional[str] = None
+    diff: FirmwareDiff | None = None
+    portal_url: str | None = None
     # CVE data — populated from security_advisories (NVD). Independent of
     # diff, which comes from firmware_versions (vendor changelog).
     advisories: list[Advisory] = field(default_factory=list)
-    recommended_min_version: Optional[str] = None
+    recommended_min_version: str | None = None
     # True when full release notes need a vendor login (CVE data may still
     # be available below via `advisories`).
     release_notes_gated: bool = False
@@ -641,13 +664,19 @@ class FirmwareAdvice:
 def advise(
     *,
     vendor: str,
-    nos: Optional[str],
+    nos: str | None,
     current_version: str,
-    model: Optional[str] = None,
+    model: str | None = None,
     db_path: Path = DB_PATH,
+    live: bool = True,
 ) -> FirmwareAdvice:
     """
     Top-level firmware advice. Always returns a FirmwareAdvice (never None).
+
+    live=False answers from the database only. The live web fallback is a
+    multi-engine search that takes several seconds, and callers that need a
+    bounded answer (the RackTrack server, which asks with --no-live) must not
+    pay for it — before this flag existed they did, every time.
 
     Combines two independent data sources:
       - firmware_versions  (vendor changelogs — public-vendor fetchers)
@@ -675,24 +704,32 @@ def advise(
         vlatest = vendor_latest_any(vendor, db_path=db_path)
         if vlatest is not None:
             syn_cur = FirmwareRecord(
-                vendor=vendor, nos=vlatest.nos or vendor,
+                vendor=vendor,
+                nos=vlatest.nos or vendor,
                 version=current_version,
             )
             syn_diff = FirmwareDiff(
-                current=syn_cur, target=vlatest, releases_behind=0,
-                intermediate_versions=[], new_features=[],
-                security_fixes=[], bug_fixes=[],
-                known_issues=[], deprecations=[],
+                current=syn_cur,
+                target=vlatest,
+                releases_behind=0,
+                intermediate_versions=[],
+                new_features=[],
+                security_fixes=[],
+                bug_fixes=[],
+                known_issues=[],
+                deprecations=[],
             )
             return FirmwareAdvice(
-                vendor=vendor, nos=vlatest.nos or vendor,
+                vendor=vendor,
+                nos=vlatest.nos or vendor,
                 current_version=current_version,
                 has_data=True,
-                message=(f"Latest cached firmware for {vendor}: "
-                         f"v{vlatest.version}"
-                         + (f" (released {vlatest.release_date})"
-                            if vlatest.release_date else "")
-                         + "."),
+                message=(
+                    f"Latest cached firmware for {vendor}: "
+                    f"v{vlatest.version}"
+                    + (f" (released {vlatest.release_date})" if vlatest.release_date else "")
+                    + "."
+                ),
                 diff=syn_diff,
             )
 
@@ -700,30 +737,37 @@ def advise(
         # so long-tail vendors (Westermo, Sophos, Tenda, Allied Telesis,
         # Pluribus, ...) still produce a useful pointer instead of a
         # dead-end "no default known" message.
-        live_rec = _try_live_firmware(model or "", vendor)
+        live_rec = _try_live_firmware(model or "", vendor) if live else None
         if live_rec is not None:
-            tail = (f" (released {live_rec.release_date})"
-                    if live_rec.release_date else "")
-            msg = (f"Latest firmware for {vendor}: "
-                   f"v{live_rec.version}{tail}.")
+            tail = f" (released {live_rec.release_date})" if live_rec.release_date else ""
+            msg = f"Latest firmware for {vendor}: v{live_rec.version}{tail}."
             syn_cur = FirmwareRecord(
-                vendor=vendor, nos=live_rec.nos or vendor,
+                vendor=vendor,
+                nos=live_rec.nos or vendor,
                 version=current_version,
             )
             syn_diff = FirmwareDiff(
-                current=syn_cur, target=live_rec, releases_behind=0,
-                intermediate_versions=[], new_features=[],
-                security_fixes=[], bug_fixes=[],
-                known_issues=[], deprecations=[],
+                current=syn_cur,
+                target=live_rec,
+                releases_behind=0,
+                intermediate_versions=[],
+                new_features=[],
+                security_fixes=[],
+                bug_fixes=[],
+                known_issues=[],
+                deprecations=[],
             )
             return FirmwareAdvice(
-                vendor=vendor, nos=live_rec.nos or vendor,
+                vendor=vendor,
+                nos=live_rec.nos or vendor,
                 current_version=current_version,
-                has_data=True, message=msg,
+                has_data=True,
+                message=msg,
                 diff=syn_diff,
             )
         return FirmwareAdvice(
-            vendor=vendor, nos=None,
+            vendor=vendor,
+            nos=None,
             current_version=current_version,
             has_data=False,
             message=f"No NOS specified and no default known for {vendor}.",
@@ -731,7 +775,10 @@ def advise(
 
     # Pull CVE data first — it's the layer that works for every vendor.
     advisories = advisories_for_version(
-        vendor, nos, current_version, db_path=db_path,
+        vendor,
+        nos,
+        current_version,
+        db_path=db_path,
     )
     min_fix = minimum_fixed_version(advisories) if advisories else None
 
@@ -747,14 +794,15 @@ def advise(
     if not diff:
         vendor_latest = vendor_latest_any(vendor, db_path=db_path)
 
-    def _synthetic_diff_from_latest(latest_rec: FirmwareRecord) -> Optional[FirmwareDiff]:
+    def _synthetic_diff_from_latest(latest_rec: FirmwareRecord) -> FirmwareDiff | None:
         # Surface the cached latest unconditionally — the advisor's job is
         # to tell the user what we know, not to silently drop data when
         # their current is newer than our cached pointer. If current ≥
         # latest, releases_behind stays 0 and the caller's message can say
         # "you are at or newer than the cached latest".
         synthetic_current = FirmwareRecord(
-            vendor=vendor, nos=nos or latest_rec.nos or vendor,
+            vendor=vendor,
+            nos=nos or latest_rec.nos or vendor,
             version=current_version,
         )
         return FirmwareDiff(
@@ -762,23 +810,23 @@ def advise(
             target=latest_rec,
             releases_behind=0,
             intermediate_versions=[],
-            new_features=[], security_fixes=[], bug_fixes=[],
-            known_issues=[], deprecations=[],
+            new_features=[],
+            security_fixes=[],
+            bug_fixes=[],
+            known_issues=[],
+            deprecations=[],
         )
 
     if gated:
         portal = LOGIN_GATED_VENDORS[vendor]
+
         def _sev_breakdown(items):
-            counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0,
-                      "NONE": 0}
+            counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "NONE": 0}
             for a in items:
                 key = (a.severity or "").upper() or "NONE"
                 counts[key] = counts.get(key, 0) + 1
             order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "NONE"]
-            return " · ".join(
-                f"{n} {k}" for k in order
-                for n in (counts.get(k, 0),) if n
-            )
+            return " · ".join(f"{n} {k}" for k in order for n in (counts.get(k, 0),) if n)
 
         if advisories:
             breakdown = _sev_breakdown(advisories)
@@ -808,7 +856,8 @@ def advise(
         if not diff and vendor_latest is not None:
             diff = _synthetic_diff_from_latest(vendor_latest)
         return FirmwareAdvice(
-            vendor=vendor, nos=nos,
+            vendor=vendor,
+            nos=nos,
             current_version=current_version,
             has_data=bool(advisories) or bool(diff),
             message=msg,
@@ -828,14 +877,20 @@ def advise(
             syn = _synthetic_diff_from_latest(vendor_latest)
             if syn is not None:
                 return FirmwareAdvice(
-                    vendor=vendor, nos=nos,
+                    vendor=vendor,
+                    nos=nos,
                     current_version=current_version,
                     has_data=True,
-                    message=(f"Latest cached firmware for {vendor}: "
-                             f"v{vendor_latest.version}"
-                             + (f" (released {vendor_latest.release_date})"
-                                if vendor_latest.release_date else "")
-                             + ". Sourced from live web prefetch."),
+                    message=(
+                        f"Latest cached firmware for {vendor}: "
+                        f"v{vendor_latest.version}"
+                        + (
+                            f" (released {vendor_latest.release_date})"
+                            if vendor_latest.release_date
+                            else ""
+                        )
+                        + ". Sourced from live web prefetch."
+                    ),
                     diff=syn,
                     advisories=advisories,
                     recommended_min_version=min_fix,
@@ -843,16 +898,16 @@ def advise(
         if not list_firmware(vendor, nos, db_path=db_path):
             # Live firmware fallback — search the public web for the
             # latest version pointer + notes URL. Cached on success.
-            live_rec = _try_live_firmware(model or "", vendor)
+            live_rec = _try_live_firmware(model or "", vendor) if live else None
             if live_rec is not None:
-                tail = (f" (released {live_rec.release_date})"
-                        if live_rec.release_date else "")
-                msg = (f"Latest firmware for {vendor}: "
-                       f"v{live_rec.version}{tail}.")
+                tail = f" (released {live_rec.release_date})" if live_rec.release_date else ""
+                msg = f"Latest firmware for {vendor}: v{live_rec.version}{tail}."
                 return FirmwareAdvice(
-                    vendor=vendor, nos=live_rec.nos or nos,
+                    vendor=vendor,
+                    nos=live_rec.nos or nos,
                     current_version=current_version,
-                    has_data=True, message=msg,
+                    has_data=True,
+                    message=msg,
                     diff=_synthetic_diff_from_latest(live_rec),
                     advisories=advisories,
                     recommended_min_version=min_fix,
@@ -864,7 +919,8 @@ def advise(
             else:
                 msg = f"No firmware data available for {vendor}."
             return FirmwareAdvice(
-                vendor=vendor, nos=nos,
+                vendor=vendor,
+                nos=nos,
                 current_version=current_version,
                 has_data=bool(advisories),
                 message=msg,
@@ -872,7 +928,8 @@ def advise(
                 recommended_min_version=min_fix,
             )
         return FirmwareAdvice(
-            vendor=vendor, nos=nos,
+            vendor=vendor,
+            nos=nos,
             current_version=current_version,
             has_data=True,
             message=(
@@ -884,7 +941,8 @@ def advise(
         )
 
     return FirmwareAdvice(
-        vendor=vendor, nos=nos,
+        vendor=vendor,
+        nos=nos,
         current_version=current_version,
         has_data=True,
         diff=diff,
@@ -896,6 +954,7 @@ def advise(
 # -----------------------------------------------------------------------------
 # Plain-text formatting (no LLM, just print)
 # -----------------------------------------------------------------------------
+
 
 def format_advice(advice: FirmwareAdvice) -> str:
     """Render a FirmwareAdvice as plain text suitable for CLI output."""
@@ -957,8 +1016,7 @@ def format_advice(advice: FirmwareAdvice) -> str:
 
     if d.target.is_recommended:
         lines.append(
-            f"\n  This release is marked as vendor-recommended "
-            f"({d.target.train or 'stable'})."
+            f"\n  This release is marked as vendor-recommended ({d.target.train or 'stable'})."
         )
 
     if d.target.release_notes_url:

@@ -758,7 +758,7 @@ export default function SwitchTestPage() {
             Each one is a band across the full width of the screen, parted from
             the next by a hairline and marked down its left edge by how it went.
             Nothing floats and nothing nests: the reading IS the row. */}
-        {switches.map((sw) => {
+        {switches.map((sw, idx) => {
           const r = results[sw.id];
           const err = errors[sw.id];
           const working = busy === sw.id;
@@ -781,7 +781,7 @@ export default function SwitchTestPage() {
             <section key={sw.id} className={styles.row} data-state={state}>
               <div className={styles.rowTop}>
                 <div className={styles.who}>
-                  <h2>{sw.label}</h2>
+                  <h2><span className={styles.num} aria-hidden="true">{idx + 1}</span>{sw.label}</h2>
                   {r && (
                     <p className={styles.model}>
                       {r.vendor && <span className={styles.make}>{r.vendor}</span>}

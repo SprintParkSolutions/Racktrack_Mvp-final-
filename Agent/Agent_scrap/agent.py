@@ -7,13 +7,13 @@ Works in two modes:
 
 Designed for sub-second responses on a local SQLite DB.
 """
+
 import json
 import logging
 import re
 import sqlite3
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("agent")
 
@@ -54,6 +54,7 @@ VENDOR_ALIASES = {
 # Hardcoded entries above win on conflict so existing behaviour is preserved.
 try:
     from vendor_registry import aliases as _vr_aliases
+
     for _a, _name in _vr_aliases().items():
         VENDOR_ALIASES.setdefault(_a, _name)
 except Exception:  # pragma: no cover
@@ -106,8 +107,7 @@ def hay_core(hay: str, nt: str) -> bool:
 
 
 class SpecAgent:
-    def __init__(self, db_path: Path = DB_PATH, live: bool = True,
-                 enable_live: bool | None = None):
+    def __init__(self, db_path: Path = DB_PATH, live: bool = True, enable_live: bool | None = None):
         # live=True: on a DB miss, fall back to a free multi-engine web
         # lookup (+ multi-source extraction, ~4-9 s, then cached).
         # Set live=False for fully-offline / deterministic behaviour.
@@ -121,6 +121,7 @@ class SpecAgent:
                 # run app.py` / `cli.py` work with no manual build step.
                 try:
                     import build_db
+
                     build_db.build()
                 except Exception as e:
                     raise FileNotFoundError(
@@ -142,7 +143,7 @@ class SpecAgent:
 
     # ---------- Query parsing ----------
 
-    def _extract_vendor(self, q: str) -> Optional[str]:
+    def _extract_vendor(self, q: str) -> str | None:
         q_low = q.lower()
         # Longest alias wins (so "tp-link" beats "tp")
         for alias in sorted(VENDOR_ALIASES, key=len, reverse=True):
@@ -182,7 +183,7 @@ class SpecAgent:
         rows = self._fuzzy(query, vendor)
         return [self._row_to_dict(r) for r in rows[:limit]]
 
-    def _exact(self, token: str, vendor: Optional[str]):
+    def _exact(self, token: str, vendor: str | None):
         sql = """SELECT * FROM switches
                  WHERE (UPPER(sku)=UPPER(?) OR UPPER(model)=UPPER(?))"""
         args = [token, token]
@@ -191,7 +192,7 @@ class SpecAgent:
             args.append(vendor)
         return self.con.execute(sql, args).fetchall()
 
-    def _substring(self, token: str, vendor: Optional[str]):
+    def _substring(self, token: str, vendor: str | None):
         like = f"%{token}%"
         sql = """SELECT * FROM switches
                  WHERE (sku LIKE ? OR model LIKE ? OR family LIKE ?)"""
@@ -201,7 +202,7 @@ class SpecAgent:
             args.append(vendor)
         return self.con.execute(sql, args).fetchall()
 
-    def _fuzzy(self, query: str, vendor: Optional[str], top: int = 5):
+    def _fuzzy(self, query: str, vendor: str | None, top: int = 5):
         sql = "SELECT * FROM switches"
         args: list = []
         if vendor:
@@ -237,9 +238,9 @@ class SpecAgent:
 
     def list_vendors(self) -> list[tuple[str, int]]:
         return [
-            (r[0], r[1]) for r in self.con.execute(
-                "SELECT vendor, COUNT(*) FROM switches "
-                "GROUP BY vendor ORDER BY vendor"
+            (r[0], r[1])
+            for r in self.con.execute(
+                "SELECT vendor, COUNT(*) FROM switches GROUP BY vendor ORDER BY vendor"
             ).fetchall()
         ]
 
@@ -252,14 +253,14 @@ class SpecAgent:
     def filter(
         self,
         *,
-        vendor: Optional[str] = None,
-        min_port_speed: Optional[int] = None,
-        min_ports: Optional[int] = None,
-        poe: Optional[bool] = None,
-        min_poe_w: Optional[int] = None,
-        layer: Optional[str] = None,
-        use_case: Optional[str] = None,
-        feature: Optional[str] = None,
+        vendor: str | None = None,
+        min_port_speed: int | None = None,
+        min_ports: int | None = None,
+        poe: bool | None = None,
+        min_poe_w: int | None = None,
+        layer: str | None = None,
+        use_case: str | None = None,
+        feature: str | None = None,
     ) -> list[dict]:
         clauses, args = [], []
         if vendor:
@@ -307,7 +308,7 @@ class SpecAgent:
 
     def _token_in_record(self, rec: dict, tokens: list[str]) -> bool:
         """True if any model-token actually overlaps this record's id fields."""
-        hay = _norm(f"{rec.get('model','')} {rec.get('sku','')} {rec.get('family','')}")
+        hay = _norm(f"{rec.get('model', '')} {rec.get('sku', '')} {rec.get('family', '')}")
         for t in tokens:
             nt = _norm(t)
             if nt and (nt in hay or hay_core(hay, nt)):
@@ -324,22 +325,25 @@ class SpecAgent:
         """
         query = (query or "").strip()
         if not query:
-            return {"type": "empty",
-                    "message": "Ask about a switch, e.g. 'Cisco C9300-48P', "
-                               "'compare C9300-48P vs EX4400-48P', "
-                               "'which switches support 400G'."}
+            return {
+                "type": "empty",
+                "message": "Ask about a switch, e.g. 'Cisco C9300-48P', "
+                "'compare C9300-48P vs EX4400-48P', "
+                "'which switches support 400G'.",
+            }
 
         ql = query.lower()
         if ql in ("vendors", "list vendors", "what vendors", "which vendors"):
-            return {"type": "vendors",
-                    "message": "Vendors in the knowledge base:",
-                    "vendors": self.list_vendors()}
+            return {
+                "type": "vendors",
+                "message": "Vendors in the knowledge base:",
+                "vendors": self.list_vendors(),
+            }
 
         # Comparison: "A vs B", "compare A and B", "A versus B"
         if " vs " in ql or " versus " in ql or ql.startswith("compare "):
             body = re.sub(r"^\s*compare\s+", "", ql, count=1)
-            parts = [p.strip() for p in re.split(r"\bvs\b|\bversus\b|\band\b|,", body)
-                     if p.strip()]
+            parts = [p.strip() for p in re.split(r"\bvs\b|\bversus\b|\band\b|,", body) if p.strip()]
             if len(parts) >= 2:
                 picked = []
                 for p in parts[:4]:
@@ -347,9 +351,11 @@ class SpecAgent:
                     if res.get("type") == "spec":
                         picked.append(res["result"])
                 if len(picked) >= 2:
-                    return {"type": "compare",
-                            "message": "Side-by-side comparison:",
-                            "results": picked}
+                    return {
+                        "type": "compare",
+                        "message": "Side-by-side comparison:",
+                        "results": picked,
+                    }
 
         # Spec filters ("which/with/all ... 400G / PoE over 600W / spine / EVPN")
         filt = self._parse_filter(query)
@@ -362,17 +368,19 @@ class SpecAgent:
 
     def _parse_filter(self, query: str):
         q = query.lower()
-        listy = any(w in q for w in ("which", "with ", "have ", "support",
-                                     "list ", "show ", "all ", "that do"))
+        listy = any(
+            w in q
+            for w in ("which", "with ", "have ", "support", "list ", "show ", "all ", "that do")
+        )
 
         m = re.search(r"(\d{2,4})\s*g\b", q)
         if listy and m:
             spd = int(m.group(1))
-            return (f"Switches with port speed >= {spd}G",
-                    {"min_port_speed": spd})
+            return (f"Switches with port speed >= {spd}G", {"min_port_speed": spd})
 
-        poe = re.search(r"poe[^0-9]{0,12}(\d{2,4})\s*w", q) or \
-            re.search(r"(\d{2,4})\s*w[^0-9]{0,12}poe", q)
+        poe = re.search(r"poe[^0-9]{0,12}(\d{2,4})\s*w", q) or re.search(
+            r"(\d{2,4})\s*w[^0-9]{0,12}poe", q
+        )
         if "poe" in q and poe:
             w = int(poe.group(1))
             return (f"Switches with PoE budget >= {w} W", {"min_poe_w": w})
@@ -380,13 +388,17 @@ class SpecAgent:
         # Role keywords trigger on "which/list ..." OR a bare
         # "<role> switch(es)" OR just the role word on its own.
         role_ctx = listy or "switch" in q
-        for kw, uc in (("spine", "spine"), ("leaf", "leaf"),
-                       ("aggregation", "aggregation"), ("core", "core"),
-                       ("tor", "ToR"), ("top of rack", "ToR"),
-                       ("access", "access"), ("campus", "access")):
-            if re.search(rf"\b{re.escape(kw)}\b", q) and (
-                role_ctx or q.strip() in (kw, kw + "s")
-            ):
+        for kw, uc in (
+            ("spine", "spine"),
+            ("leaf", "leaf"),
+            ("aggregation", "aggregation"),
+            ("core", "core"),
+            ("tor", "ToR"),
+            ("top of rack", "ToR"),
+            ("access", "access"),
+            ("campus", "access"),
+        ):
+            if re.search(rf"\b{re.escape(kw)}\b", q) and (role_ctx or q.strip() in (kw, kw + "s")):
                 return (f"Switches for role: {uc}", {"use_case": uc})
 
         if listy and ("evpn" in q or "vxlan" in q):
@@ -399,7 +411,8 @@ class SpecAgent:
 
     def _gated_lookup(self, query: str) -> dict:
         """lookup(), but refuse to return a junk fuzzy match for a model
-        the user named explicitly that isn't actually in the KB."""
+        the user named explicitly that isn't actually in the KB.
+        """
         vendor = self._extract_vendor(query)
         tokens = self._extract_model_candidates(query)
         results = self.lookup(query, limit=5)
@@ -429,39 +442,59 @@ class SpecAgent:
             if enriched:
                 top = enriched
 
-        conf = "high" if (tokens and self._token_in_record(top, tokens)) \
-            else "medium" if not tokens else "low"
-        alts = [{"vendor": r["vendor"], "model": r["model"]}
-                for r in ranked[1:4]]
-        return {"type": "spec",
-                "message": f"Best match ({conf} confidence):",
-                "result": top, "confidence": conf, "alternates": alts}
+        conf = (
+            "high"
+            if (tokens and self._token_in_record(top, tokens))
+            else "medium"
+            if not tokens
+            else "low"
+        )
+        alts = [{"vendor": r["vendor"], "model": r["model"]} for r in ranked[1:4]]
+        return {
+            "type": "spec",
+            "message": f"Best match ({conf} confidence):",
+            "result": top,
+            "confidence": conf,
+            "alternates": alts,
+        }
 
     # ---- Auto-enrichment of sparse cached rows ----
 
     _USEFUL_FIELDS = (
-        "port_count", "port_config", "port_speed_max_gbps",
-        "switching_capacity_gbps", "forwarding_rate_mpps", "buffer_mb",
-        "layer", "poe_standard", "poe_budget_w", "rack_units", "nos",
+        "port_count",
+        "port_config",
+        "port_speed_max_gbps",
+        "switching_capacity_gbps",
+        "forwarding_rate_mpps",
+        "buffer_mb",
+        "layer",
+        "poe_standard",
+        "poe_budget_w",
+        "rack_units",
+        "nos",
         "use_case",
     )
 
     def _is_sparse(self, rec: dict) -> bool:
         """A row is 'sparse' if it has <2 useful fields and <3 features
-        and no extra_specs — i.e. the UI would show almost nothing."""
-        useful = sum(1 for k in self._USEFUL_FIELDS
-                     if rec.get(k) not in (None, "", 0))
+        and no extra_specs — i.e. the UI would show almost nothing.
+        """
+        useful = sum(1 for k in self._USEFUL_FIELDS if rec.get(k) not in (None, "", 0))
         feats = len(rec.get("features") or [])
-        extras = len(rec.get("extra_specs") or {}) \
-            if isinstance(rec.get("extra_specs"), dict) else 0
+        extras = (
+            len(rec.get("extra_specs") or {}) if isinstance(rec.get("extra_specs"), dict) else 0
+        )
         return useful < 2 and feats < 3 and extras == 0
 
-    def _enrich_from_web(self, query: str, top: dict) -> Optional[dict]:
+    def _enrich_from_web(self, query: str, top: dict) -> dict | None:
         """Run a live lookup and fill in any field that's empty in the
-        local row. Never overwrites existing values. Persists the result."""
+        local row. Never overwrites existing values. Persists the result.
+        """
         try:
             from dataclasses import asdict
+
             from live_extract import live_lookup
+
             rec = live_lookup(query, deadline_sec=8.0, persist=False)
         except Exception as e:
             logger.warning("auto-enrich live lookup failed: %s", e)
@@ -469,16 +502,13 @@ class SpecAgent:
         if rec is None:
             return None
 
-        live = {k: v for k, v in asdict(rec).items()
-                if v not in (None, "", [], {})}
+        live = {k: v for k, v in asdict(rec).items() if v not in (None, "", [], {})}
         merged = dict(top)
         added = 0
         for k, v in live.items():
             if k in ("vendor", "model"):
                 continue  # never rename the cached identity
-            if merged.get(k) in (None, "", [], 0) or (
-                k == "extra_specs" and not merged.get(k)
-            ):
+            if merged.get(k) in (None, "", [], 0) or (k == "extra_specs" and not merged.get(k)):
                 merged[k] = v
                 added += 1
         if added == 0:
@@ -489,8 +519,12 @@ class SpecAgent:
             self._persist_enriched(merged)
         except Exception as e:
             logger.warning("auto-enrich persist failed: %s", e)
-        logger.info("Auto-enriched %s/%s — added %d fields",
-                    merged.get("vendor"), merged.get("model"), added)
+        logger.info(
+            "Auto-enriched %s/%s — added %d fields",
+            merged.get("vendor"),
+            merged.get("model"),
+            added,
+        )
         return merged
 
     def _persist_enriched(self, merged: dict) -> None:
@@ -511,16 +545,16 @@ class SpecAgent:
         if not d:
             return
         # UPDATE existing row keyed on (vendor, model).
-        sets = ",".join(f"{k}=?" for k in d
-                        if k not in ("vendor", "model"))
+        sets = ",".join(f"{k}=?" for k in d if k not in ("vendor", "model"))
         vals = [v for k, v in d.items() if k not in ("vendor", "model")]
+        # Column names come from our own row dict; values are bound.
         self.con.execute(
-            f"UPDATE switches SET {sets} WHERE vendor=? AND model=?",
+            f"UPDATE switches SET {sets} WHERE vendor=? AND model=?",  # noqa: S608
             vals + [d.get("vendor"), d.get("model")],
         )
         self.con.commit()
 
-    def _notfound(self, query: str, vendor: Optional[str]) -> dict:
+    def _notfound(self, query: str, vendor: str | None) -> dict:
         # Live web fallback: not in the local DB -> search the web for
         # free, extract specs, cache into the DB, and return. This is
         # what makes the agent answer for ANY vendor/model, not just
@@ -533,21 +567,30 @@ class SpecAgent:
         if vendor:
             sugg = [m["model"] for m in self.list_models(vendor)][:10]
         else:
-            sugg = [r["model"] for r in self.con.execute(
-                "SELECT model FROM switches ORDER BY vendor LIMIT 10")]
-        why = ("the live web lookup found nothing usable in time"
-               if self.live else "live lookup is disabled")
-        return {"type": "notfound",
-                "message": f"'{query}' is not in the local database and "
-                           f"{why}. Try a more specific model number, or add "
-                           "it to seed_data.json / run the scrapers.",
-                "suggestions": sugg}
+            sugg = [
+                r["model"]
+                for r in self.con.execute("SELECT model FROM switches ORDER BY vendor LIMIT 10")
+            ]
+        why = (
+            "the live web lookup found nothing usable in time"
+            if self.live
+            else "live lookup is disabled"
+        )
+        return {
+            "type": "notfound",
+            "message": f"'{query}' is not in the local database and "
+            f"{why}. Try a more specific model number, or add "
+            "it to seed_data.json / run the scrapers.",
+            "suggestions": sugg,
+        }
 
-    def _live_lookup(self, query: str) -> Optional[dict]:
+    def _live_lookup(self, query: str) -> dict | None:
         """Free web fallback. Returns a spec-shaped dict or None."""
         try:
             from dataclasses import asdict
+
             from live_extract import live_lookup
+
             rec = live_lookup(query, deadline_sec=8.5, persist=True)
         except Exception as e:
             logger.warning("live lookup failed: %s", e)
@@ -562,14 +605,16 @@ class SpecAgent:
             pass
         result = {k: v for k, v in asdict(rec).items()}
         field_conf = getattr(rec, "confidence", {}) or {}
-        return {"type": "spec",
-                "message": "Not in the local DB — fetched live from the web "
-                           "(now cached for instant future lookups):",
-                "result": result,
-                "confidence": "live-web",
-                "source": "live",
-                "field_confidence": field_conf,
-                "alternates": []}
+        return {
+            "type": "spec",
+            "message": "Not in the local DB — fetched live from the web "
+            "(now cached for instant future lookups):",
+            "result": result,
+            "confidence": "live-web",
+            "source": "live",
+            "field_confidence": field_conf,
+            "alternates": [],
+        }
 
     @staticmethod
     def format_compare(records: list[dict]) -> str:
@@ -603,7 +648,8 @@ class SpecAgent:
             advisory lookup, useful when they just have firmware version +
             vendor name and want CVE data
         """
-        from firmware import advise as _advise, FirmwareAdvice
+        from firmware import FirmwareAdvice
+        from firmware import advise as _advise
 
         # First try a full model lookup (gives us NOS from spec data).
         # CRITICAL: only trust the lookup if the model tokens in the query
@@ -621,6 +667,7 @@ class SpecAgent:
                     nos=s.get("nos"),
                     current_version=current_version,
                     model=s.get("model"),
+                    live=self.live,
                 )
 
         # No model match — fall back to vendor-only resolution. This is
@@ -629,12 +676,15 @@ class SpecAgent:
         vendor = self._extract_vendor(query)
         if vendor:
             return _advise(
-                vendor=vendor, nos=None,
+                vendor=vendor,
+                nos=None,
                 current_version=current_version,
+                live=self.live,
             )
 
         return FirmwareAdvice(
-            vendor="Unknown", nos=None,
+            vendor="Unknown",
+            nos=None,
             current_version=current_version,
             has_data=False,
             message=(
@@ -647,11 +697,16 @@ class SpecAgent:
     def latest_firmware(self, query: str) -> dict:
         """Resolve vendor + NOS for a switch query and return the latest
         known firmware (no current-version diff). Used when the user only
-        types a model — show them what the latest release is."""
+        types a model — show them what the latest release is.
+        """
         from firmware import (
-            PUBLIC_FIRMWARE_VENDORS, LOGIN_GATED_VENDORS,
+            LOGIN_GATED_VENDORS,
+            PUBLIC_FIRMWARE_VENDORS,
+        )
+        from firmware import (
             latest_firmware as _latest,
         )
+
         # Resolve vendor (prefer DB row, fall back to alias parsing).
         vendor, nos = None, None
         spec = self.lookup(query, limit=1)
@@ -661,10 +716,14 @@ class SpecAgent:
         if not vendor:
             vendor = self._extract_vendor(query)
         if not vendor:
-            return {"status": "no-vendor",
-                    "message": (f"Could not identify vendor from {query!r}. "
-                                "Include the vendor name, e.g. 'Cisco "
-                                "Catalyst 9300-48P'.")}
+            return {
+                "status": "no-vendor",
+                "message": (
+                    f"Could not identify vendor from {query!r}. "
+                    "Include the vendor name, e.g. 'Cisco "
+                    "Catalyst 9300-48P'."
+                ),
+            }
 
         canonical = PUBLIC_FIRMWARE_VENDORS.get(vendor)
         if canonical:
@@ -673,24 +732,38 @@ class SpecAgent:
         if not nos:
             portal = LOGIN_GATED_VENDORS.get(vendor)
             if portal:
-                return {"status": "login-gated", "vendor": vendor,
-                        "portal_url": portal,
-                        "message": (f"Latest {vendor} firmware is published "
-                                    "behind the vendor's login portal.")}
-            return {"status": "no-source", "vendor": vendor,
-                    "message": f"No firmware data available for {vendor}."}
+                return {
+                    "status": "login-gated",
+                    "vendor": vendor,
+                    "portal_url": portal,
+                    "message": (
+                        f"Latest {vendor} firmware is published behind the vendor's login portal."
+                    ),
+                }
+            return {
+                "status": "no-source",
+                "vendor": vendor,
+                "message": f"No firmware data available for {vendor}.",
+            }
 
         rec = _latest(vendor, nos)
         if not rec:
-            return {"status": "no-data", "vendor": vendor, "nos": nos,
-                    "message": (f"No firmware records cached for {vendor} "
-                                f"{nos} yet. Run "
-                                f"`python3 fetch_firmware.py "
-                                f"{vendor.lower()}` to populate.")}
+            return {
+                "status": "no-data",
+                "vendor": vendor,
+                "nos": nos,
+                "message": (
+                    f"No firmware records cached for {vendor} "
+                    f"{nos} yet. Run "
+                    f"`python3 fetch_firmware.py "
+                    f"{vendor.lower()}` to populate."
+                ),
+            }
 
         return {
             "status": "ok",
-            "vendor": vendor, "nos": nos,
+            "vendor": vendor,
+            "nos": nos,
             "version": rec.version,
             "release_date": rec.release_date,
             "train": rec.train,
