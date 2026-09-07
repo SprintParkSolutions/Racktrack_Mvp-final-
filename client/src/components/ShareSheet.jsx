@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useModalA11y from '../hooks/useModalA11y.js';
 import { apiUrl, authFetch, publicOrigin } from '../utils/api';
@@ -7,10 +7,11 @@ import styles from './ShareSheet.module.css';
 /**
  * Send this report to somebody.
  *
- * Four ways, in the order a person reaches for them: a Teams message and an
- * email, both sent by the server from the RackTrack mailbox with the PDF
- * attached; a link, for anyone who is not in the tenant; and the phone's own
- * share sheet where it has one.
+ * Three ways: a Teams message and an email, both sent by the server from the
+ * RackTrack mailbox with the PDF attached; and a link, for anyone who is not
+ * in the tenant. The way is picked at the top; below it is the one thing
+ * that way needs (an address) and a Send button right under it, so the
+ * button is on screen while the keyboard is up.
  *
  * The two Microsoft ones need an address because that is who the message goes
  * to — the server will not guess a recipient, and a report is not a thing to
@@ -19,40 +20,49 @@ import styles from './ShareSheet.module.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const WAYS = [
+  { id: 'teams',   label: 'Teams', hint: 'A chat from the RackTrack account, with the PDF attached.' },
+  { id: 'outlook', label: 'Email', hint: 'From racktrackteam@sprintpark.com, with the PDF attached.' },
+  { id: 'link',    label: 'Link',  hint: 'Opens without an account, for the next five minutes.' },
+];
+
 export default function ShareSheet({ rackId, onClose, initial = null }) {
+  const [way, setWay] = useState(WAYS.some(w => w.id === initial) ? initial : 'teams');
   const [to, setTo] = useState('');
-  const [busy, setBusy] = useState(null);      // 'teams' | 'outlook' | 'link'
+  const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);      // { tone, text }
   const panelRef = useModalA11y(onClose, { active: true });
+  const inputRef = useRef(null);
 
-  const send = async (channel) => {
+  const needsAddress = way !== 'link';
+  const addressOk = EMAIL_RE.test(to.trim());
+
+  const send = async () => {
     const email = to.trim();
     if (!EMAIL_RE.test(email)) {
       setNote({ tone: 'bad', text: 'Enter the address to send it to.' });
+      inputRef.current?.focus();
       return;
     }
-    setBusy(channel); setNote(null);
+    setBusy(true); setNote(null);
     try {
-      const r = await authFetch(apiUrl(`/api/scan/${encodeURIComponent(rackId)}/${channel}`), {
+      const r = await authFetch(apiUrl(`/api/scan/${encodeURIComponent(rackId)}/${way}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
       const body = await r.json().catch(() => ({}));
       if (!r.ok || body.ok === false) throw new Error(body.error || `The server could not send it (HTTP ${r.status}).`);
-      setNote({ tone: 'good', text: channel === 'teams' ? `Sent to ${email} on Teams.` : `Emailed to ${email}.` });
+      setNote({ tone: 'good', text: way === 'teams' ? `Sent to ${email} on Teams.` : `Emailed to ${email}.` });
     } catch (e) {
       setNote({ tone: 'bad', text: e.message || 'It could not be sent.' });
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
-  // Opened from "Share → Link": no address is needed, so do it straight away.
-  useEffect(() => { if (initial === 'link') link(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const link = async () => {
-    setBusy('link'); setNote(null);
+    setBusy(true); setNote(null);
     try {
       const r = await authFetch(apiUrl(`/api/scan/${encodeURIComponent(rackId)}/report-token`));
       if (!r.ok) throw new Error('The server would not authorise a link.');
@@ -68,72 +78,62 @@ export default function ShareSheet({ rackId, onClose, initial = null }) {
     } catch (e) {
       setNote({ tone: 'bad', text: e.message || 'The link could not be made.' });
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
+  // Opened from "Share → Link": nothing to type, so do it straight away.
+  useEffect(() => { if (initial === 'link') link(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onSubmit = (e) => { e.preventDefault(); if (busy) return; needsAddress ? send() : link(); };
+  const current = WAYS.find(w => w.id === way);
+
   return createPortal(
     <div className={styles.scrim} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div ref={panelRef} className={styles.sheet} role="dialog" aria-modal="true" aria-label="Send this report">
+      <form ref={panelRef} className={styles.sheet} role="dialog" aria-modal="true" aria-label="Send this report" onSubmit={onSubmit}>
         <div className={styles.head}>
           <h3>Send this report</h3>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        <label className={styles.field}>
-          <span>Send it to</span>
-          <input
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="name@company.com"
-            type="email"
-            inputMode="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-          />
-        </label>
-
-        <div className={styles.ways}>
-          <button type="button" className={`${styles.way} ${initial === 'teams' ? styles.wayOn : ''}`} disabled={busy !== null} onClick={() => send('teams')}>
-            <span className={styles.wayIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-              </svg>
-            </span>
-            <span className={styles.wayText}>
-              <b>{busy === 'teams' ? 'Sending…' : 'Teams'}</b>
-              <small>A chat from the RackTrack account, with the PDF</small>
-            </span>
-          </button>
-
-          <button type="button" className={`${styles.way} ${initial === 'outlook' ? styles.wayOn : ''}`} disabled={busy !== null} onClick={() => send('outlook')}>
-            <span className={styles.wayIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2" /><polyline points="22,6 12,13 2,6" />
-              </svg>
-            </span>
-            <span className={styles.wayText}>
-              <b>{busy === 'outlook' ? 'Sending…' : 'Email'}</b>
-              <small>From racktrackteam@sprintpark.com, PDF attached</small>
-            </span>
-          </button>
-
-          <button type="button" className={styles.way} disabled={busy !== null} onClick={link}>
-            <span className={styles.wayIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
-                <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19" />
-              </svg>
-            </span>
-            <span className={styles.wayText}>
-              <b>{busy === 'link' ? 'Making a link…' : 'Link'}</b>
-              <small>Opens without an account, for five minutes</small>
-            </span>
-          </button>
+        <div className={styles.seg} role="tablist" aria-label="How to send it">
+          {WAYS.map(w => (
+            <button key={w.id} type="button" role="tab" aria-selected={way === w.id}
+              className={`${styles.segBtn} ${way === w.id ? styles.segOn : ''}`}
+              disabled={busy} onClick={() => { setWay(w.id); setNote(null); }}>
+              {w.label}
+            </button>
+          ))}
         </div>
 
-        {note && <p className={note.tone === 'bad' ? styles.bad : styles.good}>{note.text}</p>}
-      </div>
+        <p className={styles.hint}>{current.hint}</p>
+
+        {needsAddress && (
+          <label className={styles.field}>
+            <span>Send it to</span>
+            <input
+              ref={inputRef}
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="name@company.com"
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              enterKeyHint="send"
+              autoFocus
+            />
+          </label>
+        )}
+
+        <button type="submit" className={styles.primary} disabled={busy || (needsAddress && !addressOk)}>
+          {busy
+            ? (needsAddress ? 'Sending…' : 'Making a link…')
+            : (way === 'teams' ? 'Send on Teams' : way === 'outlook' ? 'Send the email' : 'Copy the link')}
+        </button>
+
+        {note && <p className={note.tone === 'bad' ? styles.bad : styles.good} role="status">{note.text}</p>}
+      </form>
     </div>,
     document.body,
   );

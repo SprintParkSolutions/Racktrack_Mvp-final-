@@ -1,19 +1,25 @@
 /* Send this report — see ShareSheet.jsx. */
 
+/* The card sits at the TOP of the screen, not the bottom: the app does not
+   shrink for the iOS keyboard, so anything anchored to the bottom is behind
+   the keyboard the moment the address field is focused — which is exactly
+   when the Send button has to be visible. */
 .scrim {
   position: fixed; inset: 0; z-index: 1000;
   background: rgba(17, 20, 24, .45);
-  display: flex; align-items: flex-end; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px 0;
 }
 .sheet {
-  width: 100%; max-width: 540px; max-height: 88vh; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 14px;
-  padding: 0 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  width: 100%; max-width: 540px; max-height: calc(100vh - env(safe-area-inset-top, 0px) - 28px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+  margin: 0;
+  padding: 0 16px 18px;
   background: var(--bg, #fff);
-  border-radius: 16px 16px 0 0;
+  border-radius: 16px;
   animation: rise .18s ease-out;
 }
-@keyframes rise { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+@keyframes rise { from { transform: translateY(-10px); opacity: .6; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
 
 .head { display: flex; align-items: center; gap: 10px; padding: 16px 0 0; }
@@ -24,6 +30,24 @@
   background: var(--bg2, #f1f3f5); color: var(--text);
   font-size: 14px; cursor: pointer;
 }
+
+/* Which way — one row of three. */
+.seg {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  padding: 4px; border-radius: 12px;
+  background: var(--bg2, #f1f3f5);
+}
+.segBtn {
+  min-height: 38px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--muted);
+  font-family: var(--font); font-size: 14px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color .14s, color .14s;
+}
+.segBtn:disabled { cursor: default; }
+.segOn { background: var(--bg, #fff); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+
+.hint { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
 
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field span {
@@ -38,30 +62,15 @@
   width: 100%;
 }
 
-.ways { display: flex; flex-direction: column; }
-.way {
-  display: flex; align-items: center; gap: 14px;
-  width: 100%; padding: 14px 2px;
-  border: 0; border-top: 1px solid var(--border, rgba(0,0,0,.08));
-  background: transparent; text-align: left;
-  font-family: var(--font);
+/* The one action. Right under the field so it is on screen with the keyboard up. */
+.primary {
+  min-height: 48px; border: 0; border-radius: 12px;
+  background: var(--md-primary, #111418); color: #ffffff;
+  font-family: var(--font); font-size: 15px; font-weight: 650;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: opacity .14s;
 }
-.way:disabled { opacity: .5; cursor: default; }
-.way:active { background: var(--bg2, rgba(0,0,0,.03)); }
-.wayIcon {
-  width: 40px; height: 40px; flex: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 11px;
-  background: var(--bg2, #f1f3f5); color: var(--text);
-}
-.wayText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.wayText b { font-size: 15px; font-weight: 650; color: var(--text); }
-.wayText small { font-size: 12px; color: var(--muted); }
+.primary:disabled { opacity: .4; cursor: default; }
 
 .good { margin: 0; font-size: 13px; color: #0f7b4f; }
 .bad { margin: 0; font-size: 13px; color: #c0392b; }
-
-/* The way that was chosen from the Share menu. */
-.wayOn { background: rgba(15,123,79,.06); }
-.wayOn .wayIcon { background: #0f7b4f; color: #ffffff; }

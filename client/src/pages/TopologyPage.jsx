@@ -18,6 +18,7 @@ const TIER_COLOR = {
 
 const CLASS_LABEL = {
   switch: 'Switch',
+  router: 'Router',
   patch_panel: 'Patch Panel',
   server: 'Server',
 };
@@ -35,6 +36,7 @@ const clsOf = (dev) => String(dev?.class ?? dev?.class_name ?? '')
 function tierOf(dev) {
   const c = clsOf(dev);
   if (!dev.in_rack && c === 'switch') return 'core';
+  if (c === 'router') return 'core';
   if (c === 'switch') return 'distribution';
   if (c === 'patch_panel') return 'access';
   if (c === 'server') return 'endpoint';
@@ -982,6 +984,7 @@ function NodeShape({ dev, pos, color, dimmed, selected, onClick }) {
 
   const devCls = clsOf(dev);
   const glyph = devCls === 'switch'      ? <SwitchGlyph color={color} /> :
+                devCls === 'router'      ? <RouterGlyph color={color} /> :
                 devCls === 'patch_panel' ? <PatchGlyph color={color} /> :
                 devCls === 'server'      ? <ServerGlyph color={color} /> :
                 null;
@@ -1032,6 +1035,19 @@ function SwitchGlyph({ color }) {
       <rect x="10" y="12" width="3" height="4" fill={color} />
       <rect x="15" y="12" width="3" height="4" fill={color} />
       <rect x="20" y="12" width="3" height="4" fill={color} opacity="0.6" />
+    </svg>
+  );
+}
+// A router: the same chassis as a switch, fewer sockets, and the arrows that
+// say traffic leaves the rack through it.
+function RouterGlyph({ color }) {
+  return (
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect x="2" y="9" width="24" height="10" rx="2" stroke={color} strokeWidth="1.6" />
+      <rect x="5" y="12" width="3" height="4" fill={color} />
+      <rect x="10" y="12" width="3" height="4" fill={color} />
+      <path d="M17 12.5h6M21 10.5l2 2-2 2" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M23 16.5h-6M19 14.5l-2 2 2 2" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
     </svg>
   );
 }

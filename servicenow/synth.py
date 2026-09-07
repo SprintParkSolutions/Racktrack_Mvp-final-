@@ -15,6 +15,7 @@ Every synthesized device dict carries `_synthetic: True` and a
 `_synthetic_fields: [list]` so a future "promote" step can identify exactly
 which fields were guessed and need real data.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,7 +31,8 @@ OVERRIDES_DIR = os.path.join(HERE, "overrides")
 def _u_size_from_scan(scan: dict) -> int | None:
     """Derive the rack U-height from the scan. Tries `units_range` ("U01-U18"
     → 18), then falls back to `len(units_detected)`. Returns None if neither
-    is present, so callers can apply their own default."""
+    is present, so callers can apply their own default.
+    """
     rng = scan.get("units_range")
     if isinstance(rng, str):
         m = re.search(r"U0*(\d+)\s*$", rng)
@@ -47,20 +49,28 @@ def _u_size_from_scan(scan: dict) -> int | None:
 # regenerating an old rack's topology produces the same dummy MACs/IPs.
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _hash_int(*parts: Any) -> int:
     s = "|".join(str(p) for p in parts)
     return int(hashlib.sha256(s.encode("utf-8")).hexdigest()[:8], 16)
 
+
 def _pick(rack_id: str, dev_name: str, options: list[str], salt: str = "pick") -> str:
     return options[_hash_int(rack_id, dev_name, salt) % len(options)]
+
 
 def _real_model(scan_dev: dict) -> str | None:
     """The model the scan ACTUALLY detected (OCR / brand text), if any.
     Preferring it over the generic catalogue keeps synthesized CIs tied to the
-    real hardware in THIS rack instead of a plausible-but-unrelated guess."""
+    real hardware in THIS rack instead of a plausible-but-unrelated guess.
+    """
     for k in ("ocr_model", "model", "model_number", "make_model", "detected_model"):
         v = scan_dev.get(k)
-        if v and str(v).strip() and str(v).strip().lower() not in ("unknown", "n/a", "none", "-", ""):
+        if (
+            v
+            and str(v).strip()
+            and str(v).strip().lower() not in ("unknown", "n/a", "none", "-", "")
+        ):
             return str(v).strip()
     return None
 
@@ -69,9 +79,11 @@ def _real_model(scan_dev: dict) -> str | None:
 # Synthetic-value primitives
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def synth_mac(rack_id: str, dev_name: str) -> str:
     h = _hash_int(rack_id, dev_name, "mac")
     return f"AA:BB:CC:{(h >> 16) & 0xFF:02X}:{(h >> 8) & 0xFF:02X}:{h & 0xFF:02X}"
+
 
 def synth_ip(rack_id: str, dev_name: str, u: int) -> str:
     """10.<rackBlock>.<u>.<host> — each rack gets its own /16 deterministically."""
@@ -79,6 +91,7 @@ def synth_ip(rack_id: str, dev_name: str, u: int) -> str:
     host = (_hash_int(dev_name, "iphost") % 240) + 10
     u = max(0, min(255, int(u or 0)))
     return f"10.{block}.{u}.{host}"
+
 
 def synth_serial(rack_id: str, dev_name: str, prefix: str) -> str:
     return f"{prefix}-{_hash_int(rack_id, dev_name, 'serial') % 1_000_000:06d}"
@@ -93,41 +106,53 @@ def synth_serial(rack_id: str, dev_name: str, prefix: str) -> str:
 # full model), we pick a model from THAT vendor so the synthesized CI reflects
 # the real hardware family instead of defaulting to Cisco.
 SWITCH_MODELS_BY_VENDOR = {
-    "cisco":    ["Catalyst 9300-48P", "Catalyst 9200L-48P-4G", "Catalyst 2960X-24"],
-    "tplink":   ["TL-SG3428", "TL-SG3452", "TL-SG2428P", "T2600G-28TS"],
+    "cisco": ["Catalyst 9300-48P", "Catalyst 9200L-48P-4G", "Catalyst 2960X-24"],
+    "tplink": ["TL-SG3428", "TL-SG3452", "TL-SG2428P", "T2600G-28TS"],
     "ubiquiti": ["USW-Pro-48-PoE", "USW-24-PoE", "USW-Aggregation"],
     "mikrotik": ["CRS328-24P-4S+", "CRS326-24G-2S+", "RB2011iL"],
-    "netgear":  ["GS748T", "M4300-52G", "GS724T"],
-    "aruba":    ["Aruba 2930F-48G", "Aruba 6300M-48P"],
-    "hpe":      ["Aruba 2930F-48G", "HPE OfficeConnect 1920S"],
-    "dlink":    ["DGS-1210-52", "DGS-3130-30TS"],
-    "juniper":  ["EX2300-48P", "EX4300-48T"],
+    "netgear": ["GS748T", "M4300-52G", "GS724T"],
+    "aruba": ["Aruba 2930F-48G", "Aruba 6300M-48P"],
+    "hpe": ["Aruba 2930F-48G", "HPE OfficeConnect 1920S"],
+    "dlink": ["DGS-1210-52", "DGS-3130-30TS"],
+    "juniper": ["EX2300-48P", "EX4300-48T"],
 }
 # Realistic MIXED-vendor default when the vendor is unknown — a real rack is
 # rarely all one brand, so this reads truer than an all-Cisco list.
 SWITCH_MODELS = [
-    "Catalyst 9300-48P", "TL-SG3428", "USW-Pro-48-PoE",
-    "CRS328-24P-4S+", "GS748T", "Aruba 2930F-48G",
+    "Catalyst 9300-48P",
+    "TL-SG3428",
+    "USW-Pro-48-PoE",
+    "CRS328-24P-4S+",
+    "GS748T",
+    "Aruba 2930F-48G",
 ]
+
 
 def _vendor_key(make) -> str | None:
     """Map a free-text make ('TP-Link', 'Ubiquiti UniFi', 'ubnt') to a catalogue key."""
     s = str(make or "").lower().replace("-", "").replace(" ", "")
     if not s:
         return None
-    if "tplink" in s: return "tplink"
-    if "unifi" in s or "ubnt" in s or "ubiquiti" in s: return "ubiquiti"
-    if "hpe" in s or "hewlett" in s or "aruba" in s: return "aruba"
+    if "tplink" in s:
+        return "tplink"
+    if "unifi" in s or "ubnt" in s or "ubiquiti" in s:
+        return "ubiquiti"
+    if "hpe" in s or "hewlett" in s or "aruba" in s:
+        return "aruba"
     for k in SWITCH_MODELS_BY_VENDOR:
         if k in s or s in k:
             return k
     return None
 
+
 def _switch_model(rack_id: str, name: str, make=None) -> str:
     """Deterministic model pick — from the detected vendor's lineup when known,
-    else from the realistic mixed-vendor default."""
+    else from the realistic mixed-vendor default.
+    """
     pool = SWITCH_MODELS_BY_VENDOR.get(_vendor_key(make) or "") or SWITCH_MODELS
     return _pick(rack_id, name, pool, "switch_model")
+
+
 PATCH_PANEL_MODELS = [
     "Panduit DP24584TGY",
     "Panduit DP18584TGY",
@@ -141,13 +166,14 @@ SERVER_MODELS = [
     "Lenovo ThinkSystem SR650",
 ]
 
-SYNTH_TAG = "synthetic_data=true"   # marker used in CMDB `comments` / topology snapshot
+SYNTH_TAG = "synthetic_data=true"  # marker used in CMDB `comments` / topology snapshot
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Class-specific synthesizers — produce the same dict shape the curated
 # overrides use, so downstream code is uniform.
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def synthesize_switch(rack_id: str, name: str, u: int, scan_dev: dict) -> dict:
     main = int(scan_dev.get("port_count") or 0)
@@ -163,18 +189,19 @@ def synthesize_switch(rack_id: str, name: str, u: int, scan_dev: dict) -> dict:
     return {
         "_synthetic": True,
         "_synthetic_fields": synth_fields,
-        "model_number":   model_number,
-        "serial_number":  synth_serial(rack_id, name, "AUTOSW"),
-        "mgmt_ip":        synth_ip(rack_id, name, u),
-        "mac":            synth_mac(rack_id, name),
-        "os":             "IOS-XE 17.09.03",
-        "ports":          main,
-        "sfp_ports":      sfp,
-        "port_prefix":    "Gi0/" if main < 30 else "Gi1/0/",
+        "model_number": model_number,
+        "serial_number": synth_serial(rack_id, name, "AUTOSW"),
+        "mgmt_ip": synth_ip(rack_id, name, u),
+        "mac": synth_mac(rack_id, name),
+        "os": "IOS-XE 17.09.03",
+        "ports": main,
+        "sfp_ports": sfp,
+        "port_prefix": "Gi0/" if main < 30 else "Gi1/0/",
         "short_description": (
             f"Auto-generated switch CI from scan; main={main} sfp={sfp}; {SYNTH_TAG}"
         ),
     }
+
 
 def synthesize_patch_panel(rack_id: str, name: str, scan_dev: dict) -> dict:
     main = int(scan_dev.get("port_count") or 0)
@@ -184,48 +211,59 @@ def synthesize_patch_panel(rack_id: str, name: str, scan_dev: dict) -> dict:
     return {
         "_synthetic": True,
         "_synthetic_fields": synth_fields,
-        "model_number":  model_number,
+        "model_number": model_number,
         "serial_number": synth_serial(rack_id, name, "AUTOPP"),
-        "ports":         main,
+        "ports": main,
         "short_description": f"Auto-generated patch panel CI from scan; ports={main}; {SYNTH_TAG}",
     }
+
 
 def synthesize_server(rack_id: str, name: str, u: int, scan_dev: dict) -> dict:
     gateway = synth_ip(rack_id, "rack-gateway", 1)
     real_model = _real_model(scan_dev)
     model_number = real_model or _pick(rack_id, name, SERVER_MODELS, "server_model")
-    base_fields = ["serial_number", "os", "cpu_name", "cpu_count",
-                   "cpu_core_count", "ram", "nics", "disks"]
+    base_fields = [
+        "serial_number",
+        "os",
+        "cpu_name",
+        "cpu_count",
+        "cpu_core_count",
+        "ram",
+        "nics",
+        "disks",
+    ]
     synth_fields = base_fields if real_model else ["model_number"] + base_fields
     return {
         "_synthetic": True,
         "_synthetic_fields": synth_fields,
         "name": name,
         "meta": {
-            "model_number":  model_number,
+            "model_number": model_number,
             "serial_number": synth_serial(rack_id, name, "AUTOSRV"),
-            "os":            "Ubuntu 22.04 LTS",
-            "cpu_name":      "Intel Xeon Silver 4314",
-            "cpu_count":     "2",
-            "cpu_core_count":"24",
-            "ram":           "131072",
+            "os": "Ubuntu 22.04 LTS",
+            "cpu_name": "Intel Xeon Silver 4314",
+            "cpu_count": "2",
+            "cpu_core_count": "24",
+            "ram": "131072",
             "short_description": f"Auto-generated server CI from scan; {SYNTH_TAG}",
-            "comments":      f"{SYNTH_TAG}; provenance=synth",
+            "comments": f"{SYNTH_TAG}; provenance=synth",
         },
         "nics": [
             {
-                "name": f"{name}:eth0", "alias": "eth0",
-                "mac":  synth_mac(rack_id, f"{name}:eth0"),
-                "ip":   synth_ip(rack_id, f"{name}:eth0", u),
+                "name": f"{name}:eth0",
+                "alias": "eth0",
+                "mac": synth_mac(rack_id, f"{name}:eth0"),
+                "ip": synth_ip(rack_id, f"{name}:eth0", u),
                 "netmask": "255.255.255.0",
                 "gateway": gateway,
                 "fqdn": f"{name.lower()}.auto.dark",
                 "short_description": f"vlan=10 mode=access speed=1000M oper=up admin=up; {SYNTH_TAG}",
             },
             {
-                "name": f"{name}:eth1", "alias": "eth1",
-                "mac":  synth_mac(rack_id, f"{name}:eth1"),
-                "ip":   synth_ip(rack_id, f"{name}:eth1", u),
+                "name": f"{name}:eth1",
+                "alias": "eth1",
+                "mac": synth_mac(rack_id, f"{name}:eth1"),
+                "ip": synth_ip(rack_id, f"{name}:eth1", u),
                 "netmask": "255.255.255.0",
                 "gateway": gateway,
                 "fqdn": f"{name.lower()}-mgmt.auto.dark",
@@ -238,41 +276,51 @@ def synthesize_server(rack_id: str, name: str, u: int, scan_dev: dict) -> dict:
                 "size_bytes": "500107862016",
                 "short_description": f"Auto-generated boot drive; {SYNTH_TAG}",
                 "partitions": [
-                    {"name": "/boot", "partition_number": "1", "size_bytes": "1073741824",
-                     "short_description": f"fs=ext4; {SYNTH_TAG}"},
-                    {"name": "/",     "partition_number": "2", "size_bytes": "499034120192",
-                     "short_description": f"fs=ext4; {SYNTH_TAG}"},
+                    {
+                        "name": "/boot",
+                        "partition_number": "1",
+                        "size_bytes": "1073741824",
+                        "short_description": f"fs=ext4; {SYNTH_TAG}",
+                    },
+                    {
+                        "name": "/",
+                        "partition_number": "2",
+                        "size_bytes": "499034120192",
+                        "short_description": f"fs=ext4; {SYNTH_TAG}",
+                    },
                 ],
             },
         ],
     }
+
 
 def synthesize_agg_core(rack_id: str) -> dict:
     name = f"AGG-CORE-{_hash_int(rack_id, 'agg') % 100:02d}"
     return {
         "_synthetic": True,
         "_synthetic_fields": ["all"],
-        "name":          name,
-        "model_number":  "Catalyst 9500-32C",
+        "name": name,
+        "model_number": "Catalyst 9500-32C",
         "serial_number": synth_serial(rack_id, name, "AUTOAGG"),
-        "mgmt_ip":       synth_ip(rack_id, "agg-core", 1),
-        "mac":           synth_mac(rack_id, "agg-core"),
-        "os":            "IOS-XE 17.12.01",
-        "ports":         32,
-        "sfp_ports":     0,
-        "port_prefix":   "Up",
+        "mgmt_ip": synth_ip(rack_id, "agg-core", 1),
+        "mac": synth_mac(rack_id, "agg-core"),
+        "os": "IOS-XE 17.12.01",
+        "ports": 32,
+        "sfp_ports": 0,
+        "port_prefix": "Up",
         "short_description": (
             f"Adjacent-rack aggregation switch (auto-generated for {rack_id}); {SYNTH_TAG}"
         ),
     }
 
+
 def synthesize_rack_meta(rack_id: str, rack_name: str) -> dict:
     return {
         "_synthetic": True,
-        "asset_tag":     f"AT-{rack_name}",
+        "asset_tag": f"AT-{rack_name}",
         "serial_number": synth_serial(rack_id, "rack-chassis", "AUTORACK"),
         "short_description": f"Auto-bootstrapped rack from scan {rack_id}; {SYNTH_TAG}",
-        "comments":      f"{SYNTH_TAG}; provenance=synth; rack_id={rack_id}",
+        "comments": f"{SYNTH_TAG}; provenance=synth; rack_id={rack_id}",
     }
 
 
@@ -281,11 +329,12 @@ def synthesize_rack_meta(rack_id: str, rack_name: str) -> dict:
 # override file wins over the synth values.
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def load_override(rack_id: str) -> dict:
     path = os.path.join(OVERRIDES_DIR, f"{rack_id}.json")
     if not os.path.exists(path):
         return {}
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -300,19 +349,20 @@ def load_override(rack_id: str) -> dict:
 # synth fallback path takes over and we don't push noisy junk into CMDB.
 # ─────────────────────────────────────────────────────────────────────────────
 
-OCR_MIN_MATCH_CONF = 0.35   # raise to be stricter; lower to accept more
+OCR_MIN_MATCH_CONF = 0.35  # raise to be stricter; lower to accept more
 
 
 def load_ocr_devices(rack_id: str) -> dict[str, dict]:
     """Returns { 'SW-U10': { make, model, version, source, match_conf, ... }, ... }
-    keyed by the same CMDB name pattern build_inventory uses."""
+    keyed by the same CMDB name pattern build_inventory uses.
+    """
     here = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.dirname(here)
     path = os.path.join(repo_root, "outputs", rack_id, "ocr_devices.json")
     if not os.path.exists(path):
         return {}
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             doc = json.load(f)
     except Exception:
         return {}
@@ -326,11 +376,18 @@ def load_ocr_devices(rack_id: str) -> dict[str, dict]:
         if not m:
             continue
         u = int(m.group(1))
-        if cls == "Switch":             name = f"SW-U{u:02d}"
-        elif cls == "Patch Panel":      name = f"PP-U{u:02d}"
-        elif cls == "Server":           name = f"SRV-U{u:02d}"
-        elif cls == "Aggregation Core": name = f"AGG-U{u:02d}"
-        else: continue
+        if cls == "Switch":
+            name = f"SW-U{u:02d}"
+        elif cls == "Router":
+            name = f"RTR-U{u:02d}"
+        elif cls == "Patch Panel":
+            name = f"PP-U{u:02d}"
+        elif cls == "Server":
+            name = f"SRV-U{u:02d}"
+        elif cls == "Aggregation Core":
+            name = f"AGG-U{u:02d}"
+        else:
+            continue
         if (d.get("source") or "") not in ("ocr_full", "ocr_make_only"):
             continue
         if float(d.get("match_conf") or 0) < OCR_MIN_MATCH_CONF:
@@ -353,11 +410,11 @@ def apply_ocr_to_switch(synth_dev: dict, ocr: dict, rack_id: str = "", name: str
     out = dict(synth_dev)
     src = ocr.get("source") or "synth"
     out["discovery_source"] = src
-    out["ocr_make"]    = ocr.get("make")
-    out["ocr_model"]   = ocr.get("model")
+    out["ocr_make"] = ocr.get("make")
+    out["ocr_model"] = ocr.get("model")
     out["ocr_version"] = ocr.get("version")
-    out["ocr_conf"]    = ocr.get("match_conf")
-    out["ocr_raw"]     = (ocr.get("raw_text") or "")[:200]
+    out["ocr_conf"] = ocr.get("match_conf")
+    out["ocr_raw"] = (ocr.get("raw_text") or "")[:200]
 
     syn_fields = list(out.get("_synthetic_fields") or [])
     if ocr.get("model"):
@@ -366,7 +423,9 @@ def apply_ocr_to_switch(synth_dev: dict, ocr: dict, rack_id: str = "", name: str
     elif ocr.get("make"):
         # Make read but not the exact model → pick a model from THAT vendor's
         # lineup so at least the brand matches the real switch. Still synthetic.
-        out["model_number"] = _switch_model(rack_id or "", name or (out.get("name") or ""), ocr["make"])
+        out["model_number"] = _switch_model(
+            rack_id or "", name or (out.get("name") or ""), ocr["make"]
+        )
     if ocr.get("version"):
         out["os"] = ocr["version"]
         syn_fields = [f for f in syn_fields if f != "os"]
@@ -394,6 +453,7 @@ def apply_ocr_to_switch(synth_dev: dict, ocr: dict, rack_id: str = "", name: str
 # merge into the synth inventory without re-deriving names.
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _u_from_units_list(units: list) -> int | None:
     for u_str in units or []:
         m = re.match(r"u0*(\d+)", str(u_str).lower())
@@ -401,11 +461,12 @@ def _u_from_units_list(units: list) -> int | None:
             return int(m.group(1))
     return None
 
+
 def load_port_detail(rack_dir: str) -> dict[str, dict]:
     path = os.path.join(rack_dir, "device_unit_map.json")
     if not os.path.exists(path):
         return {}
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         m = json.load(f)
 
     out: dict[str, dict] = {}
@@ -414,10 +475,16 @@ def load_port_detail(rack_dir: str) -> dict[str, dict]:
         u = _u_from_units_list(d.get("units") or [])
         if u is None:
             continue
-        if cls == "Switch":       name = f"SW-U{u:02d}"
-        elif cls == "Patch Panel": name = f"PP-U{u:02d}"
-        elif cls == "Server":      name = f"SRV-U{u:02d}"
-        else:                      continue
+        if cls == "Switch":
+            name = f"SW-U{u:02d}"
+        elif cls == "Router":
+            name = f"RTR-U{u:02d}"
+        elif cls == "Patch Panel":
+            name = f"PP-U{u:02d}"
+        elif cls == "Server":
+            name = f"SRV-U{u:02d}"
+        else:
+            continue
 
         dbox = d.get("box") or [0, 0, 0, 0]
         try:
@@ -456,13 +523,13 @@ def load_port_detail(rack_dir: str) -> dict[str, dict]:
         empty = [i for i in range(1, port_count + 1) if i not in connected_set]
 
         out[name] = {
-            "connected_indices":     connected,
-            "empty_indices":         empty,
+            "connected_indices": connected,
+            "empty_indices": empty,
             "sfp_connected_indices": sfp_connected,
-            "port_global_x":         port_global_x,
-            "port_global_y":         port_global_y,
-            "device_box":            dbox,
-            "scan_port_count":       port_count,
+            "port_global_x": port_global_x,
+            "port_global_y": port_global_y,
+            "device_box": dbox,
+            "scan_port_count": port_count,
         }
     return out
 
@@ -484,20 +551,27 @@ def merge_port_detail(inv: dict, detail: dict[str, dict]) -> None:
 # stable name keyed off its U-position so re-runs hit the same CIs.
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _u_from_position(position: str) -> int | None:
     if not position:
         return None
     m = re.match(r"U(\d{2})", position)
     return int(m.group(1)) if m else None
 
+
 def cmdb_name_for(scan_dev: dict) -> tuple[str | None, int | None]:
     cls = scan_dev.get("class_name")
     u = _u_from_position(scan_dev.get("position", ""))
     if u is None:
         return None, None
-    if cls == "Switch":       return f"SW-U{u:02d}", u
-    if cls == "Patch Panel":  return f"PP-U{u:02d}", u
-    if cls == "Server":       return f"SRV-U{u:02d}", u
+    if cls == "Switch":
+        return f"SW-U{u:02d}", u
+    if cls == "Router":
+        return f"RTR-U{u:02d}", u
+    if cls == "Patch Panel":
+        return f"PP-U{u:02d}", u
+    if cls == "Server":
+        return f"SRV-U{u:02d}", u
     return None, None
 
 
@@ -506,15 +580,16 @@ def cmdb_name_for(scan_dev: dict) -> tuple[str | None, int | None]:
 # Returns a structure suitable for both topology_generate.py and the CMDB push.
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def build_inventory(rack_id: str, scan: dict, override: dict | None = None) -> dict:
     override = override or {}
-    over_switches    = (override.get("switches") or {})
-    over_panels      = (override.get("patch_panels") or {})
-    over_server      = override.get("server")
-    over_agg         = override.get("agg_core")
-    rack_name        = override.get("rack_name") or f"RACK-{rack_id}"
-    rack_meta        = override.get("rack_meta") or synthesize_rack_meta(rack_id, rack_name)
-    u_size           = override.get("u_size") or _u_size_from_scan(scan) or 18
+    over_switches = override.get("switches") or {}
+    over_panels = override.get("patch_panels") or {}
+    over_server = override.get("server")
+    over_agg = override.get("agg_core")
+    rack_name = override.get("rack_name") or f"RACK-{rack_id}"
+    rack_meta = override.get("rack_meta") or synthesize_rack_meta(rack_id, rack_name)
+    u_size = override.get("u_size") or _u_size_from_scan(scan) or 18
 
     # Priority: override file > OCR result > pure synth. OCR can promote a
     # synth row by replacing the model/firmware fields; an explicit override
@@ -522,8 +597,8 @@ def build_inventory(rack_id: str, scan: dict, override: dict | None = None) -> d
     ocr_index = load_ocr_devices(rack_id)
 
     switches: dict[str, dict] = {}
-    panels:   dict[str, dict] = {}
-    server:   dict | None     = None
+    panels: dict[str, dict] = {}
+    server: dict | None = None
 
     for d in scan.get("devices") or []:
         name, u = cmdb_name_for(d)
@@ -532,7 +607,10 @@ def build_inventory(rack_id: str, scan: dict, override: dict | None = None) -> d
         d["_cmdb_name"] = name
         d["_u"] = u
         cls = d.get("class_name")
-        if cls == "Switch":
+        # A router (fewer than ten ports) is inventoried like a switch — it has
+        # ports and an uplink — under its own RTR- name; the topology draws it
+        # in the core tier.
+        if cls in ("Switch", "Router"):
             ov = over_switches.get(name)
             if ov:
                 row = dict(ov)
@@ -541,8 +619,10 @@ def build_inventory(rack_id: str, scan: dict, override: dict | None = None) -> d
             else:
                 base = synthesize_switch(rack_id, name, u, d)
                 ocr = ocr_index.get(name)
-                switches[name] = apply_ocr_to_switch(base, ocr, rack_id, name) if ocr else (
-                    {**base, "discovery_source": "synth"}
+                switches[name] = (
+                    apply_ocr_to_switch(base, ocr, rack_id, name)
+                    if ocr
+                    else ({**base, "discovery_source": "synth"})
                 )
         elif cls == "Patch Panel":
             ov = over_panels.get(name)
@@ -569,12 +649,12 @@ def build_inventory(rack_id: str, scan: dict, override: dict | None = None) -> d
 
     agg_core = over_agg if over_agg else synthesize_agg_core(rack_id)
     return {
-        "rack_id":   rack_id,
+        "rack_id": rack_id,
         "rack_name": rack_name,
         "rack_meta": rack_meta,
-        "u_size":    u_size,
-        "switches":  switches,
-        "panels":    panels,
-        "server":    server,
-        "agg_core":  agg_core,
+        "u_size": u_size,
+        "switches": switches,
+        "panels": panels,
+        "server": server,
+        "agg_core": agg_core,
     }
