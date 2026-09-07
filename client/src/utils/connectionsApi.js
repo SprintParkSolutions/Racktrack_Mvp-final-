@@ -3,6 +3,16 @@
 // All calls go through authFetch so the user's bearer token is attached.
 import { apiUrl, authFetch } from './api';
 
+// Data Sources belong to the organisation. The page used to save them per
+// user while Export resolved them per organisation, so a NetBox added on the
+// page was stored and never used. An account with an organisation reads and
+// writes the organisation's set; an owner account with none keeps a set of
+// its own, which the server also consults.
+let orgScoped = false;
+export function setConnectionsScope({ org }) { orgScoped = Boolean(org); }
+export const connectionsAreOrgScoped = () => orgScoped;
+const base = () => (orgScoped ? '/api/org-connections' : '/api/connections');
+
 async function asJson(res) {
   let data = {};
   try { data = await res.json(); } catch { /* tolerate non-JSON body */ }
@@ -11,7 +21,7 @@ async function asJson(res) {
 }
 
 export async function listConnections() {
-  const res = await authFetch(apiUrl('/api/connections'));
+  const res = await authFetch(apiUrl(base()));
   const data = await asJson(res);
   return {
     profiles: data.profiles || [],
@@ -26,7 +36,7 @@ export async function getActiveConnection() {
 }
 
 export async function createConnection({ name, type, secret, makeActive = true }) {
-  const res = await authFetch(apiUrl('/api/connections'), {
+  const res = await authFetch(apiUrl(base()), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, type, secret, make_active: makeActive }),
@@ -39,7 +49,7 @@ export async function updateConnection(id, { name, secret } = {}) {
   const body = {};
   if (name !== undefined)   body.name = name;
   if (secret !== undefined) body.secret = secret;
-  const res = await authFetch(apiUrl(`/api/connections/${id}`), {
+  const res = await authFetch(apiUrl(`${base()}/${id}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -64,7 +74,7 @@ export async function deactivateConnections() {
 }
 
 export async function deleteConnection(id) {
-  const res = await authFetch(apiUrl(`/api/connections/${id}`), {
+  const res = await authFetch(apiUrl(`${base()}/${id}`), {
     method: 'DELETE',
   });
   await asJson(res);
@@ -130,10 +140,11 @@ export const TYPE_INFO = {
   netbox: {
     label: 'NetBox',
     fields: [
-      { key: 'base_url', label: 'Base URL', placeholder: 'https://netbox.example.com', required: true },
-      { key: 'token',    label: 'API Token', type: 'password',                         required: true },
+      { key: 'base_url', label: 'NetBox address', placeholder: 'https://netbox.example.com', required: true },
+      { key: 'username', label: 'Username',       placeholder: 'your NetBox login',          required: true },
+      { key: 'password', label: 'Password',       type: 'password',                          required: true },
     ],
-    hint: 'API token from your NetBox user profile',
+    hint: 'RackTrack signs in to your NetBox once and keeps an API token from then on. Your password is stored encrypted and never shown.',
   },
   orion: {
     label: 'SolarWinds Orion',

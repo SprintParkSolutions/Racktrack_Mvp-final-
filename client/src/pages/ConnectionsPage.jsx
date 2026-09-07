@@ -21,7 +21,7 @@ function emptySecretFor(type) {
 export default function ConnectionsPage() {
   const navigate = useNavigate();
   const {
-    profiles, active, supportedTypes, loading, error, refreshing, lastRefresh,
+    profiles, active, supportedTypes, loading, error, refreshing, lastRefresh, orgScoped,
     refresh, create, update, activate, remove, refreshActiveSource,
   } = useConnections();
 
@@ -164,8 +164,10 @@ export default function ConnectionsPage() {
         </div>
       ) : (
         <ul className={styles.rows}>
-          {[...(active ? [active] : []), ...inactive].map((p) => {
-            const isActive = active && p.id === active.id;
+          {(orgScoped ? profiles : [...(active ? [active] : []), ...inactive]).map((p) => {
+            // The organisation keeps one connection in use per kind; a person
+            // keeps one in use overall. Either way, the row says which it is.
+            const isActive = orgScoped ? Boolean(p.is_active) : Boolean(active && p.id === active.id);
             return (
               <li key={p.id} className={`${styles.row} ${isActive ? styles.rowActive : ''}`}>
                 <div className={styles.rowMain}>
@@ -175,7 +177,7 @@ export default function ConnectionsPage() {
                   </span>
                 </div>
                 <div className={styles.verbs}>
-                  {!isActive && (
+                  {!isActive && !orgScoped && (
                     <button type="button" onClick={() => onActivate(p.id)}>Use</button>
                   )}
                   {isActive && p.type === 'servicenow' && (

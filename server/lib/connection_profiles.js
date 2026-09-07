@@ -165,8 +165,11 @@ function validateSecret(type, secret) {
       }
       break;
     case 'netbox':
-      if (!secret.base_url || !secret.token) {
-        throw new Error('netbox profile requires {base_url, token}');
+      // Either a token, or the login the routes turn into one (see
+      // lib/netbox/provision.js). A saved profile always ends up holding
+      // the token; the login form never asks for one.
+      if (!secret.base_url || !(secret.token || (secret.username && secret.password))) {
+        throw new Error('netbox profile requires {base_url, token} or {base_url, username, password}');
       }
       break;
     case 'orion':

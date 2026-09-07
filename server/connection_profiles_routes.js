@@ -23,6 +23,24 @@ const { logger } = require('./lib/observability');
 
 const router = express.Router();
 
+/**
+ * A NetBox login becomes a NetBox token before anything is stored.
+ *
+ * Applied to every create and update, for both the per-user and the
+ * organisation routes: if the secret carries a username and password and no
+ * token, ask that NetBox for a token now. The login is kept (encrypted, like
+ * everything else in the blob) so a revoked token can be minted again without
+ * asking anyone to type it in twice. Fails loudly — a wrong password should
+ * be reported at Save, not discovered at the first Export.
+ */
+async function withNetboxToken(type, secret) {
+  if (type !== 'netbox' || !secret || secret.token) return secret;
+  if (!(secret.username && secret.password)) return secret;
+  const { provisionToken, cleanBase } = require('./lib/netbox/provision');
+  const { token } = await provisionToken(secret.base_url, secret.username, secret.password);
+  return { ...secret, base_url: cleanBase(secret.base_url), token, provisioned_at: new Date().toISOString() };
+}
+
 function safeAsync(handler) {
   return async (req, res) => {
     try { await handler(req, res); }
@@ -59,7 +77,7 @@ router.post('/api/connections', safeAsync(async (req, res) => {
   }
   const meta = profiles.create(
     req.user.id,
-    { name, type, secret },
+    { name, type, secret: await withNetboxToken(type, secret) },
     { makeActive: make_active !== false }   // default true
   );
   res.json({ ok: true, profile: meta });
@@ -78,7 +96,10 @@ router.patch('/api/connections/:id', safeAsync(async (req, res) => {
   if (name === undefined && secret === undefined) {
     return res.status(400).json({ ok: false, error: 'nothing to update' });
   }
-  const meta = profiles.update(req.user.id, req.params.id, { name, secret });
+  const existing = profiles.get(req.user.id, req.params.id);
+  const meta = profiles.update(req.user.id, req.params.id, {
+    name, secret: existing ? await withNetboxToken(existing.type, secret) : secret,
+  });
   if (!meta) return res.status(404).json({ ok: false, error: 'not found' });
   res.json({ ok: true, profile: meta });
 }));
@@ -137,7 +158,9 @@ router.post('/api/org-connections', safeAsync(async (req, res) => {
   if (!type || !secret) {
     return res.status(400).json({ ok: false, error: 'type and secret are required' });
   }
-  const meta = profiles.createForOrg(req._orgId, req.user.id, { name: name || type, type, secret });
+  const meta = profiles.createForOrg(req._orgId, req.user.id, {
+    name: name || type, type, secret: await withNetboxToken(type, secret),
+  });
   res.json({ ok: true, profile: meta });   // metadata only — no secret echoed back
 }));
 
@@ -147,7 +170,10 @@ router.patch('/api/org-connections/:id', safeAsync(async (req, res) => {
   if (name === undefined && secret === undefined) {
     return res.status(400).json({ ok: false, error: 'nothing to update' });
   }
-  const meta = profiles.updateForOrg(req._orgId, req.params.id, req.user.id, { name, secret });
+  const existing = profiles.getForOrg(req._orgId, req.params.id);
+  const meta = profiles.updateForOrg(req._orgId, req.params.id, req.user.id, {
+    name, secret: existing ? await withNetboxToken(existing.type, secret) : secret,
+  });
   if (!meta) return res.status(404).json({ ok: false, error: 'not found' });
   res.json({ ok: true, profile: meta });
 }));

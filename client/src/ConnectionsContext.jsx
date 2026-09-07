@@ -19,7 +19,10 @@ import * as api from './utils/connectionsApi';
 const ConnectionsContext = createContext(null);
 
 export function ConnectionsProvider({ children }) {
-  const { isAuthed } = useAuth();
+  const { isAuthed, user } = useAuth();
+  // An account with an organisation manages the organisation's sources.
+  const orgScoped = Boolean(user?.organization_id);
+  api.setConnectionsScope({ org: orgScoped });
   const [profiles, setProfiles] = useState([]);
   const [supportedTypes, setSupportedTypes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -39,6 +42,7 @@ export function ConnectionsProvider({ children }) {
     }
     setLoading(true);
     try {
+      api.setConnectionsScope({ org: orgScoped });
       const { profiles, supportedTypes } = await api.listConnections();
       setProfiles(profiles);
       setSupportedTypes(supportedTypes);
@@ -48,7 +52,7 @@ export function ConnectionsProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthed]);
+  }, [isAuthed, orgScoped]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -171,6 +175,7 @@ export function ConnectionsProvider({ children }) {
 
   return (
     <ConnectionsContext.Provider value={{
+      orgScoped,
       profiles, active, supportedTypes, loading, error, refreshing, lastRefresh,
       refresh, create, update, activate, deactivate, remove,
       refreshActiveSource,

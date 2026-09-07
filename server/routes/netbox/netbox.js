@@ -28,8 +28,13 @@ const router = express.Router();
  * env is kept only as a fallback for a single-tenant install.
  */
 function target(req) {
+  // The organisation's NetBox first. Then the caller's own — an owner account
+  // belongs to no organisation, and a Data Source it saved was stored and
+  // then never consulted, which read as "export is broken" for exactly the
+  // people running the demo. Same order the ServiceNow paths already use.
   const orgId = req.user?.organization_id;
-  const creds = orgId ? profiles.resolveCredsForOrg(orgId, 'netbox') : null;
+  const creds = (orgId ? profiles.resolveCredsForOrg(orgId, 'netbox') : null)
+    || (req.user?.id ? profiles.resolveCredsForType(req.user.id, 'netbox') : null);
   if (creds?.secret?.base_url) {
     return { url: creds.secret.base_url, token: creds.secret.token || '', source: 'data-sources' };
   }
