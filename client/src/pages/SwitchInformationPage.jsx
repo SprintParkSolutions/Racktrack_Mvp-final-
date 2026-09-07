@@ -300,10 +300,15 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
   // Effective values: user override wins over OCR/CMDB. This means a user
   // who corrects OCR garbage gets the corrected value flowing into the
   // specs / firmware lookups below.
-  const effectiveMake  = sw.manufacturer || userMake;
-  const effectiveModel = sw.model_number || userModel;
-  const makeIsUserSupplied  = !sw.manufacturer && !!userMake;
-  const modelIsUserSupplied = !sw.model_number && !!userModel;
+  // What a person typed in outranks what a camera guessed. The OCR read
+  // "V-96" off a D-Link bezel; the person standing in front of it typed
+  // DGS-1024C; and the card kept showing V-96, because the typed value was
+  // only used when OCR had nothing at all. A correction that loses to the
+  // thing it corrects is not a correction.
+  const effectiveMake  = userMake  || sw.manufacturer;
+  const effectiveModel = userModel || sw.model_number;
+  const makeIsUserSupplied  = !!userMake;
+  const modelIsUserSupplied = !!userModel;
 
   const displayVendor = vendorFromCmdb(effectiveMake, effectiveModel);
   const lookupModel = cleanModel(effectiveModel);

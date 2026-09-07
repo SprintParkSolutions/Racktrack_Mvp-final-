@@ -188,6 +188,7 @@
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
 
+.moreRow { display: flex; gap: 16px; align-items: baseline; }
 .more {
   align-self: flex-start; margin-top: 4px;
   border: 0; background: transparent; padding: 2px 0;

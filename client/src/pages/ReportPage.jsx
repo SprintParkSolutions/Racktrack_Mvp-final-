@@ -506,6 +506,9 @@ function DeviceRow({ d, cam, sw, open, onToggle }) {
   const matched = String(d.source || '').startsWith('switch');
   const ports = d.ports || [];
   const inUse = ports.filter((p) => p.inUse).length;
+  // The list opens on the ports that are doing something; "View all" is the
+  // rest, one tap away, with the count so nobody has to guess how long it is.
+  const [showAll, setShowAll] = useState(false);
   const cabled = ports.filter((p) => p.plugged === true).length;
 
   // A report states what is there. "Make and model not read" is not a fact
@@ -572,19 +575,32 @@ function DeviceRow({ d, cam, sw, open, onToggle }) {
           </dl>
         )}
 
-        {inUse > 0 && (
-          <button type="button" className={styles.more} aria-expanded={open} onClick={onToggle}>
-            {open ? 'Hide ports' : `${plural(inUse, 'port')} in use`}
-          </button>
+        {ports.length > 0 && (
+          <div className={styles.moreRow}>
+            <button type="button" className={styles.more} aria-expanded={open} onClick={onToggle}>
+              {open ? 'Hide ports' : inUse > 0 ? `${plural(inUse, 'port')} in use` : `View all ${ports.length}`}
+            </button>
+            {open && inUse > 0 && ports.length > inUse && (
+              <button type="button" className={styles.more} onClick={() => setShowAll((v) => !v)}>
+                {showAll ? 'In use only' : `View all ${ports.length}`}
+              </button>
+            )}
+          </div>
         )}
-        {open && inUse > 0 && <PortList ports={ports.filter((p) => p.inUse)} total={ports.length} />}
+        {open && (
+          <PortList
+            ports={showAll || inUse === 0 ? ports : ports.filter((p) => p.inUse)}
+            total={ports.length}
+            all={showAll || inUse === 0}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 /** The ports in use, one line each: the switch's view and the camera's, side by side. */
-function PortList({ ports, total }) {
+function PortList({ ports, total, all = false }) {
   return (
     <div className={styles.ports}>
       {ports.map((p, i) => {
@@ -610,7 +626,9 @@ function PortList({ ports, total }) {
           </div>
         );
       })}
-      <p className={styles.portNote}>{ports.length} of {total} ports in use.</p>
+      <p className={styles.portNote}>
+        {all ? `All ${total} ports.` : `${ports.length} of ${total} ports in use.`}
+      </p>
     </div>
   );
 }

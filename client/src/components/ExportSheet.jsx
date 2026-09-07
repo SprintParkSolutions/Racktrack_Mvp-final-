@@ -17,11 +17,6 @@ import styles from './ExportSheet.module.css';
  * a step, it is a detour.
  */
 
-const RULES = [
-  ['Safe to run twice', 'A second push updates what is there; it never makes duplicates.'],
-  ['Preview writes nothing', 'It reads NetBox and compares. Push is only offered after a preview.'],
-  ['Never deletes', 'A device missing from this scan is listed, not removed.'],
-];
 
 const ORDER = [['create', 'new'], ['update', 'updated'], ['noop', 'same'], ['skip', 'held back'], ['fail', 'failed']];
 
@@ -137,11 +132,6 @@ export default function ExportSheet({ scanId, onClose }) {
             </>
           )}
 
-          {!hv?.blocked && (
-            <ul className={styles.rules}>
-              {RULES.map(([k, t]) => <li key={k}><b>{k}.</b> {t}</li>)}
-            </ul>
-          )}
         </div>
 
         {confirming ? (
