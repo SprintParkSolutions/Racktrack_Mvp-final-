@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useModalA11y from '../hooks/useModalA11y.js';
 import { nb, explain, errText, healthView } from '../utils/exportApi';
+import { getCached, setCached } from '../utils/scanPrefetch';
 import styles from './ExportSheet.module.css';
 
 /**
@@ -31,7 +32,7 @@ function byType(changes) {
   return [...rows.values()];
 }
 
-export default function ExportSheet({ scanId, onClose }) {
+export default function ExportSheet({ scanId, rackId, onClose }) {
   const [health, setHealth] = useState(null);
   const [healthErr, setHealthErr] = useState(null);
   const [checking, setChecking] = useState(true);
@@ -40,8 +41,20 @@ export default function ExportSheet({ scanId, onClose }) {
   const [previewed, setPreviewed] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [runErr, setRunErr] = useState(null);
+  const [comparedAt, setComparedAt] = useState(null);   // when the shown preview was taken
+  const [written, setWritten] = useState(false);
 
   const panelRef = useModalA11y(onClose, { active: true });
+
+  // The report compared with NetBox in the background when it opened; if
+  // that answer is here, show it at once. Otherwise compare now, unasked —
+  // the preview writes nothing and is the first thing anyone would press.
+  useEffect(() => {
+    const pre = scanId ? getCached(`nb-preview:${scanId}`) : null;
+    if (pre && pre.body) { setReport(pre.body); setPreviewed(true); setComparedAt(pre.at); return; }
+    if (scanId) run('preview');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanId]);
 
   // Is NetBox there, and does our login work?
   const checkHealth = useCallback(async () => {
@@ -76,8 +89,19 @@ export default function ExportSheet({ scanId, onClose }) {
       return;
     }
     setReport(r.body);
-    if (kind === 'preview') setPreviewed(true);
+    if (kind === 'preview') {
+      setPreviewed(true); setComparedAt(Date.now());
+      setCached(`nb-preview:${scanId}`, { body: r.body, at: Date.now() });
+    } else {
+      setWritten(true);
+      setCached(`nb-preview:${scanId}`, null);
+    }
   };
+
+  const openUrl = health && health.publicUrl
+    ? `${health.publicUrl}/dcim/racks/?q=${encodeURIComponent(rackId || '')}`
+    : null;
+  const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 5 ? 'just now' : s < 60 ? `${s}s ago` : `${Math.round(s / 60)} min ago`; };
 
   const hv = healthView(health);
   const authed = Boolean(health && health.reachable && health.authenticated);
@@ -113,6 +137,12 @@ export default function ExportSheet({ scanId, onClose }) {
 
           {report && (
             <>
+              <p className={styles.note}>
+                {written ? 'Written to NetBox.' : `Compared with NetBox ${comparedAt ? ago(comparedAt) : ''}.`}
+                {openUrl && (
+                  <> <a href={openUrl} target="_blank" rel="noreferrer noopener" className={styles.openLink}>Open NetBox ↗</a></>
+                )}
+              </p>
               <div className={styles.tally}>
                 {ORDER.filter(([k]) => c[k]).map(([k, word]) => (
                   <div key={k}><b>{c[k]}</b><span>{word}</span></div>

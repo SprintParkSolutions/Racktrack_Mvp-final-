@@ -79,3 +79,6 @@
 .primary { background: #121212; border: 1px solid #121212; color: #fff; }
 .secondary { background: transparent; border: 1px solid var(--border, rgba(0,0,0,.22)); color: var(--text); }
 .primary:disabled, .secondary:disabled { opacity: .45; cursor: default; }
+
+/* The one way out to NetBox itself. */
+.openLink { color: #0f7b4f; font-weight: 650; text-decoration: none; margin-left: 6px; }

@@ -8,6 +8,7 @@ import ShareSheet from '../components/ShareSheet.jsx';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { downloadExport } from '../utils/exportApi';
+import { setCached } from '../utils/scanPrefetch';
 import { getJSON } from '../utils/safeStorage';
 import { useSmartBack } from '../hooks/useSmartBack';
 import styles from './ReportPage.module.css';
@@ -255,6 +256,11 @@ export default function ReportPage() {
       }
       const id = a.body.id;
       setScanId(id);
+      // Compare with NetBox now, in the background, so Export opens with the
+      // answer already there instead of a spinner.
+      nb(`/api/nb/netbox/${id}/preview`, { method: 'POST' })
+        .then((r) => { if (r.ok) setCached(`nb-preview:${id}`, { body: r.body, at: Date.now() }); })
+        .catch(() => {});
       const [r, v] = await Promise.all([
         nb(`/api/nb/scans/${id}/report`),
         nb(`/api/nb/scans/${id}/reconcile`),
@@ -540,7 +546,7 @@ export default function ReportPage() {
       </div>
 
       {exporting && scanId !== null && (
-        <ExportSheet scanId={scanId} onClose={() => setExporting(false)} />
+        <ExportSheet scanId={scanId} rackId={rackId} onClose={() => setExporting(false)} />
       )}
       {sharing && <ShareSheet rackId={rackId} initial={sharing} onClose={() => setSharing(null)} />}
     </div>

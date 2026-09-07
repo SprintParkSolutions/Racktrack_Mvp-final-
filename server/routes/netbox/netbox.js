@@ -74,7 +74,8 @@ function snapshotOf(req, res) {
 router.get('/health', async (req, res) => {
   const t = target(req);
   if (t.source === 'none') return res.json({ ...NOT_CONFIGURED, source: t.source });
-  const out = { configured: true, source: t.source, url: t.url, tokenSet: Boolean(t.token) };
+  const out = { configured: true, source: t.source, url: t.url, tokenSet: Boolean(t.token),
+    publicUrl: cfg.NETBOX_PUBLIC_URL || null };
   try {
     const body = await client(req).status();
     res.json({ ...out, reachable: true, authenticated: true,

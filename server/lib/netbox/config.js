@@ -17,6 +17,9 @@ module.exports = {
 
   NETBOX_URL: process.env.NETBOX_URL || 'http://localhost:8000',
   NETBOX_TOKEN: process.env.NETBOX_TOKEN || '',
+  // Where a person can open NetBox in a browser, when it is exposed somewhere
+  // (the demo serves it under https://demo.racktrack.ai/netbox). Empty = none.
+  NETBOX_PUBLIC_URL: (process.env.NETBOX_PUBLIC_URL || '').replace(/\/+$/, ''),
 
   SITE_NAME: process.env.RT_SITE_NAME || '',
   RACK_NAME: process.env.RT_RACK_NAME || '',
