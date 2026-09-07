@@ -394,7 +394,9 @@ function SwitchCard({ sw, rackId, defaultExpanded = false, hideHeader = false })
       authFetch(apiUrl('/api/firmware'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vendor: displayVendor, model: lookupModel, currentVersion: versionForLookup, fromOcr }),
+        // The hardware revision picks the right firmware line where a maker
+        // ships several for one model (D-Link's C1 and F-series lines differ).
+        body: JSON.stringify({ vendor: displayVendor, model: lookupModel, currentVersion: versionForLookup, hardwareVersion: sw.hardware || null, fromOcr }),
       }).then(async r => {
         const text = await r.text();
         let data = null;
