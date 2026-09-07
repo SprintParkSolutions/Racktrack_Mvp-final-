@@ -9551,6 +9551,10 @@ app.post('/api/firmware', auth.requireAuth, moduleLimit, async (req, res) => {
   const vendor         = String(req.body?.vendor || '').trim();
   const model          = String(req.body?.model  || '').trim();
   const currentVersion = String(req.body?.currentVersion || '').trim();
+  // Optional: the hardware revision the switch reports (D-Link "F3", TP-Link
+  // "V5.20"), so a maker with several firmware lines for one model answers
+  // for the right one.
+  const hardwareVersion = String(req.body?.hardwareVersion || '').trim().slice(0, 40);
   if (!vendor || !model || !currentVersion) {
     return res.status(400).json({
       ok: false,
@@ -9559,7 +9563,7 @@ app.post('/api/firmware', auth.requireAuth, moduleLimit, async (req, res) => {
   }
 
   const { payload } = await _lookupOnce(
-    `fw::${vendor.toLowerCase()}::${model.toLowerCase()}::${currentVersion.toLowerCase()}`,
+    `fw::${vendor.toLowerCase()}::${model.toLowerCase()}::${currentVersion.toLowerCase()}::${hardwareVersion.toLowerCase()}`,
     async () => {
       // Both sources at once: the advisor stays --no-live (its DB only, never
       // a vendor site), the lookup goes to the vendor. combine() takes the
@@ -9567,7 +9571,7 @@ app.post('/api/firmware', auth.requireAuth, moduleLimit, async (req, res) => {
       // believable version; otherwise the lookup's determinate status.
       const [a, l] = await Promise.all([
         runAgentCli(['--no-live', '--firmware', `${vendor} ${model}`, currentVersion]),
-        runFirmwareLookup(vendor, model, currentVersion),
+        runFirmwareLookup(vendor, model, currentVersion, hardwareVersion),
       ]);
       const p = firmwareAdvice.combine({ agentRes: a, lookupRes: l, req: { vendor, model, currentVersion } });
       // A runner failure is transient — don't let it occupy the slot for the
@@ -9588,11 +9592,12 @@ app.post('/api/firmware', auth.requireAuth, moduleLimit, async (req, res) => {
 // The CLI prints the full FirmwareResult as pretty JSON on stdout (logs go to
 // stderr), so we parse the whole of stdout rather than a single line.
 const FIRMWARE_TIMEOUT_MS = 90_000;   // live vendor sites + browser providers are slow
-function runFirmwareLookup(vendor, model, currentVersion) {
+function runFirmwareLookup(vendor, model, currentVersion, hardwareVersion = '') {
   return new Promise((resolve) => {
     const child = _spawnPyMod(
       pythonCmd,
-      ['-u', '-m', 'firmware_lookup', 'lookup', vendor, model, currentVersion, '--json', '--verbose'],
+      ['-u', '-m', 'firmware_lookup', 'lookup', vendor, model, currentVersion, '--json', '--verbose',
+        ...(hardwareVersion ? ['--hardware-version', hardwareVersion] : [])],
       { cwd: PROJECT_ROOT, env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8' } },
     );
     let stdout = '', stderr = '', settled = false;
