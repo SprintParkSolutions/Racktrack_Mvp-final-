@@ -494,6 +494,12 @@ def handle_relabel_port_count(req):
     device["sfp_ports"] = classified.get("sfp_ports", [])
     device["connected_ports"] = [p for p in main_ports if p.get("status") == "connected"]
     device["port_count_source"] = "user_relabeled"
+    # The count changed, so the class may have to: a "Switch" corrected to
+    # eight ports is a Router, and a Router we named that way corrected to
+    # twenty-four is a Switch again.
+    from pipeline.classify import router_rule
+
+    router_rule(device)
 
     # Hardware rule: a Patch Panel is just RJ-45 jacks — no SFP cages, no
     # console port. Force-clear those so the picker doesn't show e.g. "24p 3s".

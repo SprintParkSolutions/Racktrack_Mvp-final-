@@ -189,6 +189,11 @@ def _apply_to_scan(rack_dir: str) -> dict:
                     "phash": match.get("phash"),
                 }
                 dev["class_name"] = new
+                # Memory says what a box looked like; the port count says what
+                # it is. A remembered "Switch" on an eight-port box is a Router.
+                from pipeline.classify import router_rule
+
+                router_rule(dev)
                 changes.append(
                     {
                         "device_index": idx + 1,

@@ -135,34 +135,15 @@ def demote_if_no_ports(dev):
     return dev
 
 
-# A managed switch with a handful of ports is not what a switch is for. In
-# this estate a network box with fewer than ten ports is a router, and the
-# detector — which has only the front of the box to go on — calls them
-# switches because they look like small switches.
-ROUTER_PORT_CEILING = 10
+# A managed switch with a handful of ports is not what a switch is for. The
+# rule itself lives in pipeline/classify.py so every writer of a class shares
+# it; this name is kept for the callers and tests that already use it.
+from pipeline.classify import router_rule  # noqa: E402
 
 
 def reclass_small_as_router(dev):
-    """A network box with fewer than ten ports is a router, not a switch.
-
-    Applied only to devices the detector called Switch, and only once the
-    ports have actually been counted: a patch panel with four detected ports
-    is a patch panel with a bad count, and a four-port server is a server.
-    Widening this to every class would rename those, which is why the rule is
-    written narrowly here rather than as "anything small".
-
-    A device whose ports could not be counted at all is left alone —
-    demote_if_no_ports has its own answer for that one.
-    """
-    if dev.get("class_name") != "Switch":
-        return dev
-    count = dev.get("port_count")
-    if not isinstance(count, int) or count <= 0:
-        return dev
-    if count < ROUTER_PORT_CEILING:
-        dev["class_name"] = "Router"
-        dev["class_source"] = f"ports<{ROUTER_PORT_CEILING}"
-    return dev
+    """A network box with fewer than ten ports is a router, not a switch."""
+    return router_rule(dev)
 
 
 def unit_label_to_index(label):
@@ -874,6 +855,16 @@ def main():
         # Rebuild the class→units mapping since reclassification above may
         # have moved devices out of their original class bucket.
         json_payload["device_mapping"] = build_device_mapping(devices)
+
+        # Redraw what the screen shows. The annotated images and the unit
+        # report were written before the port loop, with the detector's
+        # class burned into them — "3:Switch [u06]" on a box the map now
+        # calls a Router. The Results page serves 2_devices_only.png as the
+        # rack picture, so the picture has to be drawn from the final map.
+        cv2.imwrite(devices_only_path, annotate_devices_only(img, devices))
+        cv2.imwrite(combined_annotation_path, annotate_image(img, units, devices))
+        save_unit_device_report(report_path, build_unit_device_lines(units, devices))
+
         save_json(json_path, json_payload)
         print(f"Saved unit/device mapping JSON to: {json_path}")
         print("[detect_only] Detection and port analysis complete.")
