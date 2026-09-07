@@ -10,6 +10,7 @@
 const store = require('./store');
 const reconcile = require('./reconcile');
 const unmanaged = require('./unmanaged');
+const entered = require('./entered');
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -21,6 +22,8 @@ function build(scan) {
   // show here instead of "Unidentified". Safe to mutate: getScan hands back a
   // per-request copy of the payload.
   unmanaged.applyTo(base, scan.rackId);
+  // And the make/model a person typed on the Switches tab for a device at a U.
+  entered.applyTo(base, scan.rackId);
   const matches = p.matches || {};
 
   // The switch readings for this rack, indexed by the device each is matched to.

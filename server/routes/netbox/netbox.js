@@ -10,6 +10,7 @@ const express = require('express');
 const cfg = require('../../lib/netbox/config');
 const store = require('../../lib/netbox/store');
 const unmanaged = require('../../lib/netbox/unmanaged');
+const entered = require('../../lib/netbox/entered');
 const { NetBox } = require('../../lib/netbox/netbox');
 const { plan, push } = require('../../lib/netbox/writer');
 const { toCsv, toJson, toMarkdown } = require('../../lib/netbox/files');
@@ -65,6 +66,7 @@ function snapshotOf(req, res) {
   }
   // Apply hand-declared unmanaged switches so their brand and model export too.
   unmanaged.applyTo(snap, scan.rackId);
+  entered.applyTo(snap, scan.rackId);
   return { scan, snap, reconciled: Boolean(scan.payload.reconciled) };
 }
 

@@ -1437,6 +1437,11 @@ function matchOcrDevice(rackDir, position, className) {
 // model, firmware) from the Switch Information page, keyed by the same
 // "U04" position string OCR uses. Saved via POST /api/scan/:rackId/device-override.
 // A user override always wins over the OCR guess (see selectedDevice below).
+// The label cache is keyed by image; the KIND carries a version so a change to
+// how a label's text is read (v2: the unit segment's letter-for-digit repair)
+// re-reads photographs cached under the old reading instead of serving it.
+const LABELS_CACHE_KIND = 'labels_v2';
+
 function deviceOverridesPath(rackDir) {
   return path.join(rackDir, 'device_overrides.json');
 }
@@ -4337,7 +4342,7 @@ async function runOcrLabels(imagePath) {
   // image's own hash, so a photo uploaded again — or scanned as a second rack
   // — costs nothing the second time.
   const hash = ocrCache.hashFile(imagePath);
-  const hit = ocrCache.get('labels', hash);
+  const hit = ocrCache.get(LABELS_CACHE_KIND, hash);
   if (hit) return hit;
 
   let result;
@@ -4352,7 +4357,7 @@ async function runOcrLabels(imagePath) {
   // Only a real read is worth remembering; an empty one may be a bad moment
   // rather than a photograph with no labels in it.
   if (result && Array.isArray(result.labels) && result.labels.length) {
-    ocrCache.put('labels', hash, result);
+    ocrCache.put(LABELS_CACHE_KIND, hash, result);
   }
   return result;
 }

@@ -8,6 +8,7 @@
 const express = require('express');
 const store = require('../../lib/netbox/store');
 const unmanaged = require('../../lib/netbox/unmanaged');
+const entered = require('../../lib/netbox/entered');
 const connectorStore = require('../../lib/netbox/connectorStore');
 const registry = require('../../lib/netbox/connectors');
 
@@ -20,6 +21,7 @@ function snapshotOf(scanId) {
   const snap = (scan.payload && scan.payload.reconciled) || (scan.payload && scan.payload.snapshot);
   if (!snap) return { error: 'This scan has no detection result yet.', status: 409 };
   unmanaged.applyTo(snap, scan.rackId);
+  entered.applyTo(snap, scan.rackId);
   return { snap };
 }
 
