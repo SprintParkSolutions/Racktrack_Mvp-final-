@@ -340,9 +340,13 @@ export default function SwitchTestPage() {
       // the score never reached high — and the screen said "Not placed yet"
       // about a rack the server had already worked out. Every proposal is
       // taken now; it is shown as a suggestion, and one tap changes it.
+      // Once places have been saved they are the truth, including "not in
+      // this rack": falling back to the server's proposal for an empty stored
+      // place made a saved "none" spring back to the suggestion the moment
+      // Save finished, which read as Save not working.
       const start = {};
       for (const s of view.switches || []) {
-        start[s.id] = s.matchedTo || s.autoMatch?.deviceUid || '';
+        start[s.id] = view.suggested ? (s.autoMatch?.deviceUid || '') : (s.matchedTo || '');
       }
       setMatch(start);
 
@@ -363,8 +367,12 @@ export default function SwitchTestPage() {
   useEffect(() => { loadPlaces(); }, [loadPlaces]);
 
 
+  /** Save the places; returns true when the server took them. */
   const savePlaces = async () => {
-    if (!scanId) return;
+    if (!scanId) {
+      setMatchNote({ ok: false, text: 'This rack is not on the server yet. Open it from Scan once, then save.' });
+      return false;
+    }
     setSavingMatch(true); setMatchNote(null);
     try {
       const r = await authFetch(apiUrl(`/api/nb/scans/${scanId}/reconcile`), {
@@ -372,10 +380,21 @@ export default function SwitchTestPage() {
         body: JSON.stringify({ matches: Object.fromEntries(Object.entries(match).map(([k, v]) => [k, v || null])) }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setMatchNote({ ok: true, text: 'Saved. The report will show these switches in their places.' });
+      // Say exactly what was saved, switch by switch, so a wrong place is seen here.
+      const devName = (uid) => {
+        const d = (places?.devices || []).find((x) => x.uid === uid);
+        return d ? `U${String(d.u ?? d.position ?? '').padStart(2, '0')}` : null;
+      };
+      const said = (places?.switches || []).map((s) => {
+        const where = match[s.id] ? (devName(match[s.id]) || 'placed') : 'not in this rack';
+        return `${s.label || s.name || s.host || s.id} → ${where}`;
+      });
+      setMatchNote({ ok: true, text: said.length ? `Saved: ${said.join(' · ')}.` : 'Saved.' });
       loadPlaces();
+      return true;
     } catch (e) {
       setMatchNote({ ok: false, text: `Not saved: ${e.message}` });
+      return false;
     } finally {
       setSavingMatch(false);
     }
@@ -1114,7 +1133,8 @@ export default function SwitchTestPage() {
               <button
                 type="button"
                 className={styles.primary}
-                onClick={async () => { await savePlaces(); navigate(`/results/${encodeURIComponent(rackId)}/report`); }}
+                disabled={savingMatch}
+                onClick={async () => { if (await savePlaces()) navigate(`/results/${encodeURIComponent(rackId)}/report`); }}
               >
                 Go to report
               </button>
