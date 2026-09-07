@@ -40,12 +40,12 @@
 
 .avatar {
   flex: none;
-  width: 40px; height: 40px;
+  width: 42px; height: 42px;
   border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: #f1f3f5;
-  border: 1px solid rgba(12, 20, 32, .08);
-  color: #0c1420;
+  background: rgba(15, 123, 79, .10);
+  border: 1px solid rgba(15, 123, 79, .18);
+  color: #0f7b4f;
   font-size: 16px; font-weight: 700; letter-spacing: .04em;
   animation: rise 320ms cubic-bezier(.2,.8,.3,1) both;
 }
@@ -95,12 +95,16 @@
 }
 
 /* ── The destinations ── */
+/* The list takes the whole height between the account and the footer and
+   spreads its rows through it: no dead band at the bottom on a tall phone,
+   and no scrolling on a short one (the rows and hints give way first). */
 .scroll {
   flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   padding: 4px 10px 4px;
 }
-.group { display: flex; flex-direction: column; margin-bottom: 2px; }
+.group { display: flex; flex-direction: column; flex: 1 1 auto; justify-content: space-evenly; margin-bottom: 2px; }
 /* A group with no heading sits under a hairline instead. */
 .group:not(:has(.groupTitle)) { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(12, 20, 32, .08); }
 .groupTitle {
@@ -111,20 +115,33 @@
 
 .row {
   display: flex; align-items: center; gap: 12px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: clamp(6px, 1.1vh, 10px) 10px;
+  border-radius: 12px;
   color: #0c1420; text-decoration: none;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color .16s, transform .16s;
+  animation: rowIn 360ms cubic-bezier(.2,.8,.3,1) both;
+  animation-delay: calc(40ms + var(--i, 0) * 28ms);
 }
 :global([data-theme='dark']) .row { color: var(--text, #fff); }
-.row:active { background: rgba(12, 20, 32, .05); }
-
-.icon {
-  width: 22px; height: 22px; flex: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  color: #5c6878;
+.row:hover { background: rgba(12, 20, 32, .04); }
+.row:active { background: rgba(12, 20, 32, .06); transform: scale(.985); }
+@keyframes rowIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: none; }
 }
-.icon svg { width: 20px; height: 20px; }
+
+/* The icon sits in a soft tile, so every row has the same anchor on the left
+   and the current page can light its tile up. */
+.icon {
+  width: 36px; height: 36px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: #f1f3f5;
+  color: #3d4956;
+  transition: background-color .16s, color .16s;
+}
+.icon svg { width: 19px; height: 19px; }
 
 .text { display: flex; flex-direction: column; min-width: 0; }
 .label { font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
@@ -135,9 +152,10 @@
 
 /* Where you are: a filled row, not a tinted one — at a glance, from arm's
    length, in a bright room. */
-.rowActive { background: #121212; color: #ffffff; }
-.rowActive .icon { color: #ffffff; }
-.rowActive .hint { color: rgba(255, 255, 255, .62); }
+.rowActive { background: rgba(15, 123, 79, .08); color: #0c1420; }
+.rowActive .icon { background: #0f7b4f; color: #ffffff; }
+.rowActive .label { color: #0f7b4f; }
+.rowActive .hint { color: #5c6878; }
 
 /* ── Account and the way out ── */
 .foot {
@@ -148,36 +166,36 @@
 .footRow {
   display: flex; align-items: center; gap: 12px;
   width: 100%;
-  padding: 9px 10px;
-  border: 0; border-radius: 10px;
+  padding: 6px 10px;
+  border: 0; border-radius: 12px;
   background: transparent; color: #0c1420;
   font-size: 14.5px; font-weight: 600; text-align: left;
   text-decoration: none; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 :global([data-theme='dark']) .footRow { color: var(--text, #fff); }
-.footRow svg { color: #5c6878; flex: none; }
 .footRow:active { background: rgba(12, 20, 32, .05); }
 .signOut { color: #c0392b; }
-.signOut svg { color: #c0392b; }
+.signOut .icon { background: rgba(192, 57, 43, .10); color: #c0392b; }
 
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slide { from { transform: translateX(-100%); } to { transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .backdrop, .drawer { animation: none; }
+  .backdrop, .drawer, .row { animation: none; }
 }
 
 /* The whole drawer must fit a phone without scrolling. The one-line hints are
    the wordy part; below a tall-tablet height they go, and the rows tighten.
    On the shortest phones the group headings go too. */
-@media (max-height: 899px) {
+@media (max-height: 799px) {
   .hint { display: none; }
   .label { font-size: 14.5px; }
 }
 @media (max-height: 700px) {
   .groupTitle { display: none; }
-  .row { padding: 6px 10px; }
+  .row { padding: 4px 10px; }
+  .icon { width: 32px; height: 32px; }
   .head { padding: 12px 56px 10px 16px; }
   .footRow { padding: 7px 10px; }
 }

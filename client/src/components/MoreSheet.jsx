@@ -57,6 +57,9 @@ export default function MoreSheet({ links, onClose }) {
     .map((s) => ({ ...s, items: listed.filter((l) => sectionOf(l.to) === s.key) }))
     .filter((s) => s.items.length > 0);
 
+  // Rows arrive one after another as the drawer settles; this numbers them.
+  let order = 0;
+
   const signOut = () => {
     onClose();
     logout?.();
@@ -100,6 +103,7 @@ export default function MoreSheet({ links, onClose }) {
                   to={l.to}
                   end={l.end}
                   onClick={onClose}
+                  style={{ '--i': order++ }}
                   className={({ isActive }) => `${styles.row} ${isActive ? styles.rowActive : ''}`}
                 >
                   <span className={styles.icon} aria-hidden="true">{l.icon}</span>
@@ -115,17 +119,21 @@ export default function MoreSheet({ links, onClose }) {
 
         <footer className={styles.foot}>
           <NavLink to="/profile" onClick={onClose} className={styles.footRow}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-              strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" />
-            </svg>
+            <span className={styles.icon} aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" />
+              </svg>
+            </span>
             Profile
           </NavLink>
           <button type="button" className={`${styles.footRow} ${styles.signOut}`} onClick={signOut}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-              strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
-            </svg>
+            <span className={styles.icon} aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
+              </svg>
+            </span>
             Sign out
           </button>
         </footer>
