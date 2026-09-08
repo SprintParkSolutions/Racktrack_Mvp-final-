@@ -10,7 +10,7 @@
 #     python -m pytest pipeline/tests -q
 
 pytest>=8.0.0
-pytest-cov>=5.0.0      # test-coverage measurement
+pytest-cov>=7.1.0      # test-coverage measurement
 
 # Code-standards & security tooling for the Python pipeline (config in pyproject.toml):
 #   ruff      — PEP 8 formatting + linting (+ import order, security, docstrings)
