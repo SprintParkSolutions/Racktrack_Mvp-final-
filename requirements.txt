@@ -61,7 +61,7 @@ requests>=2.31.0
 urllib3>=2.0.0
 
 # --- Notification channels (Slack / Teams / Outlook) ---
-msal>=1.30.0
+msal>=1.38.0
 
 # --- Netdisco bridge ---
 psycopg2-binary>=2.9.9
