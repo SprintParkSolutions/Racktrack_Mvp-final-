@@ -206,7 +206,7 @@ jobs:
         run: docker build -t racktrack:ci .
 
       - name: Vulnerability scan (fail on CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: racktrack:ci
           severity: CRITICAL
@@ -214,7 +214,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Generate SBOM (CycloneDX)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: racktrack:ci
@@ -233,7 +233,7 @@ jobs:
       # should prompt a human decision, not a red build.
       - name: Licence scan (report)
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: racktrack:ci
