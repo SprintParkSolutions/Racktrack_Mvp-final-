@@ -84,7 +84,7 @@ python-dotenv==1.0.1
 # --- Firmware lookup (firmware_lookup/) + device OCR (switch_ocr/) ---
 # Added for /api/firmware and pipeline/ocr_devices.py. After a deploy that
 # installs these, run ONCE on this box:  py -m playwright install chromium firefox
-rapidocr==3.9.1
+rapidocr==3.9.2
 onnxruntime==1.23.2
 cryptography==48.0.0
 pymupdf==1.27.2.3

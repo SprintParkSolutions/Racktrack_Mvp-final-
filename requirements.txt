@@ -51,7 +51,7 @@ easyocr>=1.7.1
 # (EasyOCR read this rack's D-Link as "Calb"), which is worse than a scan that
 # fails and can be retried. rapidocr is the lighter of the two backends and is
 # what switch-ocr selects by default.
-rapidocr>=2.0.0
+rapidocr>=3.9.2
 onnxruntime>=1.17
 
 # --- Vendor matrix / firmware scraper ---
