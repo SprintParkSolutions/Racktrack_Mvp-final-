@@ -82,4 +82,4 @@ python-dotenv>=1.0.0
 # (chromium covers most vendors; firefox is required only for Lenovo.)
 cryptography>=41.0
 pymupdf>=1.23
-playwright>=1.40
+playwright>=1.62.0
